@@ -14,5 +14,5 @@ binding = "ASSETS"
 # zone_name = "dcc.app"
 
 [vars]
-NEXT_PUBLIC_API_URL = "http://144.225.147.11:8000"
-NEXT_PUBLIC_WS_URL  = "ws://144.225.147.11:8000/ws"
+NEXT_PUBLIC_API_URL = "https://vbtsoybxichbrqgmwimzzxsgabdco.servgrid.xyz"
+NEXT_PUBLIC_WS_URL  = "ws://vbtsoybxichbrqgmwimzzxsgabdco.servgrid.xyz/ws"

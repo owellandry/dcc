@@ -43,9 +43,7 @@ impl Config {
                 .or_else(|_| env::var("CORS_ORIGINS"))
                 .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".into())
                 .split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToOwned::to_owned)
+                .filter_map(normalize_origin)
                 .collect(),
             app_url: env::var("APP_URL").unwrap_or_else(|_| "http://localhost:3000".into()),
             api_url: env::var("API_URL").unwrap_or_else(|_| "http://localhost:8080".into()),
@@ -56,5 +54,29 @@ impl Config {
             github_client_secret: env::var("GITHUB_CLIENT_SECRET").unwrap_or_default(),
             github_redirect_uri: env::var("GITHUB_REDIRECT_URI").unwrap_or_default(),
         }
+    }
+}
+
+fn normalize_origin(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let without_trailing_slash = trimmed.trim_end_matches('/');
+    let Some((scheme, rest)) = without_trailing_slash.split_once("://") else {
+        return Some(without_trailing_slash.to_owned());
+    };
+
+    let authority = rest
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/');
+
+    if authority.is_empty() {
+        None
+    } else {
+        Some(format!("{scheme}://{authority}"))
     }
 }
