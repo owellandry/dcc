@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::servers::common::{
-    ensure_manageable_role_target, ensure_server_permission, load_role, load_server_roles,
-    role_payload, MANAGE_ROLES_PERMISSION,
+    ensure_manageable_role_target, ensure_server_permission, load_role, role_payload,
+    MANAGE_ROLES_PERMISSION,
 };
 
 #[derive(Deserialize)]
@@ -66,7 +66,7 @@ pub async fn create_role(
         r#"INSERT INTO roles (
                 id, server_id, name, color, permissions, position, is_hoisted, is_managed, is_mentionable, is_default
            )
-           VALUES ($1, $2, $3, $4, COALESCE($5, 0), $6, COALESCE($7, FALSE), FALSE, COALESCE($8, FALSE), FALSE)
+           VALUES ($1, $2, $3, $4, COALESCE($5::BIGINT, 0), $6, COALESCE($7, FALSE), FALSE, COALESCE($8, FALSE), FALSE)
            RETURNING id"#,
         Uuid::new_v4(),
         server_id,
@@ -115,7 +115,7 @@ pub async fn update_role(
         r#"UPDATE roles
            SET name = COALESCE($2, name),
                color = COALESCE($3, color),
-               permissions = COALESCE($4, permissions),
+               permissions = COALESCE($4::BIGINT, permissions),
                position = COALESCE($5, position),
                is_hoisted = COALESCE($6, is_hoisted),
                is_mentionable = COALESCE($7, is_mentionable)

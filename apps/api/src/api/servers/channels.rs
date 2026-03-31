@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::servers::common::{
-    ensure_server_permission, load_server_permissions_context, resolve_channel_permissions,
-    MANAGE_CHANNELS_PERMISSION, SEND_MESSAGES_PERMISSION,
+    ensure_server_permission, resolve_channel_permissions, MANAGE_CHANNELS_PERMISSION,
+    SEND_MESSAGES_PERMISSION,
 };
 
 #[derive(Deserialize)]

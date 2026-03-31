@@ -23,6 +23,9 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Keep runtime-relative files anchored to the API crate even when launched from the workspace root.
+    std::env::set_current_dir(env!("CARGO_MANIFEST_DIR"))?;
+
     // Load .env
     dotenvy::dotenv().ok();
 
