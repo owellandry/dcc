@@ -3,8 +3,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { authApi } from '@/lib/api'
-import { ApiRequestError } from '@/lib/api'
+import { ApiRequestError, authApi, serversApi, setAccessToken, usersApi } from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
+import { useServersStore } from '@/stores/serversStore'
 
 interface FieldError {
   username?: string
@@ -15,6 +16,8 @@ interface FieldError {
 export default function RegisterPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { setUser, setAccessToken: storeSetToken } = useAuthStore()
+  const upsertServer = useServersStore((s) => s.upsertServer)
   const [inviteCode, setInviteCode] = useState<string | null>(null)
 
   const [username, setUsername] = useState('')
@@ -38,15 +41,29 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const res = await authApi.register({ username, email, password })
-      const params = new URLSearchParams({ sent: '1', email })
-      if (res.data.verificationUrl) {
-        params.set('devVerificationUrl', res.data.verificationUrl)
+      await authApi.register({ username, email, password })
+
+      const loginRes = await authApi.login({ login: email, password })
+      const token = loginRes.data.accessToken
+
+      if (!token || loginRes.data.requiresTwoFactor) {
+        throw new Error('REGISTER_AUTO_LOGIN_FAILED')
       }
+
+      setAccessToken(token)
+      storeSetToken(token)
+
+      const userRes = await usersApi.me()
+      setUser(userRes.data)
+
       if (inviteCode) {
-        params.set('invite', inviteCode)
+        const joinRes = await serversApi.join(inviteCode)
+        upsertServer(joinRes.data)
+        router.replace(`/channels/${joinRes.data.id}`)
+        return
       }
-      router.push(`/verify-email?${params.toString()}`)
+
+      router.replace('/channels/@me')
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.details?.length) {
@@ -61,7 +78,7 @@ export default function RegisterPage() {
           setError(err.message)
         }
       } else {
-        setError('Something went wrong. Please try again.')
+        setError('Account created, but automatic sign-in failed. Please try signing in manually.')
       }
     } finally {
       setIsLoading(false)
