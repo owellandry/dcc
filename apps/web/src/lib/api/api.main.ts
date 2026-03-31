@@ -1,0 +1,410 @@
+import type { ApiError, ApiResponse, PaginatedResponse } from '../types'
+
+const API_URL = resolveRuntimeUrl(process.env.NEXT_PUBLIC_API_URL, 'http://localhost:8080')
+
+/** Converts a server-relative upload path (/uploads/...) to an absolute URL.
+ *  Pass-through for already-absolute URLs and null/undefined. */
+export function resolveMediaUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  if (url.startsWith('/')) return `${API_URL}${url}`
+  return rewriteMediaUrl(url)
+}
+
+function resolveRuntimeUrl(explicitUrl: string | undefined, fallbackUrl: string) {
+  const configuredUrl = explicitUrl ?? fallbackUrl
+
+  return rewriteLoopbackHost(configuredUrl, true)
+}
+
+function rewriteLoopbackHost(urlValue: string, trimTrailingSlash = false) {
+  let normalizedUrl = urlValue
+
+  if (typeof window === 'undefined') {
+    return trimTrailingSlash ? normalizedUrl.replace(/\/$/, '') : normalizedUrl
+  }
+
+  try {
+    const resolvedUrl = new URL(urlValue)
+    const browserHostname = window.location.hostname
+    const browserIsLocal = isLoopbackHost(browserHostname)
+    const browserIsPrivate = browserIsLocal || isPrivateIpv4Host(browserHostname)
+    const configuredIsLocal = isLoopbackHost(resolvedUrl.hostname)
+    const configuredIsPrivate = configuredIsLocal || isPrivateIpv4Host(resolvedUrl.hostname)
+
+    if (configuredIsPrivate && browserIsPrivate && resolvedUrl.hostname !== browserHostname) {
+      resolvedUrl.hostname = browserHostname
+      normalizedUrl = resolvedUrl.toString()
+    }
+  } catch {
+    normalizedUrl = urlValue
+  }
+
+  return trimTrailingSlash ? normalizedUrl.replace(/\/$/, '') : normalizedUrl
+}
+
+function isLoopbackHost(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
+function isPrivateIpv4Host(hostname: string) {
+  const ipv4Pattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  const match = hostname.match(ipv4Pattern)
+  if (!match) return false
+
+  const octets = match.slice(1).map((part) => Number(part))
+  if (octets.some((value) => Number.isNaN(value) || value < 0 || value > 255)) return false
+
+  const a = octets[0] ?? -1
+  const b = octets[1] ?? -1
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+}
+
+function rewriteMediaUrl(urlValue: string) {
+  const normalizedUrl = rewriteLoopbackHost(urlValue)
+
+  if (typeof window === 'undefined') return normalizedUrl
+
+  try {
+    const resolvedUrl = new URL(normalizedUrl)
+    const isUploadPath = resolvedUrl.pathname.startsWith('/uploads/')
+
+    if (window.location.protocol === 'https:' && isUploadPath) {
+      return `${window.location.origin}${resolvedUrl.pathname}${resolvedUrl.search}`
+    }
+
+    return normalizedUrl
+  } catch {
+    return normalizedUrl
+  }
+}
+
+// ── In-memory access token ───────────────────────────────────────────────────
+let _accessToken: string | null = null
+let _refreshing: Promise<string | null> | null = null
+
+export function setAccessToken(token: string | null) {
+  _accessToken = token
+}
+
+export function getAccessToken() {
+  return _accessToken
+}
+
+// ── Core fetch wrapper ───────────────────────────────────────────────────────
+class ApiClient {
+  private baseUrl: string
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    options: {
+      body?: unknown
+      params?: Record<string, string | number | boolean | undefined>
+      formData?: FormData
+      isRetry?: boolean
+      skipAuthRefresh?: boolean
+    } = {}
+  ): Promise<T> {
+    const { body, params, formData, isRetry = false, skipAuthRefresh = false } = options
+
+    // Build URL with query params
+    const url = new URL(`${this.baseUrl}/v1${path}`)
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) url.searchParams.set(key, String(value))
+      }
+    }
+
+    // Build headers
+    const headers: HeadersInit = {}
+    if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`
+    if (body && !formData) headers['Content-Type'] = 'application/json'
+
+    const requestInit: RequestInit = {
+      method,
+      headers,
+      credentials: 'include',
+    }
+    const payload = formData ?? (body ? JSON.stringify(body) : null)
+    if (payload !== null) {
+      requestInit.body = payload
+    }
+
+    let res: Response
+    try {
+      res = await fetch(url.toString(), requestInit)
+    } catch {
+      throw new ApiRequestError(
+        0,
+        'NETWORK_ERROR',
+        'No se pudo conectar con el servidor. Verifica que la API esté encendida.'
+      )
+    }
+
+    // Auto-refresh on 401
+    if (res.status === 401 && !isRetry && !skipAuthRefresh) {
+      const newToken = await this.refresh()
+      if (newToken) {
+        return this.request(method, path, { ...options, isRetry: true })
+      }
+      // Refresh failed — clear auth state
+      setAccessToken(null)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:logout'))
+      }
+      throw new AuthError('Session expired')
+    }
+
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') ?? ''
+      const defaultMessage = `Request failed (${res.status} ${res.statusText || 'Unknown'})`
+      let errBody: Partial<ApiError> = {}
+      let textMessage = ''
+
+      if (contentType.includes('application/json')) {
+        errBody = (await res.json().catch(() => ({}))) as Partial<ApiError>
+      } else {
+        textMessage = await res.text().catch(() => '')
+      }
+
+      throw new ApiRequestError(
+        res.status,
+        errBody.error?.code ?? `HTTP_${res.status}`,
+        (
+          errBody.error?.details?.[0]?.message
+          ?? errBody.error?.message
+          ?? textMessage.trim()
+        ) || defaultMessage,
+        errBody.error?.details
+      )
+    }
+
+    if (res.status === 204) return undefined as T
+    return res.json() as Promise<T>
+  }
+
+  private async refresh(): Promise<string | null> {
+    if (_refreshing) return _refreshing
+    _refreshing = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        if (res.status === 204 || !res.ok) return null
+        const data = (await res.json()) as ApiResponse<{ accessToken: string }>
+        _accessToken = data.data.accessToken
+        return _accessToken
+      } catch {
+        return null
+      } finally {
+        _refreshing = null
+      }
+    })()
+    return _refreshing
+  }
+
+  // ── HTTP methods ────────────────────────────────────────────────────────────
+
+  get<T>(path: string, params?: Record<string, string | number | boolean | undefined>) {
+    return params
+      ? this.request<ApiResponse<T>>('GET', path, { params })
+      : this.request<ApiResponse<T>>('GET', path)
+  }
+
+  post<T>(path: string, body?: unknown) {
+    return body === undefined
+      ? this.request<ApiResponse<T>>('POST', path)
+      : this.request<ApiResponse<T>>('POST', path, { body })
+  }
+
+  postWithOptions<T>(
+    path: string,
+    body: unknown | undefined,
+    options: {
+      skipAuthRefresh?: boolean
+    }
+  ) {
+    return body === undefined
+      ? this.request<ApiResponse<T>>('POST', path, options)
+      : this.request<ApiResponse<T>>('POST', path, { ...options, body })
+  }
+
+  patch<T>(path: string, body?: unknown) {
+    return body === undefined
+      ? this.request<ApiResponse<T>>('PATCH', path)
+      : this.request<ApiResponse<T>>('PATCH', path, { body })
+  }
+
+  put<T>(path: string, body?: unknown) {
+    return body === undefined
+      ? this.request<ApiResponse<T>>('PUT', path)
+      : this.request<ApiResponse<T>>('PUT', path, { body })
+  }
+
+  delete<T = void>(path: string) {
+    return this.request<ApiResponse<T>>('DELETE', path)
+  }
+
+  upload<T>(path: string, formData: FormData) {
+    return this.request<ApiResponse<T>>('POST', path, { formData })
+  }
+
+  getPaginated<T>(path: string, params?: Record<string, string | number | boolean | undefined>) {
+    return params
+      ? this.request<PaginatedResponse<T>>('GET', path, { params })
+      : this.request<PaginatedResponse<T>>('GET', path)
+  }
+}
+
+// ── Error classes ────────────────────────────────────────────────────────────
+
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: Array<{ field: string; message: string }>
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
+
+// ── Singleton ────────────────────────────────────────────────────────────────
+
+export const api = new ApiClient(API_URL)
+
+// ── Domain helpers ───────────────────────────────────────────────────────────
+
+export const authApi = {
+  register: (body: { username: string; email: string; password: string }) =>
+    api.post<{ message: string; verificationUrl?: string | null }>('/auth/register', body),
+  login: (body: { login: string; password: string; twoFactorCode?: string }) =>
+    api.post<{ accessToken?: string; requiresTwoFactor?: boolean }>('/auth/login', body),
+  logout: () => api.post('/auth/logout'),
+  refresh: () => api.postWithOptions<{ accessToken: string }>('/auth/refresh', undefined, { skipAuthRefresh: true }),
+  verifyEmail: (token: string) => api.post('/auth/verify-email', { token }),
+  resendVerification: () => api.post<{ message: string; verificationUrl?: string | null }>('/auth/resend-verification'),
+  oauthUrl: (provider: 'google' | 'github') =>
+    `${API_URL}/v1/auth/oauth/${provider}`,
+}
+
+export const usersApi = {
+  me: () => api.get<import('../types').User>('/users/@me'),
+  update: (body: Partial<Pick<import('../types').User, 'username' | 'email' | 'bio' | 'status' | 'customStatus'>> & {
+    voiceMicMuted?: boolean
+    voiceHeadphonesMuted?: boolean
+    currentPassword?: string
+    newPassword?: string
+  }) =>
+    api.patch<import('../types').User>('/users/@me', body),
+  prepareTwoFactor: (body: { currentPassword?: string }) =>
+    api.post<{
+      secret: string
+      otpauthUrl: string
+      qrCodeDataUrl: string
+      accountName: string
+      issuer: string
+    }>('/users/@me/two-factor/setup', body),
+  enableTwoFactor: (body: { secret: string; code: string; currentPassword?: string }) =>
+    api.post<{ backupCodes: string[] }>('/users/@me/two-factor/enable', body),
+  disableTwoFactor: (body: { code: string; currentPassword?: string }) =>
+    api.post<{ message: string }>('/users/@me/two-factor/disable', body),
+  uploadAvatar: (formData: FormData) => api.upload<{ avatarUrl: string }>('/uploads/avatar', formData),
+  uploadBanner: (formData: FormData) => api.upload<{ bannerUrl: string }>('/uploads/banner', formData),
+  getUser: (id: string) => api.get<import('../types').User>(`/users/${id}`),
+}
+
+export const serversApi = {
+  list: () => api.get<import('../types').Server[]>('/servers/@me'),
+  get: (id: string) => api.get<import('../types').Server>(`/servers/${id}`),
+  getDetails: (id: string) =>
+    api.get<{
+      server: import('../types').Server
+      channels: import('../types').Channel[]
+      categories: import('../types').Category[]
+    }>(`/servers/${id}`),
+  create: (body: { name: string; description?: string }) =>
+    api.post<import('../types').Server & {
+      channels: import('../types').Channel[]
+      categories: import('../types').Category[]
+    }>('/servers', body),
+  update: (id: string, body: Partial<Pick<import('../types').Server, 'name' | 'description' | 'isPublic' | 'iconUrl' | 'bannerUrl' | 'inviteCode'>>) =>
+    api.patch<import('../types').Server>(`/servers/${id}`, {
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      ...(body.description !== undefined ? { description: body.description } : {}),
+      ...(body.isPublic !== undefined ? { is_public: body.isPublic } : {}),
+      ...(body.iconUrl !== undefined ? { icon_url: body.iconUrl } : {}),
+      ...(body.bannerUrl !== undefined ? { banner_url: body.bannerUrl } : {}),
+      ...(body.inviteCode !== undefined ? { invite_code: body.inviteCode } : {}),
+    }),
+  uploadIcon: (serverId: string, formData: FormData) =>
+    api.upload<{ iconUrl: string }>(`/servers/${serverId}/icon`, formData),
+  uploadBanner: (serverId: string, formData: FormData) =>
+    api.upload<{ bannerUrl: string }>(`/servers/${serverId}/banner`, formData),
+  delete: (id: string) => api.delete(`/servers/${id}`),
+  getInvite: (code: string) => api.get<{ server: import('../types').Server }>(`/invites/${code}`),
+  join: (code: string) => api.post<import('../types').Server>(`/invites/${code}/join`),
+  createInvite: (serverId: string, body?: { expiresInSeconds?: number | null; maxUses?: number | null }) =>
+    api.post<{ code: string }>(`/servers/${serverId}/invites`, body),
+  getMembers: (serverId: string, params?: { limit?: number; after?: string }) =>
+    api.getPaginated<import('../types').ServerMember>(`/servers/${serverId}/members`, params),
+}
+
+export const channelsApi = {
+  getMessages: (channelId: string, params?: { before?: string; after?: string; limit?: number }) =>
+    api.getPaginated<import('../types').Message>(`/channels/${channelId}/messages`, params),
+  sendMessage: (channelId: string, body: { content?: string; replyToId?: string }) =>
+    api.post<import('../types').Message>(`/channels/${channelId}/messages`, body),
+  editMessage: (messageId: string, body: { content: string }) =>
+    api.patch<import('../types').Message>(`/messages/${messageId}`, body),
+  deleteMessage: (messageId: string) => api.delete(`/messages/${messageId}`),
+  addReaction: (messageId: string, emoji: string) =>
+    api.post(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
+  removeReaction: (messageId: string, emoji: string) =>
+    api.delete(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
+  create: (serverId: string, body: { name: string; type?: string; categoryId?: string }) =>
+    api.post<import('../types').Channel>(`/servers/${serverId}/channels`, body),
+  update: (channelId: string, body: Partial<import('../types').Channel>) =>
+    api.patch<import('../types').Channel>(`/channels/${channelId}`, body),
+  delete: (channelId: string) => api.delete(`/channels/${channelId}`),
+}
+
+export const dmsApi = {
+  list: () => api.get<import('../types').Channel[]>('/dms'),
+  open: (userId: string) => api.post<import('../types').Channel>(`/dms/${userId}`),
+  close: (channelId: string) => api.delete(`/dms/${channelId}`),
+}
+
+export const friendsApi = {
+  list: () => api.get<import('../types').Friendship[]>('/friends'),
+  send: (userId: string) => api.post(`/friends/${userId}`),
+  accept: (userId: string) => api.patch(`/friends/${userId}`, { action: 'accept' }),
+  decline: (userId: string) => api.patch(`/friends/${userId}`, { action: 'decline' }),
+  block: (userId: string) => api.patch(`/friends/${userId}`, { action: 'block' }),
+  remove: (userId: string) => api.delete(`/friends/${userId}`),
+}
+
+export const linksApi = {
+  preview: (url: string) =>
+    api.get<{
+      url: string
+      title: string | null
+      description: string | null
+      image: string | null
+      siteName: string | null
+      hostname: string | null
+    }>('/utils/link-preview', { url }),
+}
