@@ -1,223 +1,170 @@
-# DCC Backend Contract (basado en el frontend actual)
+# DCC — Discord Clone
 
-Este documento resume las interacciones que el backend debe soportar para que el frontend actual funcione correctamente.
+Clon funcional de Discord construido full-stack desde cero, sin servicios externos. Replica las funcionalidades principales de Discord: servidores, canales, mensajería en tiempo real, llamadas de voz, DMs, amigos y presencia de usuarios.
 
-## 1) Contexto técnico actual
+## Stack
 
-- Frontend: Next.js + React + Zustand.
-- Base URL HTTP esperada: `http://localhost:8080/v1` (configurable con `NEXT_PUBLIC_API_URL`).
-- URL WebSocket esperada: `ws://localhost:8080/ws` (configurable con `NEXT_PUBLIC_WS_URL`).
-- Autenticación:
-  - Access token en memoria (Bearer).
-  - Refresh token en cookie `httpOnly` (se envía con `credentials: 'include'`).
-  - Auto refresh en `401` desde el cliente.
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | Next.js · React · Zustand · Tailwind CSS |
+| Backend | Rust · Axum · SQLx |
+| Base de datos | PostgreSQL 16 |
+| Caché / Pub-Sub | Redis 7 |
+| Deploy frontend | Cloudflare Workers (Wrangler) |
 
-## 2) Contrato de respuesta estándar
+## Funcionalidades
 
-El frontend espera:
+### Autenticación
+- Registro con verificación por email
+- Login con email o username
+- Autenticación en dos pasos (TOTP) con códigos de respaldo
+- OAuth con Google y GitHub
+- JWT de corta duración (15 min) + refresh token en cookie `httpOnly` (30 días)
+- Auto-refresh transparente en el cliente ante errores 401
 
-- Respuesta normal:
-  - `ApiResponse<T>`:
-    - `data: T`
-    - `meta?: Record<string, unknown>`
-- Respuesta paginada:
-  - `PaginatedResponse<T>`:
-    - `data: T[]`
-    - `meta: { hasMore: boolean; nextCursor: string | null; prevCursor: string | null }`
-- Respuesta de error:
-  - `ApiError`:
-    - `error: { code: string; message: string; details?: { field: string; message: string }[] }`
+### Servidores y canales
+- Creación de servidores con categorías y canales por defecto
+- Canales de texto y de voz
+- Gestión de canales y categorías (crear, editar, eliminar)
+- Sistema de invitaciones con código y configuración de expiración/usos
+- Lista de miembros con badge de propietario
 
-## 3) Endpoints HTTP requeridos
+### Mensajería
+- Chat en tiempo real con scroll hacia atrás paginado
+- Respuestas a mensajes con conector visual estilo Discord
+- Edición y eliminación de mensajes
+- Reacciones con emojis
+- Indicador de typing
+- Previsualizaciones de enlaces (Open Graph)
+- Adjuntos y sistema de renderizado de attachments
 
-Todos bajo prefijo `/v1`.
+### Voz
+- Canales de voz con join/leave en tiempo real
+- Seguimiento de participantes en Redis
+- Señalización WebRTC relayada por el servidor
+- Snapshots del estado de voz al conectarse
 
-### 3.1 Auth
+### Mensajes directos y amigos
+- DMs entre usuarios (apertura, cierre)
+- Sistema de amigos: solicitudes, aceptar, rechazar, bloquear
 
-- `POST /auth/register`
-  - body: `{ username, email, password }`
-  - uso: registro
-- `POST /auth/login`
-  - body: `{ email, password }`
-  - response `data`: `{ accessToken }`
-- `POST /auth/logout`
-  - invalida sesión/refresh cookie
-- `POST /auth/refresh`
-  - usa cookie de refresh
-  - response `data`: `{ accessToken }`
-- `POST /auth/verify-email`
-  - body: `{ token }`
-- `POST /auth/resend-verification`
-- OAuth (flujo esperado por frontend):
-  - `GET /auth/oauth/google`
-  - `GET /auth/oauth/github`
+### Presencia
+- Estados: online, idle, dnd, offline
+- Sincronización en tiempo real vía WebSocket
+- Estado de voz y micrófono/auriculares silenciados
 
-### 3.2 Users
+### Perfil y configuración
+- Avatar y banner de usuario (uploads locales)
+- Bio, estado personalizado
+- Configuración de privacidad, notificaciones, apariencia
+- Customizador de tema visual
+- Badges de usuario
 
-- `GET /users/@me`
-  - devuelve `User`
-- `PATCH /users/@me`
-  - body parcial: `{ bio?, status?, customStatus? }`
-  - devuelve `User`
-- `POST /uploads/avatar`
-  - `multipart/form-data`
-  - devuelve `{ avatarUrl }`
-- `GET /users/:id`
-  - devuelve `User`
+### Gateway WebSocket
+Implementación del protocolo de Discord con opcodes:
 
-### 3.3 Servers (Guilds)
+| Opcode | Nombre | Descripción |
+|--------|--------|-------------|
+| 0 | IDENTIFY | Autenticación del cliente |
+| 1 | HEARTBEAT | Keep-alive |
+| 10 | HELLO | Bienvenida con intervalo de heartbeat |
+| 11 | READY | Estado inicial completo (usuario, servidores, DMs) |
+| — | DISPATCH | Eventos en tiempo real |
 
-- `GET /servers/@me`
-  - devuelve `Server[]`
-- `GET /servers/:id`
-  - devuelve `Server`
-- `POST /servers`
-  - body: `{ name, description? }`
-- `PATCH /servers/:id`
-  - body parcial de `Server`
-- `DELETE /servers/:id`
-- `GET /invites/:code`
-  - devuelve `{ server }`
-- `POST /invites/:code/join`
-  - devuelve `Server`
-- `POST /servers/:serverId/invites`
-  - devuelve `{ code }`
-- `GET /servers/:serverId/members?limit&after`
-  - paginado de `ServerMember`
+Eventos soportados: `MESSAGE_CREATE/UPDATE/DELETE`, `REACTION_ADD/REMOVE`, `TYPING_START`, `PRESENCE_UPDATE`, `GUILD_*`, `CHANNEL_*`, `FRIEND_REQUEST/UPDATE`, `VOICE_USER_JOINED/LEFT`, `VOICE_SIGNAL`, `VOICE_STATE_SNAPSHOT`.
 
-### 3.4 Channels, Messages, Reactions
+## Estructura del proyecto
 
-- `GET /channels/:channelId/messages?before&after&limit`
-  - paginado de `Message`
-- `POST /channels/:channelId/messages`
-  - body: `{ content?, replyToId? }`
-  - devuelve `Message`
-- `PATCH /messages/:messageId`
-  - body: `{ content }`
-  - devuelve `Message`
-- `DELETE /messages/:messageId`
-- `POST /messages/:messageId/reactions/:emoji`
-- `DELETE /messages/:messageId/reactions/:emoji`
-- `POST /servers/:serverId/channels`
-  - body: `{ name, type?, categoryId? }`
-- `PATCH /channels/:channelId`
-  - body parcial de `Channel`
-- `DELETE /channels/:channelId`
+```
+dcc/
+├── apps/
+│   ├── api/          # Backend Rust (Axum + SQLx)
+│   │   ├── src/
+│   │   │   ├── api/        # Handlers REST por dominio
+│   │   │   ├── gateway/    # WebSocket gateway
+│   │   │   ├── models/     # Tipos de base de datos
+│   │   │   ├── services/   # Auth, pub/sub
+│   │   │   └── middleware/ # JWT auth extractor
+│   │   └── migrations/     # Migraciones SQL
+│   └── web/          # Frontend Next.js
+│       └── src/
+│           ├── app/        # Rutas Next.js (App Router)
+│           ├── components/ # Componentes por dominio
+│           ├── hooks/      # WebSocket, mensajes, voz
+│           ├── stores/     # Estado global (Zustand)
+│           └── lib/        # API client, tipos, utilidades
+├── docker-compose.yml
+└── turbo.json
+```
 
-### 3.5 DMs
+## Puesta en marcha
 
-- `GET /dms`
-  - devuelve `Channel[]` (tipo `dm` o `group_dm`)
-- `POST /dms/:userId`
-  - abre/crea DM con usuario
-  - devuelve `Channel`
-- `DELETE /dms/:channelId`
-  - cierra DM
+### Requisitos
+- Rust (edición 2021+)
+- Node.js + pnpm
+- Docker (para PostgreSQL y Redis)
 
-### 3.6 Friends
+### 1. Levantar infraestructura
 
-- `GET /friends`
-  - devuelve `Friendship[]`
-- `POST /friends/:userId`
-  - envía solicitud
-- `PATCH /friends/:userId`
-  - body: `{ action: 'accept' | 'decline' | 'block' }`
-- `DELETE /friends/:userId`
-  - elimina amistad o solicitud
+```bash
+docker compose up -d
+```
 
-## 4) WebSocket / Gateway esperado
+### 2. Backend
 
-### 4.1 Conexión
+```bash
+cd apps/api
+cp .env.example .env   # configurar variables
+cargo run
+```
 
-- Cliente abre: `ws://localhost:8080/ws?token=<accessToken>`
-- Heartbeat:
-  - servidor envía `op: 10` con `heartbeatInterval`
-  - cliente responde periódicamente con `op: 1` y `seq`
-- Identify:
-  - tras `HELLO`, cliente envía `op: 0` con `{ token }`
+El servidor escucha en `http://localhost:8080`. Las migraciones se aplican automáticamente al arrancar.
 
-### 4.2 Eventos que el frontend ya consume
+Variables de entorno requeridas:
 
-- `op: 11` READY
-  - payload: `{ user, guilds, dmChannels }`
-- `MESSAGE_CREATE`
-- `MESSAGE_UPDATE`
-- `MESSAGE_DELETE`
-- `REACTION_ADD`
-- `REACTION_REMOVE`
-- `TYPING_START`
-- `PRESENCE_UPDATE`
-- `GUILD_CREATE`
-- `GUILD_UPDATE`
-- `GUILD_DELETE`
-- `GUILD_MEMBER_ADD`
-- `GUILD_MEMBER_REMOVE`
-- `CHANNEL_CREATE`
-- `CHANNEL_UPDATE`
-- `CHANNEL_DELETE`
-- `FRIEND_REQUEST`
-- `FRIEND_UPDATE`
+```env
+DATABASE_URL=postgres://dcc:dcc_secret@localhost:5432/dcc
+JWT_SECRET=tu_secreto_aqui
+REDIS_URL=redis://localhost:6379
+```
 
-## 5) Tipos mínimos que el backend debe respetar
+### 3. Frontend
 
-### User
+```bash
+pnpm install
+pnpm dev
+```
 
-`{ id, username, discriminator, email, avatarUrl, bannerUrl, bio, status, customStatus, isVerified, createdAt }`
+La app estará en `http://localhost:3000`.
 
-### Server
+Variables de entorno del frontend (`.env.local`):
 
-`{ id, name, description, iconUrl, bannerUrl, ownerId, inviteCode, isPublic, memberCount, createdAt }`
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
+```
 
-### ServerMember
+## API
 
-`{ serverId, userId, nickname, joinedAt, roles, user }`
+Todos los endpoints bajo `/v1`. Autenticación con `Authorization: Bearer <token>`.
 
-### Channel
+Formato de respuesta estándar:
 
-`{ id, serverId|null, categoryId|null, name|null, topic|null, type, position, isNsfw, slowmodeSeconds, lastMessageId, createdAt }`
+```json
+{ "data": { ... } }
+```
 
-### Message
+Respuesta paginada:
 
-`{ id, channelId, author, content, type, replyTo, attachments, reactions, isEdited, createdAt, editedAt }`
+```json
+{
+  "data": [...],
+  "meta": { "hasMore": true, "nextCursor": "...", "prevCursor": null }
+}
+```
 
-### Friendship
+Error:
 
-`{ id, requesterId, addresseeId, status, createdAt, user }`
-
-## 6) Flujos funcionales ya implementados en frontend (para validar backend)
-
-1. Login
-   - `POST /auth/login` -> guardar access token -> `GET /users/@me` -> entrar a `/channels/@me`.
-
-2. Boot de sesión en layout autenticado
-   - `POST /auth/refresh` automático al entrar.
-   - si falla: logout y redirect a `/login`.
-
-3. Chat
-   - `GET /channels/:id/messages` paginado inicial y scroll hacia atrás.
-   - `POST /channels/:id/messages` para enviar mensaje.
-   - `PATCH /messages/:id` y `DELETE /messages/:id`.
-   - reacciones add/remove por endpoint específico.
-
-4. Realtime
-   - Sincronización de mensajes, presencia, typing, canales, miembros y servidores por WS.
-
-5. Ruta especial DM Home
-   - `/channels/@me` se resuelve como `serverId === '@me'` en ruta dinámica.
-   - backend no necesita ruta especial para esto, pero sí datos de DM/friends para llenar esa vista.
-
-## 7) Pendientes funcionales del frontend (impacta priorización backend)
-
-- Vista de Friends todavía es mostly UI placeholder (requiere conectar `friendsApi` en pantalla).
-- DMSidebar todavía usa lista mock vacía de DMs (requiere integrar `dmsApi.list/open`).
-- Verificación por token en pantalla `verify-email` aún no ejecuta llamada de confirmación.
-
-## 8) Prioridad recomendada para arrancar backend
-
-1. Auth completo (`register`, `login`, `refresh`, `logout`, `me`).
-2. Servers + Channels + Members básicos.
-3. Messages + pagination + reactions.
-4. WebSocket gateway con READY, MESSAGE_*, PRESENCE_UPDATE, TYPING_START.
-5. Friends + DMs.
-
-Con este orden ya se puede operar el frontend principal de chat end-to-end sin mocks.
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "..." } }
+```
