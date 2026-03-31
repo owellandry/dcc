@@ -39,7 +39,7 @@ function resolveRuntimeWsUrl(explicitUrl: string | undefined) {
   }
 }
 
-export function useWebSocket() {
+export function useWebSocket(enabled = true) {
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -273,6 +273,13 @@ export function useWebSocket() {
   }, [cleanup])
 
   useEffect(() => {
+    if (!enabled) {
+      disconnect()
+      return () => {
+        cleanup()
+      }
+    }
+
     if (isMockSession()) {
       disconnect()
       return () => {
@@ -294,7 +301,7 @@ export function useWebSocket() {
     return () => {
       cleanup()
     }
-  }, [isAuthenticated, isLoading, connect, disconnect, cleanup])
+  }, [enabled, isAuthenticated, isLoading, connect, disconnect, cleanup])
 
   return { send, disconnect }
 }

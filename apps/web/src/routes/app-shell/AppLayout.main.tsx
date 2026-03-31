@@ -60,8 +60,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth:logout', handler)
   }, [])
 
-  // WS only in real mode
-  useWebSocket()
+  // Wait for auth bootstrap to finish before opening the gateway connection.
+  useWebSocket(ready && isAuthenticated && !isLoading)
 
   if (!ready || isLoading) {
     return (

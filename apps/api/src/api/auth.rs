@@ -599,7 +599,7 @@ fn build_refresh_cookie(state: &AppState, refresh_token: String) -> Cookie<'stat
     Cookie::build(("refresh_token", refresh_token))
         .http_only(true)
         .secure(should_use_secure_cookie(state))
-        .same_site(axum_extra::extract::cookie::SameSite::Strict)
+        .same_site(refresh_cookie_same_site(state))
         .max_age(TimeDuration::days(state.config.refresh_token_expiry_days))
         .path("/")
         .build()
@@ -609,7 +609,7 @@ fn build_removed_refresh_cookie(state: &AppState) -> Cookie<'static> {
     Cookie::build(("refresh_token", ""))
         .http_only(true)
         .secure(should_use_secure_cookie(state))
-        .same_site(axum_extra::extract::cookie::SameSite::Strict)
+        .same_site(refresh_cookie_same_site(state))
         .path("/")
         .max_age(TimeDuration::seconds(0))
         .build()
@@ -617,6 +617,18 @@ fn build_removed_refresh_cookie(state: &AppState) -> Cookie<'static> {
 
 fn should_use_secure_cookie(state: &AppState) -> bool {
     state.config.app_url.starts_with("https://") || state.config.api_url.starts_with("https://")
+}
+
+fn refresh_cookie_same_site(state: &AppState) -> axum_extra::extract::cookie::SameSite {
+    let app_host = extract_host(&state.config.app_url);
+    let api_host = extract_host(&state.config.api_url);
+
+    match (app_host, api_host) {
+        (Some(app_host), Some(api_host)) if app_host.eq_ignore_ascii_case(api_host) => {
+            axum_extra::extract::cookie::SameSite::Strict
+        }
+        _ => axum_extra::extract::cookie::SameSite::None,
+    }
 }
 
 fn sanitize_username(name: &str) -> String {
@@ -641,7 +653,30 @@ fn build_verification_url(state: &AppState, token: &str) -> String {
 }
 
 fn expose_verification_url(state: &AppState) -> bool {
-    state.config.app_url.contains("localhost") || state.config.app_url.contains("127.0.0.1")
+    state.config.app_urls.iter().any(|url| {
+        url.contains("localhost")
+            || url.contains("127.0.0.1")
+            || url.contains("192.168.")
+            || url.contains("10.")
+            || url.contains("172.16.")
+    })
+}
+
+fn extract_host(url: &str) -> Option<&str> {
+    let (_, rest) = url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?.trim();
+    let host = authority
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(':')
+        .next()?
+        .trim();
+
+    if host.is_empty() {
+        None
+    } else {
+        Some(host)
+    }
 }
 
 fn log_verification_link(subject: &str, token: &str, verification_url: &str) {

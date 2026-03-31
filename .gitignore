@@ -16,3 +16,4 @@ yarn.lock
 package-lock.json
 .sqlx
 cargo.lock
+target-wsl
