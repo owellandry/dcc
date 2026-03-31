@@ -150,7 +150,7 @@ function InfoChip({
   label: string
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--b1)] bg-white/[0.03] px-3 py-2 text-[13px] font-600 text-[var(--t2)]">
+    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--surface-soft)] px-3 py-2 text-[13px] font-600 text-[var(--t2)]">
       {icon ? <span className="text-[var(--t3)]">{icon}</span> : null}
       {label}
     </span>

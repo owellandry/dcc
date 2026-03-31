@@ -44,19 +44,21 @@ pub async fn list_dms(
 
         let parts: Vec<Value> = participants
             .iter()
-            .map(|u| json!({
-                "id": u.id,
-                "username": u.username,
-                "discriminator": u.discriminator,
-                "avatarUrl": u.avatar_url,
-                "bannerUrl": u.banner_url,
-                "bio": u.bio,
-                "status": u.status,
-                "customStatus": u.custom_status,
-                "isVerified": u.is_verified,
-                "badges": u.badges,
-                "createdAt": u.created_at,
-            }))
+            .map(|u| {
+                json!({
+                    "id": u.id,
+                    "username": u.username,
+                    "discriminator": u.discriminator,
+                    "avatarUrl": u.avatar_url,
+                    "bannerUrl": u.banner_url,
+                    "bio": u.bio,
+                    "status": u.status,
+                    "customStatus": u.custom_status,
+                    "isVerified": u.is_verified,
+                    "badges": u.badges,
+                    "createdAt": u.created_at,
+                })
+            })
             .collect();
 
         dms.push(json!({
@@ -65,6 +67,7 @@ pub async fn list_dms(
             "categoryId": null,
             "name": r.name,
             "topic": null,
+            "iconKey": null,
             "type": r.channel_type,
             "position": 0,
             "isNsfw": false,
@@ -166,6 +169,7 @@ pub async fn open_dm(
             "categoryId": null,
             "name": ch.name,
             "topic": null,
+            "iconKey": null,
             "type": ch.channel_type,
             "position": 0,
             "isNsfw": false,

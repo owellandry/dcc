@@ -103,14 +103,14 @@ export default function LoginPage() {
           <div className="mb-6 flex gap-3">
             <a
               href="/api/auth/oauth/google"
-              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-white/[0.03] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-white/[0.06] hover:text-[var(--t0)]"
+              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t0)]"
             >
               <GoogleIcon />
               Google
             </a>
             <a
               href="/api/auth/oauth/github"
-              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-white/[0.03] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-white/[0.06] hover:text-[var(--t0)]"
+              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t0)]"
             >
               <GithubIcon />
               GitHub
@@ -216,7 +216,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="relative mt-1 flex h-11 items-center justify-center overflow-hidden rounded-lg text-sm font-600 text-white transition-all hover:shadow-glow-ember active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              className="relative mt-1 flex h-11 items-center justify-center overflow-hidden rounded-lg text-sm font-600 text-[var(--ember-contrast)] transition-all hover:shadow-glow-ember active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               style={{ background: 'linear-gradient(135deg, var(--ember), var(--ember-hover))' }}
             >
               {isLoading ? (

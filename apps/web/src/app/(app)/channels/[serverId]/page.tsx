@@ -19,6 +19,7 @@ export default function ServerEntryPage() {
   const isDMHome = serverId === '@me'
   const channels = useServerChannels(serverId)
   const setChannels = useServersStore((s) => s.setChannels)
+  const setRoles = useServersStore((s) => s.setRoles)
   const upsertServer = useServersStore((s) => s.upsertServer)
   const [isHydratingServer, setIsHydratingServer] = useState(false)
   const firstChannelId = [...channels]
@@ -40,6 +41,7 @@ export default function ServerEntryPage() {
         if (cancelled) return
         upsertServer(res.data.server)
         setChannels(serverId, res.data.channels, res.data.categories)
+        setRoles(serverId, res.data.roles)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -49,7 +51,7 @@ export default function ServerEntryPage() {
     return () => {
       cancelled = true
     }
-  }, [channels.length, isDMHome, serverId, setChannels, upsertServer])
+  }, [channels.length, isDMHome, serverId, setChannels, setRoles, upsertServer])
 
   useEffect(() => {
     if (!serverId) return

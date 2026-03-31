@@ -32,12 +32,17 @@ pub async fn get_link_preview(
         return Err(AppError::BadRequest("URL demasiado larga".into()));
     }
 
-    let parsed_url = reqwest::Url::parse(raw_url).map_err(|_| AppError::BadRequest("URL inválida".into()))?;
+    let parsed_url =
+        reqwest::Url::parse(raw_url).map_err(|_| AppError::BadRequest("URL inválida".into()))?;
     if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
-        return Err(AppError::BadRequest("Solo se permiten URLs http/https".into()));
+        return Err(AppError::BadRequest(
+            "Solo se permiten URLs http/https".into(),
+        ));
     }
     if parsed_url.host_str().is_none() {
-        return Err(AppError::BadRequest("La URL debe incluir un dominio válido".into()));
+        return Err(AppError::BadRequest(
+            "La URL debe incluir un dominio válido".into(),
+        ));
     }
 
     let client = reqwest::Client::builder()
@@ -69,7 +74,9 @@ pub async fn get_link_preview(
         .to_lowercase();
 
     if !content_type.contains("text/html") {
-        return Err(AppError::BadRequest("La URL no contiene HTML para previsualizar".into()));
+        return Err(AppError::BadRequest(
+            "La URL no contiene HTML para previsualizar".into(),
+        ));
     }
 
     let html = response

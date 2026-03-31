@@ -105,7 +105,7 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
   if (isGif && !isActive && stillSrc === null) {
     return (
       <span
-        className={cn('block h-full w-full bg-white/[0.03] transition-[filter] duration-300', status === 'offline' && 'grayscale')}
+        className={cn('block h-full w-full bg-[var(--surface-soft)] transition-[filter] duration-300', status === 'offline' && 'grayscale')}
       />
     )
   }

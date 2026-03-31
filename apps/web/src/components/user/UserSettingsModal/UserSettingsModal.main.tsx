@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { ApiRequestError, usersApi } from '@/lib/api'
-import { normalizeHexColor, type AppearanceDensity, type AppearanceTheme } from '@/lib/theme/appearance.shared'
+import {
+  normalizeHexColor,
+  type AppearanceCustomColorScheme,
+  type AppearanceDensity,
+  type AppearanceTheme,
+} from '@/lib/theme/appearance.shared'
 import { clearMockSession, isMockSession } from '@/lib/mock-init'
 import { useAuthStore } from '@/stores/authStore'
 import { useAppearanceStore } from '@/stores/appearanceStore'
@@ -35,6 +40,7 @@ interface AppearanceDraft {
   customPrimary: string
   customSecondary: string
   customIntensity: number
+  customColorScheme: AppearanceCustomColorScheme
   compactMode: boolean
   uiDensity: AppearanceDensity
 }
@@ -48,12 +54,14 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
   const storedCustomPrimary = useAppearanceStore((s) => s.customPrimary)
   const storedCustomSecondary = useAppearanceStore((s) => s.customSecondary)
   const storedCustomIntensity = useAppearanceStore((s) => s.customIntensity)
+  const storedCustomColorScheme = useAppearanceStore((s) => s.customColorScheme)
   const storedCompactMode = useAppearanceStore((s) => s.compactMode)
   const storedUiDensity = useAppearanceStore((s) => s.uiDensity)
   const setStoredTheme = useAppearanceStore((s) => s.setTheme)
   const setStoredCustomPrimary = useAppearanceStore((s) => s.setCustomPrimary)
   const setStoredCustomSecondary = useAppearanceStore((s) => s.setCustomSecondary)
   const setStoredCustomIntensity = useAppearanceStore((s) => s.setCustomIntensity)
+  const setStoredCustomColorScheme = useAppearanceStore((s) => s.setCustomColorScheme)
   const setStoredCompactMode = useAppearanceStore((s) => s.setCompactMode)
   const setStoredUiDensity = useAppearanceStore((s) => s.setUiDensity)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -88,6 +96,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     customPrimary: '#5865f2',
     customSecondary: '#ff6835',
     customIntensity: 74,
+    customColorScheme: 'oscuro',
     compactMode: false,
     uiDensity: 'comoda',
   })
@@ -176,10 +185,11 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       customPrimary: storedCustomPrimary,
       customSecondary: storedCustomSecondary,
       customIntensity: storedCustomIntensity,
+      customColorScheme: storedCustomColorScheme,
       compactMode: storedCompactMode,
       uiDensity: storedUiDensity,
     })
-  }, [initialView, open, storedCompactMode, storedCustomIntensity, storedCustomPrimary, storedCustomSecondary, storedTheme, storedUiDensity, user])
+  }, [initialView, open, storedCompactMode, storedCustomColorScheme, storedCustomIntensity, storedCustomPrimary, storedCustomSecondary, storedTheme, storedUiDensity, user])
 
   useEffect(() => {
     if (!open) return
@@ -311,6 +321,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
         || normalizedPrimary !== normalizeHexColor(storedCustomPrimary)
         || normalizedSecondary !== normalizeHexColor(storedCustomSecondary)
         || appearanceDraft.customIntensity !== storedCustomIntensity
+        || appearanceDraft.customColorScheme !== storedCustomColorScheme
         || appearanceDraft.compactMode !== storedCompactMode
         || appearanceDraft.uiDensity !== storedUiDensity
 
@@ -329,6 +340,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
         setStoredCustomPrimary(normalizedPrimary)
         setStoredCustomSecondary(normalizedSecondary)
         setStoredCustomIntensity(appearanceDraft.customIntensity)
+        setStoredCustomColorScheme(appearanceDraft.customColorScheme)
         setStoredCompactMode(appearanceDraft.compactMode)
         setStoredUiDensity(appearanceDraft.uiDensity)
         setAppearanceDraft((current) => ({
@@ -564,9 +576,11 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       customPrimary={appearanceDraft.customPrimary}
       customSecondary={appearanceDraft.customSecondary}
       customIntensity={appearanceDraft.customIntensity}
+      customColorScheme={appearanceDraft.customColorScheme}
       compactMode={appearanceDraft.compactMode}
       uiDensity={appearanceDraft.uiDensity}
       onThemeChange={(value) => setAppearanceDraft((current) => ({ ...current, theme: value }))}
+      onCustomColorSchemeChange={(value) => setAppearanceDraft((current) => ({ ...current, customColorScheme: value }))}
       onCompactModeChange={(value) => setAppearanceDraft((current) => ({ ...current, compactMode: value }))}
       onUiDensityChange={(value) => setAppearanceDraft((current) => ({ ...current, uiDensity: value }))}
       onOpenThemeWorkspace={() => {

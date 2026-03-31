@@ -160,3 +160,13 @@ export function useServerMembers(serverId: string | null) {
     )
   )
 }
+
+export function useServerRoles(serverId: string | null) {
+  return useServersStore(
+    useShallow((s) =>
+      serverId
+        ? Object.values(s.roles).filter((role) => role.serverId === serverId)
+        : []
+    )
+  )
+}

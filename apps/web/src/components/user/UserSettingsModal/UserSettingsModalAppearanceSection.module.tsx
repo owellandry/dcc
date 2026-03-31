@@ -14,6 +14,7 @@ import {
   buildAppearancePalette,
   normalizeHexColor,
   resolveAppearanceTheme,
+  type AppearanceCustomColorScheme,
   type AppearanceDensity,
   type AppearanceTheme,
 } from '@/lib/theme/appearance.shared'
@@ -55,9 +56,11 @@ interface Props {
   customPrimary: string
   customSecondary: string
   customIntensity: number
+  customColorScheme: AppearanceCustomColorScheme
   compactMode: boolean
   uiDensity: AppearanceDensity
   onThemeChange: (value: AppearanceTheme) => void
+  onCustomColorSchemeChange: (value: AppearanceCustomColorScheme) => void
   onCompactModeChange: (value: boolean) => void
   onUiDensityChange: (value: AppearanceDensity) => void
   onOpenThemeWorkspace: () => void
@@ -68,9 +71,11 @@ export function UserSettingsModalAppearanceSection({
   customPrimary,
   customSecondary,
   customIntensity,
+  customColorScheme,
   compactMode,
   uiDensity,
   onThemeChange,
+  onCustomColorSchemeChange,
   onCompactModeChange,
   onUiDensityChange,
   onOpenThemeWorkspace,
@@ -97,8 +102,9 @@ export function UserSettingsModalAppearanceSection({
         customPrimary: primaryColor,
         customSecondary: secondaryColor,
         customIntensity,
+        customColorScheme,
       }),
-    [customIntensity, primaryColor, resolvedTheme, secondaryColor]
+    [customColorScheme, customIntensity, primaryColor, resolvedTheme, secondaryColor]
   )
 
   const previewStyle = useMemo(
@@ -137,7 +143,7 @@ export function UserSettingsModalAppearanceSection({
               {theme === 'sistema'
                 ? `Ahora mismo el sistema esta en modo ${prefersDark ? 'oscuro' : 'claro'}.`
                 : theme === 'personalizado'
-                  ? 'Tu tema personalizado ya usa tus colores guardados.'
+                  ? `Tu tema personalizado usa una base ${customColorScheme === 'claro' ? 'clara' : 'oscura'} con tus colores guardados.`
                   : `La interfaz esta preparada en modo ${theme}.`}
             </p>
           </div>
@@ -183,7 +189,7 @@ export function UserSettingsModalAppearanceSection({
             <button
               type="button"
               onClick={onOpenThemeWorkspace}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--ember)] px-4 py-3 text-sm font-700 text-white transition-opacity hover:opacity-90"
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--ember)] px-4 py-3 text-sm font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
             >
               <MdAutoAwesome size={16} />
               Abrir editor personalizado
@@ -238,13 +244,40 @@ export function UserSettingsModalAppearanceSection({
 
         <div className="mt-4 space-y-3">
           <div className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+            <p className="text-sm font-700 text-[var(--t0)]">Base del tema personalizado</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--t3)]">
+              Cuando uses colores claros, cambia la base a clara para que textos e iconos se vuelvan oscuros. Si tus colores son profundos, usa base oscura.
+            </p>
+            <div className="mt-3 inline-flex rounded-lg bg-[var(--s0)] p-1">
+              <button
+                type="button"
+                onClick={() => onCustomColorSchemeChange('claro')}
+                className={`rounded-md px-3 py-1.5 text-xs font-700 transition-colors ${
+                  customColorScheme === 'claro' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                }`}
+              >
+                Base clara
+              </button>
+              <button
+                type="button"
+                onClick={() => onCustomColorSchemeChange('oscuro')}
+                className={`rounded-md px-3 py-1.5 text-xs font-700 transition-colors ${
+                  customColorScheme === 'oscuro' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                }`}
+              >
+                Base oscura
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
             <p className="text-sm font-700 text-[var(--t0)]">Densidad de interfaz</p>
             <div className="mt-3 inline-flex rounded-lg bg-[var(--s0)] p-1">
               <button
                 type="button"
                 onClick={() => onUiDensityChange('comoda')}
                 className={`rounded-md px-3 py-1.5 text-xs font-700 transition-colors ${
-                  uiDensity === 'comoda' ? 'bg-[var(--ember)] text-white' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                  uiDensity === 'comoda' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
                 }`}
               >
                 Comoda
@@ -253,7 +286,7 @@ export function UserSettingsModalAppearanceSection({
                 type="button"
                 onClick={() => onUiDensityChange('compacta')}
                 className={`rounded-md px-3 py-1.5 text-xs font-700 transition-colors ${
-                  uiDensity === 'compacta' ? 'bg-[var(--ember)] text-white' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                  uiDensity === 'compacta' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
                 }`}
               >
                 Compacta

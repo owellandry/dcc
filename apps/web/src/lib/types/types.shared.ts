@@ -68,7 +68,9 @@ export interface Role {
   permissions: number
   isMentionable: boolean
   isHoisted: boolean
+  isManaged?: boolean
   isDefault: boolean
+  createdAt?: string
 }
 
 export interface ServerMember {
@@ -82,13 +84,14 @@ export interface ServerMember {
 
 // ── Channels ────────────────────────────────────────────────────────────────
 
-export type ChannelType = 'text' | 'voice' | 'dm' | 'group_dm'
+export type ChannelType = 'text' | 'voice' | 'announcement' | 'dm' | 'group_dm'
 
 export interface Category {
   id: string
   serverId: string
   name: string
   position: number
+  overwrites?: PermissionOverwrite[]
 }
 
 export interface Channel {
@@ -97,6 +100,7 @@ export interface Channel {
   categoryId: string | null
   name: string | null
   topic: string | null
+  iconKey?: string | null
   type: ChannelType
   position: number
   isNsfw: boolean
@@ -105,6 +109,29 @@ export interface Channel {
   createdAt: string
   participants?: User[]
   canSendMessages?: boolean
+  overwrites?: PermissionOverwrite[]
+}
+
+export type PermissionOverwriteTargetType = 'role' | 'member'
+
+export interface PermissionOverwrite {
+  id: string
+  serverId: string
+  categoryId: string | null
+  channelId: string | null
+  targetType: PermissionOverwriteTargetType
+  targetId: string
+  allowBits: number
+  denyBits: number
+  createdAt?: string
+}
+
+export interface ServerBan {
+  serverId: string
+  userId: string
+  bannedBy: string
+  reason: string | null
+  createdAt: string
 }
 
 export interface VoiceParticipant {

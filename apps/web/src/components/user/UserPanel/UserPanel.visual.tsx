@@ -170,11 +170,11 @@ function AudioSplitButton({
           type="button"
           aria-pressed={active}
           onClick={onToggle}
-          className={`flex h-9 w-9 items-center justify-center transition-colors ${
-            active
-              ? 'text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
-              : 'text-[var(--t3)] hover:bg-white/[0.08] hover:text-[var(--t1)]'
-          }`}
+            className={`flex h-9 w-9 items-center justify-center transition-colors ${
+              active
+                ? 'text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
+                : 'text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
+            }`}
           {...interactiveMotion}
         >
           {active ? activeIcon : defaultIcon}
@@ -184,11 +184,11 @@ function AudioSplitButton({
           type="button"
           aria-label="Open audio options"
           onClick={onOpenOptions}
-          className={`flex h-9 w-5 items-center justify-center border-l transition-colors ${
-            active
-              ? 'border-[var(--b2)] text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
-              : 'border-[var(--b1)] text-[var(--t3)] hover:bg-white/[0.08] hover:text-[var(--t1)]'
-          }`}
+            className={`flex h-9 w-5 items-center justify-center border-l transition-colors ${
+              active
+                ? 'border-[var(--b2)] text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
+                : 'border-[var(--b1)] text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
+            }`}
           {...interactiveMotion}
         >
           <ChevronDown size={12} />
@@ -209,7 +209,7 @@ function PanelButton({ icon, title, active = false, onClick }: PanelButtonProps)
       className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
         active
           ? 'bg-[var(--ember-dim)] text-[var(--ember)]'
-          : 'bg-[var(--s2)] text-[var(--t3)] hover:bg-white/[0.08] hover:text-[var(--t1)]'
+          : 'bg-[var(--s2)] text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
       }`}
       {...interactiveMotion}
     >

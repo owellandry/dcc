@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use axum::{
     extract::{
@@ -19,8 +19,8 @@ use uuid::Uuid;
 use crate::{
     gateway::events::{GatewayMessage, OP_HEARTBEAT, OP_IDENTIFY, OP_VOICE_SIGNAL, OP_VOICE_STATE},
     models::{channel::Channel, server::Server, user::User},
-    services::pubsub::{guild_channel, publish, user_channel},
     services::auth::verify_access_token,
+    services::pubsub::{guild_channel, publish, user_channel},
     state::AppState,
 };
 
@@ -74,12 +74,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
 
     // Wait for IDENTIFY (30s timeout)
     let user_id = loop {
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            receiver.next(),
-        )
-        .await
-        {
+        match tokio::time::timeout(std::time::Duration::from_secs(30), receiver.next()).await {
             Ok(Some(Ok(msg))) => {
                 if let Some(uid) = try_identify(&msg, &state, &token) {
                     break uid;
@@ -186,7 +181,11 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
     let _ = leave_active_voice_channel(&state, user_id).await;
 }
 
-async fn handle_voice_state_update(state: &AppState, user_id: Uuid, payload: &Value) -> anyhow::Result<()> {
+async fn handle_voice_state_update(
+    state: &AppState,
+    user_id: Uuid,
+    payload: &Value,
+) -> anyhow::Result<()> {
     let payload: VoiceStatePayload = serde_json::from_value(payload.clone())?;
 
     match payload.action.as_str() {
@@ -206,22 +205,31 @@ async fn handle_voice_state_update(state: &AppState, user_id: Uuid, payload: &Va
     Ok(())
 }
 
-async fn handle_voice_signal(state: &AppState, user_id: Uuid, payload: &Value) -> anyhow::Result<()> {
+async fn handle_voice_signal(
+    state: &AppState,
+    user_id: Uuid,
+    payload: &Value,
+) -> anyhow::Result<()> {
     let payload: VoiceSignalPayload = serde_json::from_value(payload.clone())?;
 
     let Some(source_session) = get_active_voice_session(state, user_id).await? else {
         return Ok(());
     };
 
-    if source_session.server_id != payload.server_id || source_session.channel_id != payload.channel_id {
+    if source_session.server_id != payload.server_id
+        || source_session.channel_id != payload.channel_id
+    {
         return Ok(());
     }
 
-    let Some(target_session) = get_active_voice_session(state, payload.target_user_id).await? else {
+    let Some(target_session) = get_active_voice_session(state, payload.target_user_id).await?
+    else {
         return Ok(());
     };
 
-    if target_session.server_id != source_session.server_id || target_session.channel_id != source_session.channel_id {
+    if target_session.server_id != source_session.server_id
+        || target_session.channel_id != source_session.channel_id
+    {
         return Ok(());
     }
 
@@ -236,11 +244,20 @@ async fn handle_voice_signal(state: &AppState, user_id: Uuid, payload: &Value) -
         }
     });
 
-    publish(&state.redis, &user_channel(payload.target_user_id), &event.to_string()).await?;
+    publish(
+        &state.redis,
+        &user_channel(payload.target_user_id),
+        &event.to_string(),
+    )
+    .await?;
     Ok(())
 }
 
-async fn join_voice_channel(state: &AppState, user_id: Uuid, channel_id: Uuid) -> anyhow::Result<()> {
+async fn join_voice_channel(
+    state: &AppState,
+    user_id: Uuid,
+    channel_id: Uuid,
+) -> anyhow::Result<()> {
     let Some(server_id) = load_joinable_voice_channel(state, user_id, channel_id).await? else {
         return Ok(());
     };
@@ -262,7 +279,11 @@ async fn join_voice_channel(state: &AppState, user_id: Uuid, channel_id: Uuid) -
         .set(session_key, serde_json::to_string(&session)?)
         .await?;
     let _: () = redis
-        .hset(participants_key, user_id.to_string(), joined_at.to_rfc3339())
+        .hset(
+            participants_key,
+            user_id.to_string(),
+            joined_at.to_rfc3339(),
+        )
         .await?;
 
     let joined_event = serde_json::json!({
@@ -275,7 +296,12 @@ async fn join_voice_channel(state: &AppState, user_id: Uuid, channel_id: Uuid) -
         }
     });
     for participant_id in existing_participants {
-        publish(&state.redis, &user_channel(participant_id), &joined_event.to_string()).await?;
+        publish(
+            &state.redis,
+            &user_channel(participant_id),
+            &joined_event.to_string(),
+        )
+        .await?;
     }
     publish_voice_snapshot(state, user_id, &session).await?;
 
@@ -291,9 +317,7 @@ async fn leave_active_voice_channel(state: &AppState, user_id: Uuid) -> anyhow::
     let session_key = voice_session_key(user_id);
     let participants_key = voice_participants_key(session.channel_id);
     let _: () = redis.del(session_key).await?;
-    let _: () = redis
-        .hdel(participants_key, user_id.to_string())
-        .await?;
+    let _: () = redis.hdel(participants_key, user_id.to_string()).await?;
 
     let left_event = serde_json::json!({
         "t": "VOICE_USER_LEFT",
@@ -303,12 +327,21 @@ async fn leave_active_voice_channel(state: &AppState, user_id: Uuid) -> anyhow::
             "userId": user_id,
         }
     });
-    publish(&state.redis, &guild_channel(session.server_id), &left_event.to_string()).await?;
+    publish(
+        &state.redis,
+        &guild_channel(session.server_id),
+        &left_event.to_string(),
+    )
+    .await?;
 
     Ok(())
 }
 
-async fn publish_voice_snapshot(state: &AppState, user_id: Uuid, session: &VoiceSession) -> anyhow::Result<()> {
+async fn publish_voice_snapshot(
+    state: &AppState,
+    user_id: Uuid,
+    session: &VoiceSession,
+) -> anyhow::Result<()> {
     let mut redis = state.redis.clone();
     let participants: std::collections::HashMap<String, String> = redis
         .hgetall(voice_participants_key(session.channel_id))
@@ -336,17 +369,28 @@ async fn publish_voice_snapshot(state: &AppState, user_id: Uuid, session: &Voice
         }
     });
 
-    publish(&state.redis, &user_channel(user_id), &snapshot_event.to_string()).await?;
+    publish(
+        &state.redis,
+        &user_channel(user_id),
+        &snapshot_event.to_string(),
+    )
+    .await?;
     Ok(())
 }
 
-async fn get_active_voice_session(state: &AppState, user_id: Uuid) -> anyhow::Result<Option<VoiceSession>> {
+async fn get_active_voice_session(
+    state: &AppState,
+    user_id: Uuid,
+) -> anyhow::Result<Option<VoiceSession>> {
     let mut redis = state.redis.clone();
     let raw: Option<String> = redis.get(voice_session_key(user_id)).await?;
     Ok(raw.and_then(|value| serde_json::from_str::<VoiceSession>(&value).ok()))
 }
 
-async fn list_voice_participant_ids(state: &AppState, channel_id: Uuid) -> anyhow::Result<Vec<Uuid>> {
+async fn list_voice_participant_ids(
+    state: &AppState,
+    channel_id: Uuid,
+) -> anyhow::Result<Vec<Uuid>> {
     let mut redis = state.redis.clone();
     let participants: std::collections::HashMap<String, String> = redis
         .hgetall(voice_participants_key(channel_id))
@@ -389,7 +433,11 @@ fn voice_participants_key(channel_id: Uuid) -> String {
     format!("voice:channel:{}:participants", channel_id)
 }
 
-fn try_identify(msg: &Message, state: &AppState, token_from_query: &Option<String>) -> Option<Uuid> {
+fn try_identify(
+    msg: &Message,
+    state: &AppState,
+    token_from_query: &Option<String>,
+) -> Option<Uuid> {
     let text = match msg {
         Message::Text(t) => t,
         _ => return None,
@@ -400,11 +448,10 @@ fn try_identify(msg: &Message, state: &AppState, token_from_query: &Option<Strin
         return None;
     }
 
-    let token = gm
-        .d
-        .as_ref()
-        .and_then(|d| d["token"].as_str().map(|s| s.to_string()))
-        .or_else(|| token_from_query.clone())?;
+    let token =
+        gm.d.as_ref()
+            .and_then(|d| d["token"].as_str().map(|s| s.to_string()))
+            .or_else(|| token_from_query.clone())?;
 
     verify_access_token(&token, &state.config.jwt_secret).ok()
 }
@@ -443,30 +490,26 @@ async fn subscribe_and_forward(
 }
 
 async fn get_user_guilds(state: &AppState, user_id: Uuid) -> Vec<Uuid> {
-    sqlx::query_scalar::<_, Uuid>(
-        "SELECT server_id FROM server_members WHERE user_id = $1"
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default()
+    sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM server_members WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default()
 }
 
 async fn get_user_dm_channels(state: &AppState, user_id: Uuid) -> Vec<Uuid> {
-    sqlx::query_scalar::<_, Uuid>(
-        "SELECT channel_id FROM dm_participants WHERE user_id = $1"
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default()
+    sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM dm_participants WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default()
 }
 
 async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
     let user = sqlx::query_as::<_, User>(
         "SELECT id, username, discriminator, email, password_hash, avatar_url, banner_url,
                 bio, status, custom_status, is_verified, badges, created_at
-         FROM users WHERE id = $1"
+         FROM users WHERE id = $1",
     )
     .bind(user_id)
     .fetch_optional(&state.db)
@@ -474,27 +517,31 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
     .ok()
     .flatten();
 
-    let user_val = user.map(|u| serde_json::json!({
-        "id": u.id,
-        "username": u.username,
-        "discriminator": u.discriminator,
-        "email": u.email,
-        "avatarUrl": u.avatar_url,
-        "bannerUrl": u.banner_url,
-        "bio": u.bio,
-        "status": u.status,
-        "customStatus": u.custom_status,
-        "isVerified": u.is_verified,
-        "badges": u.badges,
-        "createdAt": u.created_at,
-    })).unwrap_or(Value::Null);
+    let user_val = user
+        .map(|u| {
+            serde_json::json!({
+                "id": u.id,
+                "username": u.username,
+                "discriminator": u.discriminator,
+                "email": u.email,
+                "avatarUrl": u.avatar_url,
+                "bannerUrl": u.banner_url,
+                "bio": u.bio,
+                "status": u.status,
+                "customStatus": u.custom_status,
+                "isVerified": u.is_verified,
+                "badges": u.badges,
+                "createdAt": u.created_at,
+            })
+        })
+        .unwrap_or(Value::Null);
 
     let guilds_rows = sqlx::query_as::<_, Server>(
         "SELECT s.id, s.name, s.description, s.icon_url, s.banner_url,
                 s.owner_id, s.invite_code, s.is_public, s.member_count, s.created_at
          FROM servers s
          JOIN server_members sm ON sm.server_id = s.id
-         WHERE sm.user_id = $1"
+         WHERE sm.user_id = $1",
     )
     .bind(user_id)
     .fetch_all(&state.db)
@@ -503,26 +550,28 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
 
     let guilds: Vec<Value> = guilds_rows
         .into_iter()
-        .map(|s| serde_json::json!({
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "iconUrl": s.icon_url,
-            "bannerUrl": s.banner_url,
-            "ownerId": s.owner_id,
-            "inviteCode": s.invite_code,
-            "isPublic": s.is_public,
-            "memberCount": s.member_count,
-            "createdAt": s.created_at,
-        }))
+        .map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "name": s.name,
+                "description": s.description,
+                "iconUrl": s.icon_url,
+                "bannerUrl": s.banner_url,
+                "ownerId": s.owner_id,
+                "inviteCode": s.invite_code,
+                "isPublic": s.is_public,
+                "memberCount": s.member_count,
+                "createdAt": s.created_at,
+            })
+        })
         .collect();
 
     let dm_rows = sqlx::query_as::<_, Channel>(
-        "SELECT c.id, c.server_id, c.category_id, c.name, c.topic, c.channel_type,
+        "SELECT c.id, c.server_id, c.category_id, c.name, c.topic, c.icon_key, c.channel_type,
                 c.position, c.is_nsfw, c.slowmode_seconds, c.last_message_id, c.created_at
          FROM channels c
          JOIN dm_participants dp ON dp.channel_id = c.id
-         WHERE dp.user_id = $1 AND c.channel_type IN ('dm', 'group_dm')"
+         WHERE dp.user_id = $1 AND c.channel_type IN ('dm', 'group_dm')",
     )
     .bind(user_id)
     .fetch_all(&state.db)
@@ -531,13 +580,16 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
 
     let dm_channels: Vec<Value> = dm_rows
         .into_iter()
-        .map(|c| serde_json::json!({
-            "id": c.id,
-            "name": c.name,
-            "type": c.channel_type,
-            "lastMessageId": c.last_message_id,
-            "createdAt": c.created_at,
-        }))
+        .map(|c| {
+            serde_json::json!({
+                "id": c.id,
+                "name": c.name,
+                "iconKey": c.icon_key,
+                "type": c.channel_type,
+                "lastMessageId": c.last_message_id,
+                "createdAt": c.created_at,
+            })
+        })
         .collect();
 
     serde_json::json!({

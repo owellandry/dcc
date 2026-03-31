@@ -21,12 +21,12 @@ const EMPTY_MEMBERS: Record<string, ServerMember> = {}
 
 function isServerRenderableChannel(
   channel: Channel
-): channel is Channel & { type: 'text' | 'voice' } {
-  return channel.type === 'text' || channel.type === 'voice'
+): channel is Channel & { type: 'text' | 'voice' | 'announcement' } {
+  return channel.type === 'text' || channel.type === 'voice' || channel.type === 'announcement'
 }
 
 function toChannelSidebarItem(
-  channel: Channel & { type: 'text' | 'voice' },
+  channel: Channel & { type: 'text' | 'voice' | 'announcement' },
   resolvedServerId: string,
   pathname: string,
   activeVoiceChannelId: string | null,
@@ -50,6 +50,7 @@ function toChannelSidebarItem(
     active: pathname.endsWith(channel.id),
     serverId: resolvedServerId,
     type: channel.type,
+    iconKey: channel.iconKey ?? null,
     ...(voiceParticipants ? { voiceParticipants } : {}),
     isConnected: channel.type === 'voice' && activeVoiceChannelId === channel.id,
   }
@@ -80,11 +81,18 @@ export function useChannelSidebarModel({
         membership?.roles.some((role) => hasPermission(role.permissions, 'MANAGE_SERVER')) ?? false
       const hasManageChannelsRole =
         membership?.roles.some((role) => hasPermission(role.permissions, 'MANAGE_CHANNELS')) ?? false
+      const hasManageRolesRole =
+        membership?.roles.some((role) => hasPermission(role.permissions, 'MANAGE_ROLES')) ?? false
+      const hasKickMembersRole =
+        membership?.roles.some((role) => hasPermission(role.permissions, 'KICK_MEMBERS')) ?? false
+      const hasBanMembersRole =
+        membership?.roles.some((role) => hasPermission(role.permissions, 'BAN_MEMBERS')) ?? false
       const isOwner = Boolean(myUserId && currentServer && currentServer.ownerId === myUserId)
 
       return {
         server: currentServer,
-        canOpenServerSettings: isOwner || hasManageServerRole,
+        canOpenServerSettings:
+          isOwner || hasManageServerRole || hasManageChannelsRole || hasManageRolesRole || hasKickMembersRole || hasBanMembersRole,
         canCreateChannels: isOwner || hasManageServerRole || hasManageChannelsRole,
       }
     })
@@ -113,6 +121,7 @@ export function useChannelSidebarModel({
       .then((response) => {
         upsertServer(response.data.server)
         setChannels(resolvedServerId, response.data.channels, response.data.categories)
+        useServersStore.getState().setRoles(resolvedServerId, response.data.roles)
       })
       .catch(() => undefined)
   }, [channels.length, resolvedServerId, server, setChannels, upsertServer])
@@ -166,7 +175,7 @@ export function useChannelSidebarModel({
 
   const bannerBackground = server?.bannerUrl
     ? `url(${resolveMediaUrl(server.bannerUrl)})`
-    : 'linear-gradient(135deg,var(--ember),var(--ember-hover))'
+    : 'linear-gradient(135deg,rgba(122,149,255,0.5),rgba(129,83,255,0.35),rgba(23,25,31,0.95))'
 
   const closeCreateChannelModal = () => {
     setIsCreateChannelModalOpen(false)

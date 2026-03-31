@@ -9,6 +9,7 @@ pub struct Channel {
     pub category_id: Option<Uuid>,
     pub name: Option<String>,
     pub topic: Option<String>,
+    pub icon_key: Option<String>,
     #[serde(rename = "type")]
     pub channel_type: String,
     pub position: i32,

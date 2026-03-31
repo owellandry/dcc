@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ChevronDown, Hash, Home, Plus, Shield, UserPlus, Volume2, X } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
+import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared'
 import { cn } from '@/lib/cn'
 import { AnimatePresence, interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
 import { InviteLinkModal } from '@/components/layout/InviteLinkModal'
@@ -195,7 +196,7 @@ export function ChannelSidebarVisual({
               <button
                 type="button"
                 onClick={onCloseCreateChannelModal}
-                className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-white/[0.06] hover:text-[var(--t1)]"
+                className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
               >
                 <X size={15} />
               </button>
@@ -254,7 +255,7 @@ export function ChannelSidebarVisual({
               <button
                 type="button"
                 onClick={onSubmitCreateChannel}
-                className="rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] font-700 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
                 disabled={isCreatingChannel}
               >
                 {isCreatingChannel ? 'Creando...' : 'Crear canal'}
@@ -275,7 +276,13 @@ function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number 
   const isRulesChannel = /\b(regla|reglas|rule|rules)\b/.test(normalizedName)
   const isWelcomeChannel = /\b(bienvenida|bienvenidas|welcome)\b/.test(normalizedName)
   const ChannelIcon =
-    item.type === 'voice' ? Volume2 : isWelcomeChannel ? Home : isRulesChannel ? Shield : Hash
+    item.type === 'voice'
+      ? Volume2
+      : isWelcomeChannel
+        ? Home
+        : isRulesChannel
+          ? Shield
+          : getChannelIconComponent(item.iconKey ?? null, item.type)
   const voiceParticipants = item.type === 'voice' ? item.voiceParticipants ?? [] : []
   const hasVoiceParticipants = voiceParticipants.length > 0
 
@@ -320,7 +327,7 @@ function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number 
           {voiceParticipants.map((participant) => (
             <div
               key={participant.userId}
-              className="flex items-center gap-2 rounded-md px-2 py-1 text-[12px] text-[var(--t3)] transition-colors hover:bg-white/[0.04] hover:text-[var(--t1)]"
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-[12px] text-[var(--t3)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
             >
               <div className="h-4 w-4 overflow-hidden rounded-full bg-[var(--s3)]">
                 {participant.avatarUrl ? (

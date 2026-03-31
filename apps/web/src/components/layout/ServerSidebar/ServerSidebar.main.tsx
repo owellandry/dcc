@@ -23,6 +23,7 @@ export function ServerSidebar() {
   const upsertServer = useServersStore((s) => s.upsertServer)
   const upsertChannel = useServersStore((s) => s.upsertChannel)
   const setChannels = useServersStore((s) => s.setChannels)
+  const setRoles = useServersStore((s) => s.setRoles)
   const setMembers = useServersStore((s) => s.setMembers)
   const meId = useAuthStore((s) => s.user?.id ?? 'user-me')
   const [showCreate, setShowCreate] = useState(false)
@@ -155,10 +156,13 @@ export function ServerSidebar() {
 
     try {
       const res = await serversApi.create({ name })
-      const { channels, categories, ...server } = res.data
+      const { channels, categories, roles, ...server } = res.data
       upsertServer(server)
       if (channels?.length) {
         setChannels(server.id, channels, categories ?? [])
+      }
+      if (roles?.length) {
+        setRoles(server.id, roles)
       }
       closeCreate()
       const firstText = channels?.find((channel: Channel) => channel.type === 'text')
@@ -229,7 +233,7 @@ export function ServerSidebar() {
               <button
                 type="button"
                 onClick={closeCreate}
-                className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-white/[0.06] hover:text-[var(--t1)]"
+                className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
               >
                 <X size={15} />
               </button>
@@ -310,7 +314,7 @@ export function ServerSidebar() {
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] font-700 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
                   disabled={isCreating}
                 >
                   {isCreating && <LoaderCircle size={13} className="animate-spin" />}
@@ -370,7 +374,7 @@ function ServerIcon({ href, active, tooltip, iconUrl, name, isHome, onContextMen
             size={22}
             className={cn(
               'transition-colors',
-              active ? 'text-white' : 'text-ember group-hover:text-white'
+              active ? 'text-[var(--ember-contrast)]' : 'text-ember group-hover:text-[var(--ember-contrast)]'
             )}
           />
         ) : iconUrl ? (
@@ -379,7 +383,7 @@ function ServerIcon({ href, active, tooltip, iconUrl, name, isHome, onContextMen
           <span
             className={cn(
               'font-display text-[13px] font-700 transition-colors',
-              active ? 'text-white' : 'text-[var(--t1)] group-hover:text-white'
+              active ? 'text-[var(--ember-contrast)]' : 'text-[var(--t1)] group-hover:text-[var(--ember-contrast)]'
             )}
           >
             {initials}

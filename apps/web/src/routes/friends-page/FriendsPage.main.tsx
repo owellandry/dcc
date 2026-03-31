@@ -39,7 +39,7 @@ export default function FriendsPage() {
                   'rounded-md px-3 py-1 text-sm font-500 capitalize transition-colors',
                   tab === t
                     ? 'bg-[var(--b2)] text-[var(--t0)]'
-                    : 'text-[var(--t3)] hover:bg-white/[0.04] hover:text-[var(--t1)]'
+                    : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
                 )}
               >
                 {t}
@@ -83,7 +83,7 @@ function AddFriendSection({ value, onChange }: { value: string; onChange: (v: st
         />
         <button
           disabled={!value.trim()}
-          className="rounded-lg bg-volt px-4 py-1.5 text-sm font-600 text-white transition-all hover:bg-volt-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-lg bg-volt px-4 py-1.5 text-sm font-600 text-[var(--volt-contrast)] transition-all hover:bg-volt-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Send Request
         </button>

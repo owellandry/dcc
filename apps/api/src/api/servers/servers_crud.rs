@@ -1,8 +1,9 @@
 use super::*;
-use std::collections::HashSet;
 use crate::api::servers::common::{
-    can_manage_default_category, ensure_member, ensure_owner, ensure_owner_or_manage_server,
-    is_default_restricted_category_name,
+    ensure_owner, ensure_owner_or_manage_server, load_scope_overwrites,
+    load_server_permissions_context, load_server_roles, overwrite_payload,
+    resolve_channel_permissions, role_payload, DEFAULT_EVERYONE_PERMISSIONS,
+    SEND_MESSAGES_PERMISSION, VIEW_CHANNEL_PERMISSION,
 };
 
 #[derive(Deserialize)]
@@ -19,6 +20,30 @@ pub struct UpdateServerBody {
     pub icon_url: Option<String>,
     pub banner_url: Option<String>,
     pub invite_code: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ServerCategoryRow {
+    id: Uuid,
+    server_id: Uuid,
+    name: String,
+    position: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ServerChannelRow {
+    id: Uuid,
+    server_id: Option<Uuid>,
+    category_id: Option<Uuid>,
+    name: Option<String>,
+    topic: Option<String>,
+    icon_key: Option<String>,
+    channel_type: String,
+    position: i32,
+    is_nsfw: bool,
+    slowmode_seconds: i32,
+    last_message_id: Option<Uuid>,
+    created_at: chrono::DateTime<Utc>,
 }
 
 pub async fn list_my_servers(
@@ -39,18 +64,20 @@ pub async fn list_my_servers(
 
     let data: Vec<Value> = servers
         .into_iter()
-        .map(|s| json!({
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "iconUrl": s.icon_url,
-            "bannerUrl": s.banner_url,
-            "ownerId": s.owner_id,
-            "inviteCode": s.invite_code,
-            "isPublic": s.is_public,
-            "memberCount": s.member_count,
-            "createdAt": s.created_at,
-        }))
+        .map(|s| {
+            json!({
+                "id": s.id,
+                "name": s.name,
+                "description": s.description,
+                "iconUrl": s.icon_url,
+                "bannerUrl": s.banner_url,
+                "ownerId": s.owner_id,
+                "inviteCode": s.invite_code,
+                "isPublic": s.is_public,
+                "memberCount": s.member_count,
+                "createdAt": s.created_at,
+            })
+        })
         .collect();
 
     Ok(Json(json!({ "data": data })))
@@ -61,7 +88,7 @@ pub async fn get_server(
     State(state): State<AppState>,
     Path(server_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    ensure_member(&state, user_id, server_id).await?;
+    let context = load_server_permissions_context(&state, user_id, server_id).await?;
 
     let s = sqlx::query!(
         r#"SELECT id, name, description, icon_url, banner_url,
@@ -73,59 +100,84 @@ pub async fn get_server(
     .await?
     .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
 
-    let categories = sqlx::query!(
-        "SELECT id, name, position FROM categories WHERE server_id = $1 ORDER BY position",
-        server_id
+    let categories = sqlx::query_as::<_, ServerCategoryRow>(
+        r#"SELECT id, server_id, name, position
+           FROM categories
+           WHERE server_id = $1
+           ORDER BY position ASC, created_at ASC"#,
     )
+    .bind(server_id)
     .fetch_all(&state.db)
     .await?;
 
-    let channels = sqlx::query!(
-        r#"SELECT id, server_id, category_id, name, topic, channel_type,
-                  position, is_nsfw, slowmode_seconds, last_message_id, created_at
-           FROM channels WHERE server_id = $1 ORDER BY position"#,
-        server_id
+    let channels = sqlx::query_as::<_, ServerChannelRow>(
+        r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type, position,
+                  is_nsfw, slowmode_seconds, last_message_id, created_at
+           FROM channels
+           WHERE server_id = $1
+           ORDER BY category_id NULLS FIRST, position ASC, created_at ASC"#,
     )
+    .bind(server_id)
     .fetch_all(&state.db)
     .await?;
 
-    let can_manage_default_category = can_manage_default_category(&state, user_id, server_id).await?;
-    let restricted_category_ids: HashSet<Uuid> = categories
-        .iter()
-        .filter(|category| is_default_restricted_category_name(&category.name))
-        .map(|category| category.id)
-        .collect();
+    let roles = load_server_roles(&state, server_id).await?;
+    let roles_payload: Vec<Value> = roles.iter().map(role_payload).collect();
 
-    let cats: Vec<Value> = categories
-        .into_iter()
-        .map(|c| json!({
-            "id": c.id,
-            "serverId": server_id,
-            "name": c.name,
-            "position": c.position
-        }))
-        .collect();
+    let mut visible_category_ids = std::collections::HashSet::new();
+    let mut channel_payloads = Vec::new();
+    for channel in channels {
+        let permissions =
+            resolve_channel_permissions(&state, &context, channel.category_id, channel.id).await?;
+        if (permissions & VIEW_CHANNEL_PERMISSION) != VIEW_CHANNEL_PERMISSION {
+            continue;
+        }
 
-    let chans: Vec<Value> = channels
-        .into_iter()
-        .map(|c| json!({
-            "id": c.id,
-            "serverId": c.server_id,
-            "categoryId": c.category_id,
-            "name": c.name,
-            "topic": c.topic,
-            "type": c.channel_type,
-            "position": c.position,
-            "isNsfw": c.is_nsfw,
-            "slowmodeSeconds": c.slowmode_seconds,
-            "lastMessageId": c.last_message_id,
-            "createdAt": c.created_at,
-            "canSendMessages": c
-                .category_id
-                .map(|category_id| !restricted_category_ids.contains(&category_id) || can_manage_default_category)
-                .unwrap_or(true),
-        }))
-        .collect();
+        if let Some(category_id) = channel.category_id {
+            visible_category_ids.insert(category_id);
+        }
+
+        let overwrites = load_scope_overwrites(&state, None, Some(channel.id)).await?;
+        channel_payloads.push(json!({
+            "id": channel.id,
+            "serverId": channel.server_id,
+            "categoryId": channel.category_id,
+            "name": channel.name,
+            "topic": channel.topic,
+            "iconKey": channel.icon_key,
+            "type": channel.channel_type,
+            "position": channel.position,
+            "isNsfw": channel.is_nsfw,
+            "slowmodeSeconds": channel.slowmode_seconds,
+            "lastMessageId": channel.last_message_id,
+            "createdAt": channel.created_at,
+            "canSendMessages": (permissions & SEND_MESSAGES_PERMISSION) == SEND_MESSAGES_PERMISSION,
+            "overwrites": overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
+        }));
+    }
+
+    let mut category_payloads = Vec::new();
+    for category in categories {
+        let has_uncategorized_visibility = channel_payloads.iter().any(|channel| {
+            channel
+                .get("categoryId")
+                .and_then(Value::as_str)
+                .and_then(|raw| Uuid::parse_str(raw).ok())
+                == Some(category.id)
+        });
+        if !visible_category_ids.contains(&category.id) && !has_uncategorized_visibility {
+            continue;
+        }
+
+        let overwrites = load_scope_overwrites(&state, Some(category.id), None).await?;
+        category_payloads.push(json!({
+            "id": category.id,
+            "serverId": category.server_id,
+            "name": category.name,
+            "position": category.position,
+            "overwrites": overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
+        }));
+    }
 
     Ok(Json(json!({
         "data": {
@@ -141,8 +193,9 @@ pub async fn get_server(
                 "memberCount": s.member_count,
                 "createdAt": s.created_at,
             },
-            "categories": cats,
-            "channels": chans,
+            "categories": category_payloads,
+            "channels": channel_payloads,
+            "roles": roles_payload,
         }
     })))
 }
@@ -154,11 +207,15 @@ pub async fn create_server(
 ) -> Result<Json<Value>> {
     let name = body.name.trim().to_string();
     if name.is_empty() || name.len() > 100 {
-        return Err(AppError::validation("name", "Name must be 1–100 characters"));
+        return Err(AppError::validation(
+            "name",
+            "Name must be 1-100 characters",
+        ));
     }
 
     let invite_code = generate_invite_code();
     let server_id = Uuid::new_v4();
+    let everyone_role_id = Uuid::new_v4();
     let cat_info_id = Uuid::new_v4();
     let cat_gen_id = Uuid::new_v4();
     let ch_reglas_id = Uuid::new_v4();
@@ -189,10 +246,23 @@ pub async fn create_server(
     .await?;
 
     sqlx::query!(
+        r#"INSERT INTO roles (
+                id, server_id, name, permissions, position, is_hoisted,
+                is_managed, is_mentionable, is_default
+           )
+           VALUES ($1, $2, '@everyone', $3, -1, FALSE, FALSE, FALSE, TRUE)"#,
+        everyone_role_id,
+        server_id,
+        DEFAULT_EVERYONE_PERMISSIONS,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query!(
         "INSERT INTO categories (id, server_id, name, position) VALUES ($1, $2, $3, $4)",
         cat_info_id,
         server_id,
-        "INFORMACIÓN",
+        "INFORMACION",
         0
     )
     .execute(&mut *tx)
@@ -248,6 +318,20 @@ pub async fn create_server(
     .execute(&mut *tx)
     .await?;
 
+    sqlx::query!(
+        r#"INSERT INTO permission_overwrites (
+                id, server_id, category_id, target_type, target_id, allow_bits, deny_bits
+           )
+           VALUES ($1, $2, $3, 'role', $4, 0, $5)"#,
+        Uuid::new_v4(),
+        server_id,
+        cat_info_id,
+        everyone_role_id,
+        SEND_MESSAGES_PERMISSION,
+    )
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
     let s = sqlx::query!(
@@ -259,48 +343,58 @@ pub async fn create_server(
     .fetch_one(&state.db)
     .await?;
 
-    let channels = sqlx::query!(
-        r#"SELECT id, server_id, category_id, name, topic, channel_type,
-                  position, is_nsfw, slowmode_seconds, last_message_id, created_at
-           FROM channels WHERE server_id = $1 ORDER BY category_id, position"#,
-        server_id
+    let roles = load_server_roles(&state, server_id).await?;
+    let categories = sqlx::query_as::<_, ServerCategoryRow>(
+        r#"SELECT id, server_id, name, position
+           FROM categories
+           WHERE server_id = $1
+           ORDER BY position ASC, created_at ASC"#,
     )
+    .bind(server_id)
+    .fetch_all(&state.db)
+    .await?;
+    let channels = sqlx::query_as::<_, ServerChannelRow>(
+        r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type, position,
+                  is_nsfw, slowmode_seconds, last_message_id, created_at
+           FROM channels
+           WHERE server_id = $1
+           ORDER BY category_id NULLS FIRST, position ASC, created_at ASC"#,
+    )
+    .bind(server_id)
     .fetch_all(&state.db)
     .await?;
 
-    let categories = sqlx::query!(
-        "SELECT id, server_id, name, position FROM categories WHERE server_id = $1 ORDER BY position",
-        server_id
-    )
-    .fetch_all(&state.db)
-    .await?;
-
-    let chans: Vec<Value> = channels
+    let roles_payload: Vec<Value> = roles.iter().map(role_payload).collect();
+    let category_payloads: Vec<Value> = categories
         .into_iter()
-        .map(|c| json!({
-            "id": c.id,
-            "serverId": c.server_id,
-            "categoryId": c.category_id,
-            "name": c.name,
-            "topic": c.topic,
-            "type": c.channel_type,
-            "position": c.position,
-            "isNsfw": c.is_nsfw,
-            "slowmodeSeconds": c.slowmode_seconds,
-            "lastMessageId": c.last_message_id,
-            "createdAt": c.created_at,
-            "canSendMessages": true,
-        }))
+        .map(|category| {
+            json!({
+                "id": category.id,
+                "serverId": category.server_id,
+                "name": category.name,
+                "position": category.position,
+            })
+        })
         .collect();
-
-    let cats: Vec<Value> = categories
+    let channel_payloads: Vec<Value> = channels
         .into_iter()
-        .map(|c| json!({
-            "id": c.id,
-            "serverId": c.server_id,
-            "name": c.name,
-            "position": c.position,
-        }))
+        .map(|channel| {
+            json!({
+                "id": channel.id,
+                "serverId": channel.server_id,
+                "categoryId": channel.category_id,
+                "name": channel.name,
+                "topic": channel.topic,
+                "iconKey": channel.icon_key,
+                "type": channel.channel_type,
+                "position": channel.position,
+                "isNsfw": channel.is_nsfw,
+                "slowmodeSeconds": channel.slowmode_seconds,
+                "lastMessageId": channel.last_message_id,
+                "createdAt": channel.created_at,
+                "canSendMessages": channel.category_id != Some(cat_info_id),
+            })
+        })
         .collect();
 
     Ok(Json(json!({
@@ -315,8 +409,9 @@ pub async fn create_server(
             "isPublic": s.is_public,
             "memberCount": s.member_count,
             "createdAt": s.created_at,
-            "channels": chans,
-            "categories": cats,
+            "channels": channel_payloads,
+            "categories": category_payloads,
+            "roles": roles_payload,
         }
     })))
 }
@@ -332,16 +427,25 @@ pub async fn update_server(
     let invite_code = if let Some(raw_invite_code) = body.invite_code {
         let normalized = raw_invite_code.trim().to_ascii_lowercase();
         if normalized.is_empty() {
-            return Err(AppError::validation("inviteCode", "Invite code cannot be empty"));
+            return Err(AppError::validation(
+                "inviteCode",
+                "Invite code cannot be empty",
+            ));
         }
         if normalized.len() < 3 || normalized.len() > 32 {
-            return Err(AppError::validation("inviteCode", "Invite code must be between 3 and 32 characters"));
+            return Err(AppError::validation(
+                "inviteCode",
+                "Invite code must be between 3 and 32 characters",
+            ));
         }
         if !normalized
             .chars()
             .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
         {
-            return Err(AppError::validation("inviteCode", "Use only lowercase letters, numbers, '-' and '_'"));
+            return Err(AppError::validation(
+                "inviteCode",
+                "Use only lowercase letters, numbers, '-' and '_'",
+            ));
         }
 
         let is_taken = sqlx::query_scalar!(
@@ -359,7 +463,9 @@ pub async fn update_server(
         .unwrap_or(false);
 
         if is_taken {
-            return Err(AppError::Conflict("El codigo de invitacion ya esta en uso.".into()));
+            return Err(AppError::Conflict(
+                "El codigo de invitacion ya esta en uso.".into(),
+            ));
         }
 
         Some(normalized)
@@ -415,9 +521,11 @@ pub async fn upload_server_icon(
 
     let mut file_data: Option<(Vec<u8>, String)> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        AppError::BadRequest(format!("Multipart error: {e}"))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "icon" {
             let content_type = field
@@ -426,11 +534,14 @@ pub async fn upload_server_icon(
                 .unwrap_or_else(|| "application/octet-stream".to_string());
             let allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
             if !allowed.contains(&content_type.as_str()) {
-                return Err(AppError::BadRequest("Only JPEG, PNG, GIF, and WebP images are allowed".into()));
+                return Err(AppError::BadRequest(
+                    "Only JPEG, PNG, GIF, and WebP images are allowed".into(),
+                ));
             }
-            let bytes = field.bytes().await.map_err(|e| {
-                AppError::BadRequest(format!("Failed to read file: {e}"))
-            })?;
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
             if bytes.len() > 8 * 1024 * 1024 {
                 return Err(AppError::BadRequest("Icon must be under 8MB".into()));
             }
@@ -438,8 +549,8 @@ pub async fn upload_server_icon(
         }
     }
 
-    let (bytes, content_type) = file_data
-        .ok_or_else(|| AppError::BadRequest("Missing icon field".into()))?;
+    let (bytes, content_type) =
+        file_data.ok_or_else(|| AppError::BadRequest("Missing icon field".into()))?;
 
     let ext = match content_type.as_str() {
         "image/jpeg" => "jpg",
@@ -451,13 +562,13 @@ pub async fn upload_server_icon(
     let filename = format!("{}.{}", Uuid::new_v4(), ext);
 
     let uploads_dir = std::path::Path::new("uploads/server-icons");
-    tokio::fs::create_dir_all(uploads_dir).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}"))
-    })?;
+    tokio::fs::create_dir_all(uploads_dir)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}")))?;
     let path = uploads_dir.join(&filename);
-    tokio::fs::write(&path, &bytes).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to write icon: {e}"))
-    })?;
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to write icon: {e}")))?;
 
     let icon_url = format!("/uploads/server-icons/{}", filename);
 
@@ -482,9 +593,11 @@ pub async fn upload_server_banner(
 
     let mut file_data: Option<(Vec<u8>, String)> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        AppError::BadRequest(format!("Multipart error: {e}"))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "banner" {
             let content_type = field
@@ -493,11 +606,14 @@ pub async fn upload_server_banner(
                 .unwrap_or_else(|| "application/octet-stream".to_string());
             let allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
             if !allowed.contains(&content_type.as_str()) {
-                return Err(AppError::BadRequest("Only JPEG, PNG, GIF, and WebP images are allowed".into()));
+                return Err(AppError::BadRequest(
+                    "Only JPEG, PNG, GIF, and WebP images are allowed".into(),
+                ));
             }
-            let bytes = field.bytes().await.map_err(|e| {
-                AppError::BadRequest(format!("Failed to read file: {e}"))
-            })?;
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
             if bytes.len() > 12 * 1024 * 1024 {
                 return Err(AppError::BadRequest("Banner must be under 12MB".into()));
             }
@@ -505,8 +621,8 @@ pub async fn upload_server_banner(
         }
     }
 
-    let (bytes, content_type) = file_data
-        .ok_or_else(|| AppError::BadRequest("Missing banner field".into()))?;
+    let (bytes, content_type) =
+        file_data.ok_or_else(|| AppError::BadRequest("Missing banner field".into()))?;
 
     let ext = match content_type.as_str() {
         "image/jpeg" => "jpg",
@@ -518,13 +634,13 @@ pub async fn upload_server_banner(
     let filename = format!("{}.{}", Uuid::new_v4(), ext);
 
     let uploads_dir = std::path::Path::new("uploads/server-banners");
-    tokio::fs::create_dir_all(uploads_dir).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}"))
-    })?;
+    tokio::fs::create_dir_all(uploads_dir)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}")))?;
     let path = uploads_dir.join(&filename);
-    tokio::fs::write(&path, &bytes).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to write banner: {e}"))
-    })?;
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to write banner: {e}")))?;
 
     let banner_url = format!("/uploads/server-banners/{}", filename);
 

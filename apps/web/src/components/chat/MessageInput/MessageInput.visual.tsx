@@ -58,7 +58,7 @@ export function MessageInputVisual({
           <button
             type="button"
             onClick={onCancelReply}
-            className="rounded-md px-2 py-1 text-[var(--t3)] transition-colors hover:bg-white/[0.06] hover:text-[var(--t1)]"
+            className="rounded-md px-2 py-1 text-[var(--t3)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
           >
             Cancelar
           </button>
@@ -88,7 +88,7 @@ export function MessageInputVisual({
                 onMouseDown={(event) => onSuggestionMouseDown(event, suggestion)}
                 className={cn(
                   'flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors',
-                  active ? 'bg-[var(--ember-dim)] text-[var(--t0)]' : 'text-[var(--t2)] hover:bg-white/[0.06]'
+                  active ? 'bg-[var(--ember-dim)] text-[var(--t0)]' : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
                 )}
               >
                 <SuggestionPrefix type={suggestion.type}>{suggestion.label}</SuggestionPrefix>
@@ -106,7 +106,7 @@ export function MessageInputVisual({
           className={cn(
             'z-[99] flex shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--t3)] transition-colors',
             attachmentsEnabled
-              ? 'cursor-pointer hover:bg-white/[0.06] hover:text-[var(--t2)]'
+              ? 'cursor-pointer hover:bg-[var(--surface-soft)] hover:text-[var(--t2)]'
               : 'cursor-not-allowed opacity-45'
           )}
         >
@@ -137,7 +137,7 @@ export function MessageInputVisual({
         <button
           data-tooltip="Emoji"
           data-tooltip-position="top"
-          className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--t3)] transition-colors hover:bg-white/[0.06] hover:text-[var(--t2)]"
+          className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--t3)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t2)]"
         >
           <Smile size={20} />
         </button>
@@ -146,7 +146,7 @@ export function MessageInputVisual({
           <button
             onClick={onSend}
             disabled={isSending}
-            className="flex shrink-0 items-center justify-center rounded-md bg-ember p-1.5 text-white transition-all hover:bg-ember-hover active:scale-95 disabled:opacity-50 animate-pop"
+            className="flex shrink-0 items-center justify-center rounded-md bg-ember p-1.5 text-[var(--ember-contrast)] transition-all hover:bg-ember-hover active:scale-95 disabled:opacity-50 animate-pop"
           >
             <Send size={18} />
           </button>

@@ -189,7 +189,7 @@ function PendingRequestsSection({ cards }: { cards: DMPendingFriendCard[] }) {
         icon={
           <>
             <Users size={18} className="text-[var(--volt)]" />
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ember)] text-[10px] font-700 text-white">
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ember)] text-[10px] font-700 text-[var(--ember-contrast)]">
               {cards.length}
             </span>
           </>
@@ -213,13 +213,13 @@ function PendingRequestsSection({ cards }: { cards: DMPendingFriendCard[] }) {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--ember-dim)] text-[var(--ember)] transition-all duration-200 hover:bg-[var(--ember)] hover:text-white hover:shadow-md"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--ember-dim)] text-[var(--ember)] transition-all duration-200 hover:bg-[var(--ember)] hover:text-[var(--ember-contrast)] hover:shadow-md"
               >
                 <Check size={16} />
               </button>
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-[var(--t4)] transition-all duration-200 hover:bg-[var(--dnd-glow)] hover:text-[var(--dnd)]"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-[var(--t4)] transition-all duration-200 hover:bg-[var(--dnd-glow)] hover:text-[var(--dnd)]"
               >
                 <X size={16} />
               </button>
@@ -285,7 +285,7 @@ function EmptyState() {
       </p>
       <Link
         href="/friends"
-        className="mt-6 inline-flex items-center gap-2 rounded-md bg-[var(--ember)] px-4 py-2 text-[13px] font-700 text-white transition-opacity hover:opacity-90"
+        className="mt-6 inline-flex items-center gap-2 rounded-md bg-[var(--ember)] px-4 py-2 text-[13px] font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
       >
         Buscar amigos
         <ArrowRight size={13} />

@@ -19,10 +19,7 @@ use crate::{
     state::AppState,
 };
 
-pub async fn me(
-    AuthUser(user_id): AuthUser,
-    State(state): State<AppState>,
-) -> Result<Json<Value>> {
+pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> Result<Json<Value>> {
     let user = sqlx::query(
         r#"SELECT id, username, discriminator, email, avatar_url, banner_url,
                   bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at
@@ -122,14 +119,20 @@ pub async fn update_me(
     let valid_statuses = ["online", "idle", "dnd", "offline"];
     if let Some(ref s) = body.status {
         if !valid_statuses.contains(&s.as_str()) {
-            return Err(AppError::validation("status", "Must be one of: online, idle, dnd, offline"));
+            return Err(AppError::validation(
+                "status",
+                "Must be one of: online, idle, dnd, offline",
+            ));
         }
     }
 
     let next_username = if let Some(username) = body.username.as_ref() {
         let trimmed = username.trim();
         if trimmed.len() < 2 || trimmed.len() > 32 {
-            return Err(AppError::validation("username", "Username must be 2-32 characters"));
+            return Err(AppError::validation(
+                "username",
+                "Username must be 2-32 characters",
+            ));
         }
         if trimmed == current_user.username {
             None
@@ -155,22 +158,30 @@ pub async fn update_me(
     };
 
     if body.current_password.is_some() && body.new_password.is_none() {
-        return Err(AppError::validation("newPassword", "New password is required"));
+        return Err(AppError::validation(
+            "newPassword",
+            "New password is required",
+        ));
     }
 
     let next_password_hash = if let Some(new_password) = body.new_password.as_ref() {
         if new_password.len() < 8 {
-            return Err(AppError::validation("newPassword", "Password must be at least 8 characters"));
+            return Err(AppError::validation(
+                "newPassword",
+                "Password must be at least 8 characters",
+            ));
         }
 
         if let Some(hash) = current_user.password_hash.as_deref() {
-            let current_password = body
-                .current_password
-                .as_deref()
-                .ok_or_else(|| AppError::validation("currentPassword", "Current password is required"))?;
+            let current_password = body.current_password.as_deref().ok_or_else(|| {
+                AppError::validation("currentPassword", "Current password is required")
+            })?;
 
             if !verify_password(current_password, hash)? {
-                return Err(AppError::validation("currentPassword", "Current password is incorrect"));
+                return Err(AppError::validation(
+                    "currentPassword",
+                    "Current password is incorrect",
+                ));
             }
         }
 
@@ -292,12 +303,15 @@ pub async fn prepare_two_factor(
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     ensure_current_password_if_required(
-        row.try_get::<Option<String>, _>("password_hash")?.as_deref(),
+        row.try_get::<Option<String>, _>("password_hash")?
+            .as_deref(),
         body.current_password.as_deref(),
     )?;
 
     if row.try_get::<bool, _>("two_factor_enabled")? {
-        return Err(AppError::Conflict("Two-factor authentication is already enabled".into()));
+        return Err(AppError::Conflict(
+            "Two-factor authentication is already enabled".into(),
+        ));
     }
 
     let secret = generate_totp_secret_base32();
@@ -324,10 +338,16 @@ pub async fn enable_two_factor(
     let secret = body.secret.trim();
     let code = body.code.trim();
     if secret.is_empty() {
-        return Err(AppError::validation("secret", "Two-factor secret is required"));
+        return Err(AppError::validation(
+            "secret",
+            "Two-factor secret is required",
+        ));
     }
     if code.is_empty() {
-        return Err(AppError::validation("code", "Authentication code is required"));
+        return Err(AppError::validation(
+            "code",
+            "Authentication code is required",
+        ));
     }
 
     let row = sqlx::query(
@@ -343,12 +363,15 @@ pub async fn enable_two_factor(
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     ensure_current_password_if_required(
-        row.try_get::<Option<String>, _>("password_hash")?.as_deref(),
+        row.try_get::<Option<String>, _>("password_hash")?
+            .as_deref(),
         body.current_password.as_deref(),
     )?;
 
     if row.try_get::<bool, _>("two_factor_enabled")? {
-        return Err(AppError::Conflict("Two-factor authentication is already enabled".into()));
+        return Err(AppError::Conflict(
+            "Two-factor authentication is already enabled".into(),
+        ));
     }
 
     let account_name = row.try_get::<String, _>("email")?;
@@ -388,7 +411,10 @@ pub async fn disable_two_factor(
 ) -> Result<Json<Value>> {
     let code = body.code.trim();
     if code.is_empty() {
-        return Err(AppError::validation("code", "Authentication code is required"));
+        return Err(AppError::validation(
+            "code",
+            "Authentication code is required",
+        ));
     }
 
     let row = sqlx::query(
@@ -404,7 +430,8 @@ pub async fn disable_two_factor(
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     ensure_current_password_if_required(
-        row.try_get::<Option<String>, _>("password_hash")?.as_deref(),
+        row.try_get::<Option<String>, _>("password_hash")?
+            .as_deref(),
         body.current_password.as_deref(),
     )?;
 
@@ -418,7 +445,9 @@ pub async fn disable_two_factor(
 
     let encrypted_secret = row
         .try_get::<Option<String>, _>("two_factor_secret_encrypted")?
-        .ok_or_else(|| AppError::Unauthorized("Two-factor authentication is not configured correctly".into()))?;
+        .ok_or_else(|| {
+            AppError::Unauthorized("Two-factor authentication is not configured correctly".into())
+        })?;
     let secret = decrypt_sensitive_value(&encrypted_secret, &state.config.jwt_secret)?;
     let account_name = row.try_get::<String, _>("email")?;
 
@@ -492,9 +521,11 @@ pub async fn upload_avatar(
 ) -> Result<Json<Value>> {
     let mut file_data: Option<(Vec<u8>, String)> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        AppError::BadRequest(format!("Multipart error: {e}"))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "avatar" {
             let content_type = field
@@ -503,11 +534,14 @@ pub async fn upload_avatar(
                 .unwrap_or_else(|| "application/octet-stream".to_string());
             let allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
             if !allowed.contains(&content_type.as_str()) {
-                return Err(AppError::BadRequest("Only JPEG, PNG, GIF, and WebP images are allowed".into()));
+                return Err(AppError::BadRequest(
+                    "Only JPEG, PNG, GIF, and WebP images are allowed".into(),
+                ));
             }
-            let bytes = field.bytes().await.map_err(|e| {
-                AppError::BadRequest(format!("Failed to read file: {e}"))
-            })?;
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
             if bytes.len() > 8 * 1024 * 1024 {
                 return Err(AppError::BadRequest("Avatar must be under 8MB".into()));
             }
@@ -515,8 +549,8 @@ pub async fn upload_avatar(
         }
     }
 
-    let (bytes, content_type) = file_data
-        .ok_or_else(|| AppError::BadRequest("Missing avatar field".into()))?;
+    let (bytes, content_type) =
+        file_data.ok_or_else(|| AppError::BadRequest("Missing avatar field".into()))?;
 
     // Store in configured storage — for now save to local /uploads dir
     // In production this would upload to S3/R2
@@ -531,13 +565,13 @@ pub async fn upload_avatar(
 
     // Write to disk (placeholder — swap for S3/R2 in production)
     let uploads_dir = std::path::Path::new("uploads/avatars");
-    tokio::fs::create_dir_all(uploads_dir).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}"))
-    })?;
+    tokio::fs::create_dir_all(uploads_dir)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}")))?;
     let path = uploads_dir.join(&filename);
-    tokio::fs::write(&path, &bytes).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to write avatar: {e}"))
-    })?;
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to write avatar: {e}")))?;
 
     let avatar_url = format!("/uploads/avatars/{}", filename);
 
@@ -559,9 +593,11 @@ pub async fn upload_banner(
 ) -> Result<Json<Value>> {
     let mut file_data: Option<(Vec<u8>, String)> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        AppError::BadRequest(format!("Multipart error: {e}"))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "banner" {
             let content_type = field
@@ -570,11 +606,14 @@ pub async fn upload_banner(
                 .unwrap_or_else(|| "application/octet-stream".to_string());
             let allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
             if !allowed.contains(&content_type.as_str()) {
-                return Err(AppError::BadRequest("Only JPEG, PNG, GIF, and WebP images are allowed".into()));
+                return Err(AppError::BadRequest(
+                    "Only JPEG, PNG, GIF, and WebP images are allowed".into(),
+                ));
             }
-            let bytes = field.bytes().await.map_err(|e| {
-                AppError::BadRequest(format!("Failed to read file: {e}"))
-            })?;
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
             if bytes.len() > 12 * 1024 * 1024 {
                 return Err(AppError::BadRequest("Banner must be under 12MB".into()));
             }
@@ -582,8 +621,8 @@ pub async fn upload_banner(
         }
     }
 
-    let (bytes, content_type) = file_data
-        .ok_or_else(|| AppError::BadRequest("Missing banner field".into()))?;
+    let (bytes, content_type) =
+        file_data.ok_or_else(|| AppError::BadRequest("Missing banner field".into()))?;
 
     let ext = match content_type.as_str() {
         "image/jpeg" => "jpg",
@@ -595,13 +634,13 @@ pub async fn upload_banner(
     let filename = format!("{}.{}", Uuid::new_v4(), ext);
 
     let uploads_dir = std::path::Path::new("uploads/banners");
-    tokio::fs::create_dir_all(uploads_dir).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}"))
-    })?;
+    tokio::fs::create_dir_all(uploads_dir)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}")))?;
     let path = uploads_dir.join(&filename);
-    tokio::fs::write(&path, &bytes).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to write banner: {e}"))
-    })?;
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to write banner: {e}")))?;
 
     let banner_url = format!("/uploads/banners/{}", filename);
 
@@ -617,11 +656,13 @@ pub async fn upload_banner(
 }
 
 async fn get_two_factor_enabled(state: &AppState, user_id: Uuid) -> Result<bool> {
-    Ok(sqlx::query_scalar::<_, bool>("SELECT two_factor_enabled FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_optional(&state.db)
-        .await?
-        .unwrap_or(false))
+    Ok(
+        sqlx::query_scalar::<_, bool>("SELECT two_factor_enabled FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or(false),
+    )
 }
 
 fn ensure_current_password_if_required(
@@ -632,10 +673,15 @@ fn ensure_current_password_if_required(
         let current_password = current_password
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| AppError::validation("currentPassword", "Current password is required"))?;
+            .ok_or_else(|| {
+                AppError::validation("currentPassword", "Current password is required")
+            })?;
 
         if !verify_password(current_password, hash)? {
-            return Err(AppError::validation("currentPassword", "Current password is incorrect"));
+            return Err(AppError::validation(
+                "currentPassword",
+                "Current password is incorrect",
+            ));
         }
     }
 

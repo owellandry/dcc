@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
+use super::user::UserPublic;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::user::UserPublic;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Server {
@@ -36,8 +36,10 @@ pub struct Role {
     pub color: Option<i32>,
     pub permissions: i64,
     pub position: i32,
+    pub is_mentionable: bool,
     pub is_hoisted: bool,
     pub is_managed: bool,
+    pub is_default: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -47,7 +49,7 @@ pub struct ServerMember {
     pub user_id: Uuid,
     pub nickname: Option<String>,
     pub joined_at: DateTime<Utc>,
-    pub roles: Vec<Uuid>,
+    pub roles: Vec<Role>,
     pub user: UserPublic,
 }
 
@@ -72,7 +74,7 @@ pub struct ServerMemberRow {
 }
 
 impl ServerMemberRow {
-    pub fn into_member(self, roles: Vec<Uuid>) -> ServerMember {
+    pub fn into_member(self, roles: Vec<Role>) -> ServerMember {
         ServerMember {
             server_id: self.server_id,
             user_id: self.user_id,

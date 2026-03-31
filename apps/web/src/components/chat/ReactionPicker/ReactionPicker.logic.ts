@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { resolveAppearanceTheme } from '@/lib/theme/appearance.shared'
+import { buildAppearancePalette, resolveAppearanceTheme } from '@/lib/theme/appearance.shared'
 import { useAppearanceStore } from '@/stores/appearanceStore'
 import { type ReactionPickerProps, type ReactionPickerVisualProps } from './ReactionPicker.shared'
 
@@ -10,6 +10,10 @@ export function useReactionPickerController({
   onPick,
 }: ReactionPickerProps): ReactionPickerVisualProps {
   const theme = useAppearanceStore((state) => state.theme)
+  const customPrimary = useAppearanceStore((state) => state.customPrimary)
+  const customSecondary = useAppearanceStore((state) => state.customSecondary)
+  const customIntensity = useAppearanceStore((state) => state.customIntensity)
+  const customColorScheme = useAppearanceStore((state) => state.customColorScheme)
   const [prefersDark, setPrefersDark] = useState(true)
 
   useEffect(() => {
@@ -24,7 +28,14 @@ export function useReactionPickerController({
   }, [])
 
   const resolvedTheme = resolveAppearanceTheme(theme, prefersDark)
-  const pickerTheme = resolvedTheme === 'claro' ? 'light' : 'dark'
+  const palette = buildAppearancePalette({
+    theme: resolvedTheme,
+    customPrimary,
+    customSecondary,
+    customIntensity,
+    customColorScheme,
+  })
+  const pickerTheme = palette.colorScheme === 'light' ? 'light' : 'dark'
 
   return {
     pickerRef,

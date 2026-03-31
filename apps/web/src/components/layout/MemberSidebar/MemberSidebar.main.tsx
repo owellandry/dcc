@@ -178,7 +178,7 @@ function MemberRow({
       onClick={(event) => onContextMenu(event, member)}
       onContextMenu={(event) => onContextMenu(event, member)}
       className={cn(
-        'group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-white/[0.05]',
+        'group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--surface-soft)]',
         faded && 'opacity-40 hover:opacity-100'
       )}
     >

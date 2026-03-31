@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useDragControls } from 'motion/react'
 import {
   ArrowLeft,
   Check,
@@ -10,18 +11,22 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { normalizeHexColor } from '@/lib/theme/appearance.shared'
+import { motion } from '@/lib/motion'
+import { normalizeHexColor, type AppearanceCustomColorScheme } from '@/lib/theme/appearance.shared'
 
 interface Props {
   primaryColor: string
   secondaryColor: string
   intensity: number
+  colorScheme: AppearanceCustomColorScheme
   initialPrimaryColor: string
   initialSecondaryColor: string
   initialIntensity: number
+  initialColorScheme: AppearanceCustomColorScheme
   onPrimaryColorChange: (value: string) => void
   onSecondaryColorChange: (value: string) => void
   onIntensityChange: (value: number) => void
+  onColorSchemeChange: (value: AppearanceCustomColorScheme) => void
   onBack: () => void
   onApply: () => void
 }
@@ -30,17 +35,21 @@ export function UserSettingsThemeCustomizerPanel({
   primaryColor,
   secondaryColor,
   intensity,
+  colorScheme,
   initialPrimaryColor,
   initialSecondaryColor,
   initialIntensity,
+  initialColorScheme,
   onPrimaryColorChange,
   onSecondaryColorChange,
   onIntensityChange,
+  onColorSchemeChange,
   onBack,
   onApply,
 }: Props) {
   const [primaryInput, setPrimaryInput] = useState(primaryColor.toUpperCase())
   const [secondaryInput, setSecondaryInput] = useState(secondaryColor.toUpperCase())
+  const dragControls = useDragControls()
 
   useEffect(() => {
     setPrimaryInput(primaryColor.toUpperCase())
@@ -54,8 +63,9 @@ export function UserSettingsThemeCustomizerPanel({
     () =>
       normalizeHexColor(primaryColor) !== normalizeHexColor(initialPrimaryColor)
       || normalizeHexColor(secondaryColor) !== normalizeHexColor(initialSecondaryColor)
-      || intensity !== initialIntensity,
-    [initialIntensity, initialPrimaryColor, initialSecondaryColor, intensity, primaryColor, secondaryColor]
+      || intensity !== initialIntensity
+      || colorScheme !== initialColorScheme,
+    [initialColorScheme, initialIntensity, initialPrimaryColor, initialSecondaryColor, intensity, primaryColor, secondaryColor, colorScheme]
   )
 
   const applyHexDraft = (
@@ -97,17 +107,29 @@ export function UserSettingsThemeCustomizerPanel({
     onPrimaryColorChange(normalizeHexColor(initialPrimaryColor).toUpperCase())
     onSecondaryColorChange(normalizeHexColor(initialSecondaryColor).toUpperCase())
     onIntensityChange(initialIntensity)
+    onColorSchemeChange(initialColorScheme)
   }
 
   return (
-    <aside className="flex h-full min-h-[720px] flex-col overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s2)] shadow-[var(--shadow-xl)]">
+    <motion.aside
+      drag
+      dragControls={dragControls}
+      dragListener={false}
+      dragMomentum={false}
+      className="flex h-full min-h-[720px] flex-col overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s2)] shadow-[var(--shadow-xl)]"
+    >
       <div className="flex items-center gap-3 border-b border-[var(--b1)] px-5 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--ember-dim)] text-[var(--ember)]">
-          <Sparkles size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-700 text-[var(--t0)]">Personaliza tu tema</p>
-          <p className="text-sm text-[var(--t3)]">Prueba colores en tiempo real antes de aplicarlos.</p>
+        <div
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-3 active:cursor-grabbing"
+          onPointerDown={(event) => dragControls.start(event)}
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--ember-dim)] text-[var(--ember)]">
+            <Sparkles size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-700 text-[var(--t0)]">Personaliza tu tema</p>
+            <p className="text-sm text-[var(--t3)]">Prueba colores en tiempo real antes de aplicarlos.</p>
+          </div>
         </div>
         <button
           type="button"
@@ -150,6 +172,35 @@ export function UserSettingsThemeCustomizerPanel({
               onInputBlur={() => applyHexDraft(secondaryInput, initialSecondaryColor, onSecondaryColorChange, setSecondaryInput)}
               onColorChange={(value) => onSecondaryColorChange(value.toUpperCase())}
             />
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-700 text-[var(--t0)]">Base del tema</p>
+              <p className="mt-1 text-sm text-[var(--t3)]">Elige si tus colores deben vivir sobre superficies claras u oscuras.</p>
+            </div>
+            <div className="inline-flex rounded-xl bg-[var(--s0)] p-1">
+              <button
+                type="button"
+                onClick={() => onColorSchemeChange('claro')}
+                className={`rounded-lg px-3 py-2 text-xs font-700 transition-colors ${
+                  colorScheme === 'claro' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                }`}
+              >
+                Clara
+              </button>
+              <button
+                type="button"
+                onClick={() => onColorSchemeChange('oscuro')}
+                className={`rounded-lg px-3 py-2 text-xs font-700 transition-colors ${
+                  colorScheme === 'oscuro' ? 'bg-[var(--ember)] text-[var(--ember-contrast)]' : 'text-[var(--t3)] hover:bg-[var(--surface-soft)]'
+                }`}
+              >
+                Oscura
+              </button>
+            </div>
           </div>
         </section>
 
@@ -207,13 +258,13 @@ export function UserSettingsThemeCustomizerPanel({
         <button
           type="button"
           onClick={onApply}
-          className="ml-auto inline-flex items-center gap-2 rounded-2xl bg-[var(--ember)] px-5 py-3 text-sm font-700 text-white transition-opacity hover:opacity-90"
+          className="ml-auto inline-flex items-center gap-2 rounded-2xl bg-[var(--ember)] px-5 py-3 text-sm font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
         >
           <Check size={16} />
           Aplicar
         </button>
       </div>
-    </aside>
+    </motion.aside>
   )
 }
 

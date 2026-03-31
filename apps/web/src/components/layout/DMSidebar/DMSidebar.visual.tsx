@@ -10,7 +10,7 @@ import type { DMSidebarItem, DMSidebarVisualProps } from './DMSidebar.shared'
 export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSidebarVisualProps) {
   return (
     <motion.aside
-      className="flex h-full w-64 flex-col border-r border-[var(--b1)] bg-[var(--s1)]"
+      className="flex h-full w-80 flex-col border-r border-[var(--b1)] bg-[var(--s1)]"
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.32 }}
@@ -32,13 +32,13 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
             'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-500 transition-colors',
             pathname === '/channels/@me'
               ? 'bg-[var(--ember-dim)] text-[var(--t0)]'
-              : 'text-[var(--t3)] hover:bg-white/[0.04] hover:text-[var(--t1)]'
+              : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
           )}
         >
           <Users size={15} className="shrink-0" />
           <span className="flex-1">Amigos</span>
           {badgeCount > 0 && (
-            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--ember)] px-1 text-[10px] font-700 text-white">
+            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--ember)] px-1 text-[10px] font-700 text-[var(--ember-contrast)]">
               {badgeCount}
             </span>
           )}
@@ -46,7 +46,7 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
 
         <button
           type="button"
-          className="mt-0.5 flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-500 text-[var(--t3)] transition-colors hover:bg-white/[0.04] hover:text-[var(--t1)]"
+          className="mt-0.5 flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-500 text-[var(--t3)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
         >
           <Plus size={15} className="shrink-0" />
           <span>Nuevo mensaje</span>
@@ -95,8 +95,8 @@ function DMItem({ item, onClick }: { item: DMSidebarItem; onClick: () => void })
       className={cn(
         'group flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors',
         item.active
-          ? 'bg-white/[0.07] text-[var(--t0)]'
-          : 'text-[var(--t3)] hover:bg-white/[0.04] hover:text-[var(--t1)]',
+          ? 'bg-[var(--surface-soft)] text-[var(--t0)]'
+          : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]',
         item.isLoading ? 'opacity-80' : ''
       )}
       {...interactiveMotion}

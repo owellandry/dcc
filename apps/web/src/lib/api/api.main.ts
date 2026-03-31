@@ -335,11 +335,13 @@ export const serversApi = {
       server: import('../types').Server
       channels: import('../types').Channel[]
       categories: import('../types').Category[]
+      roles: import('../types').Role[]
     }>(`/servers/${id}`),
   create: (body: { name: string; description?: string }) =>
     api.post<import('../types').Server & {
       channels: import('../types').Channel[]
       categories: import('../types').Category[]
+      roles: import('../types').Role[]
     }>('/servers', body),
   update: (id: string, body: Partial<Pick<import('../types').Server, 'name' | 'description' | 'isPublic' | 'iconUrl' | 'bannerUrl' | 'inviteCode'>>) =>
     api.patch<import('../types').Server>(`/servers/${id}`, {
@@ -361,6 +363,61 @@ export const serversApi = {
     api.post<{ code: string }>(`/servers/${serverId}/invites`, body),
   getMembers: (serverId: string, params?: { limit?: number; after?: string }) =>
     api.getPaginated<import('../types').ServerMember>(`/servers/${serverId}/members`, params),
+  createCategory: (serverId: string, body: { name: string }) =>
+    api.post<import('../types').Category>(`/servers/${serverId}/categories`, body),
+  updateCategory: (categoryId: string, body: Partial<Pick<import('../types').Category, 'name' | 'position'>>) =>
+    api.patch<import('../types').Category>(`/categories/${categoryId}`, body),
+  deleteCategory: (categoryId: string) => api.delete(`/categories/${categoryId}`),
+  reorderStructure: (
+    serverId: string,
+    body: {
+      categories?: Array<{ id: string; position: number }>
+      channels?: Array<{ id: string; position: number; categoryId?: string | null }>
+    }
+  ) => api.post<void>(`/servers/${serverId}/structure/reorder`, body),
+  createRole: (
+    serverId: string,
+    body: {
+      name: string
+      color?: number | null
+      permissions?: number
+      isHoisted?: boolean
+      isMentionable?: boolean
+    }
+  ) => api.post<import('../types').Role>(`/servers/${serverId}/roles`, body),
+  updateRole: (
+    roleId: string,
+    body: Partial<
+      Pick<import('../types').Role, 'name' | 'color' | 'permissions' | 'position' | 'isHoisted' | 'isMentionable'>
+    >
+  ) => api.patch<import('../types').Role>(`/roles/${roleId}`, body),
+  deleteRole: (roleId: string) => api.delete(`/roles/${roleId}`),
+  replaceMemberRoles: (serverId: string, userId: string, roleIds: string[]) =>
+    api.put<import('../types').ServerMember>(`/servers/${serverId}/members/${userId}/roles`, { roleIds }),
+  kickMember: (serverId: string, userId: string) =>
+    api.post<void>(`/servers/${serverId}/members/${userId}/kick`),
+  banMember: (serverId: string, body: { userId: string; reason?: string | null }) =>
+    api.post<void>(`/servers/${serverId}/bans`, body),
+  unbanMember: (serverId: string, userId: string) =>
+    api.delete(`/servers/${serverId}/bans/${userId}`),
+  replaceCategoryOverwrites: (
+    categoryId: string,
+    overwrites: Array<{
+      targetType: import('../types').PermissionOverwriteTargetType
+      targetId: string
+      allowBits: number
+      denyBits: number
+    }>
+  ) => api.put<import('../types').PermissionOverwrite[]>(`/categories/${categoryId}/overwrites`, { overwrites }),
+  replaceChannelOverwrites: (
+    channelId: string,
+    overwrites: Array<{
+      targetType: import('../types').PermissionOverwriteTargetType
+      targetId: string
+      allowBits: number
+      denyBits: number
+    }>
+  ) => api.put<import('../types').PermissionOverwrite[]>(`/channels/${channelId}/overwrites`, { overwrites }),
 }
 
 export const channelsApi = {
@@ -375,10 +432,28 @@ export const channelsApi = {
     api.post(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
   removeReaction: (messageId: string, emoji: string) =>
     api.delete(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
-  create: (serverId: string, body: { name: string; type?: string; categoryId?: string }) =>
+  create: (
+    serverId: string,
+    body: {
+      name: string
+      type?: string
+      categoryId?: string | null
+      topic?: string | null
+      iconKey?: string | null
+      isNsfw?: boolean
+      slowmodeSeconds?: number
+    }
+  ) =>
     api.post<import('../types').Channel>(`/servers/${serverId}/channels`, body),
-  update: (channelId: string, body: Partial<import('../types').Channel>) =>
-    api.patch<import('../types').Channel>(`/channels/${channelId}`, body),
+  update: (
+    channelId: string,
+    body: Partial<
+      Pick<
+        import('../types').Channel,
+        'name' | 'topic' | 'iconKey' | 'position' | 'categoryId' | 'isNsfw' | 'slowmodeSeconds'
+      >
+    >
+  ) => api.patch<import('../types').Channel>(`/channels/${channelId}`, body),
   delete: (channelId: string) => api.delete(`/channels/${channelId}`),
 }
 

@@ -13,6 +13,7 @@ export function AppearanceThemeProvider({ children }: { children: React.ReactNod
   const customPrimary = useAppearanceStore((state) => state.customPrimary)
   const customSecondary = useAppearanceStore((state) => state.customSecondary)
   const customIntensity = useAppearanceStore((state) => state.customIntensity)
+  const customColorScheme = useAppearanceStore((state) => state.customColorScheme)
   const compactMode = useAppearanceStore((state) => state.compactMode)
   const uiDensity = useAppearanceStore((state) => state.uiDensity)
   const [prefersDark, setPrefersDark] = useState(true)
@@ -35,6 +36,7 @@ export function AppearanceThemeProvider({ children }: { children: React.ReactNod
       customPrimary,
       customSecondary,
       customIntensity,
+      customColorScheme,
     })
     applyAppearanceThemeToDocument({
       resolvedTheme,
@@ -42,7 +44,7 @@ export function AppearanceThemeProvider({ children }: { children: React.ReactNod
       uiDensity,
       compactMode,
     })
-  }, [compactMode, customIntensity, customPrimary, customSecondary, prefersDark, theme, uiDensity])
+  }, [compactMode, customColorScheme, customIntensity, customPrimary, customSecondary, prefersDark, theme, uiDensity])
 
   return children
 }

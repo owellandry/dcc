@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::servers::common::ensure_member;
+use crate::api::servers::common::{ensure_server_permission, MANAGE_SERVER_PERMISSION};
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -87,13 +87,23 @@ pub async fn create_invite(
     Path(server_id): Path<Uuid>,
     body: Option<Json<CreateInviteBody>>,
 ) -> Result<Json<Value>> {
-    ensure_member(&state, user_id, server_id).await?;
+    ensure_server_permission(
+        &state,
+        user_id,
+        server_id,
+        MANAGE_SERVER_PERMISSION,
+        "You do not have permission to create invites for this server",
+    )
+    .await?;
 
     let body = body.map(|Json(v)| v).unwrap_or_default();
 
     if let Some(expires_in_seconds) = body.expires_in_seconds {
         if expires_in_seconds <= 0 {
-            return Err(AppError::validation("expiresInSeconds", "Must be a positive number"));
+            return Err(AppError::validation(
+                "expiresInSeconds",
+                "Must be a positive number",
+            ));
         }
     }
 
@@ -157,6 +167,21 @@ pub async fn join_server(
 ) -> Result<Json<Value>> {
     let row = resolve_invite_server(&state, &code).await?;
 
+    let is_banned = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM server_bans WHERE server_id = $1 AND user_id = $2)",
+        row.id,
+        user_id
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(false);
+
+    if is_banned {
+        return Err(AppError::Forbidden(
+            "You are banned from this server".into(),
+        ));
+    }
+
     let join_result = sqlx::query!(
         r#"INSERT INTO server_members (server_id, user_id)
            VALUES ($1, $2)
@@ -217,7 +242,8 @@ pub async fn join_server(
 
             if let Some(joined_user) = joined_user {
                 let message_id = Uuid::new_v4();
-                let welcome_content = format!("{} joined the server. Welcome!", joined_user.username);
+                let welcome_content =
+                    format!("{} joined the server. Welcome!", joined_user.username);
 
                 let inserted = sqlx::query!(
                     r#"INSERT INTO messages (id, channel_id, author_id, content, message_type)

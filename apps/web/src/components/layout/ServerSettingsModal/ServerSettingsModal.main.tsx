@@ -2,29 +2,30 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
+  Ban,
   Camera,
   Folder,
-  Globe2,
   Hash,
   ImagePlus,
-  Link2,
   LoaderCircle,
-  Lock,
+  Plus,
   Save,
   Search,
+  Settings2,
   Shield,
-  Upload,
+  Trash2,
   Users,
+  Volume2,
   X,
 } from 'lucide-react'
-import { ApiRequestError, resolveMediaUrl, serversApi } from '@/lib/api'
-import type { Server } from '@/lib/types'
-import { cn } from '@/lib/cn'
-import { hasPermission } from '@/lib/permissions'
+import { ApiRequestError, channelsApi, resolveMediaUrl, serversApi } from '@/lib/api'
+import { CHANNEL_ICON_OPTIONS } from '@/lib/channel-icons/channelIcons.shared'
+import { Permissions, hasPermission, type Permission } from '@/lib/permissions'
+import type { Category, Channel, PermissionOverwrite, Role, ServerMember } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
-import { useServerCategories, useServerChannels, useServerMembers, useServersStore } from '@/stores/serversStore'
+import { useServerCategories, useServerChannels, useServerMembers, useServerRoles, useServersStore } from '@/stores/serversStore'
 import { MediaSourcePickerModal } from '@/components/user/MediaSourcePickerModal'
-import { Field, ProfileRow, SettingBlock, SettingsNavItem } from '@/components/user/UserSettingsParts'
+import { Field, SettingBlock, SettingsNavItem } from '@/components/user/UserSettingsParts'
 
 interface Props {
   open: boolean
@@ -32,631 +33,653 @@ interface Props {
   onClose: () => void
 }
 
+type Section = 'overview' | 'channels' | 'roles' | 'members'
 type MediaTarget = 'icon' | 'banner'
+type StructureSelection = { kind: 'category' | 'channel'; id: string } | null
+type PermissionKey = keyof typeof Permissions
+
+const PERMISSION_OPTIONS: Array<{ key: PermissionKey; label: string }> = [
+  { key: 'VIEW_CHANNEL', label: 'Ver canales' },
+  { key: 'SEND_MESSAGES', label: 'Enviar mensajes' },
+  { key: 'ADD_REACTIONS', label: 'Reacciones' },
+  { key: 'ATTACH_FILES', label: 'Adjuntar archivos' },
+  { key: 'READ_MESSAGE_HISTORY', label: 'Historial' },
+  { key: 'MANAGE_MESSAGES', label: 'Gestionar mensajes' },
+  { key: 'MANAGE_CHANNELS', label: 'Gestionar canales' },
+  { key: 'MANAGE_ROLES', label: 'Gestionar roles' },
+  { key: 'KICK_MEMBERS', label: 'Expulsar' },
+  { key: 'BAN_MEMBERS', label: 'Banear' },
+  { key: 'MANAGE_SERVER', label: 'Gestionar servidor' },
+  { key: 'MENTION_EVERYONE', label: 'Mention everyone' },
+  { key: 'ADMINISTRATOR', label: 'Administrador' },
+]
 
 function getRequestMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiRequestError) {
-    if (error.status === 403) {
-      return 'No tienes permisos para cambiar esta configuracion.'
-    }
-    return error.message
-  }
+  if (error instanceof ApiRequestError) return error.message
   return fallback
+}
+
+function bitsFromPermissions(enabled: PermissionKey[]) {
+  return enabled.reduce((bits, key) => bits | Permissions[key], 0)
+}
+
+function enabledPermissions(bits: number) {
+  return PERMISSION_OPTIONS.filter((option) => (bits & Permissions[option.key]) !== 0).map((option) => option.key)
+}
+
+function colorToHex(color: number | null | undefined) {
+  if (color === null || color === undefined) return '#5865f2'
+  return `#${color.toString(16).padStart(6, '0')}`
+}
+
+function hexToColor(value: string) {
+  const normalized = value.trim().replace(/^#/, '')
+  return /^[0-9a-fA-F]{6}$/.test(normalized) ? Number.parseInt(normalized, 16) : null
+}
+
+function labelForOverwrite(overwrite: PermissionOverwrite, roles: Role[], members: ServerMember[]) {
+  if (overwrite.targetType === 'role') return roles.find((role) => role.id === overwrite.targetId)?.name ?? 'Rol'
+  const member = members.find((entry) => entry.userId === overwrite.targetId)
+  return member?.nickname ?? member?.user.username ?? 'Miembro'
 }
 
 export function ServerSettingsModal({ open, serverId, onClose }: Props) {
   const user = useAuthStore((s) => s.user)
   const server = useServersStore((s) => s.servers[serverId])
   const upsertServer = useServersStore((s) => s.upsertServer)
-  const channels = useServerChannels(serverId)
+  const setChannels = useServersStore((s) => s.setChannels)
+  const upsertChannel = useServersStore((s) => s.upsertChannel)
+  const removeChannel = useServersStore((s) => s.removeChannel)
+  const setRoles = useServersStore((s) => s.setRoles)
+  const upsertRole = useServersStore((s) => s.upsertRole)
+  const removeRole = useServersStore((s) => s.removeRole)
+  const setMembers = useServersStore((s) => s.setMembers)
+  const upsertMember = useServersStore((s) => s.upsertMember)
+  const removeMember = useServersStore((s) => s.removeMember)
   const categories = useServerCategories(serverId)
+  const channels = useServerChannels(serverId)
+  const roles = useServerRoles(serverId)
   const members = useServerMembers(serverId)
 
   const iconInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
-  const [copied, setCopied] = useState(false)
+  const [section, setSection] = useState<Section>('overview')
+  const [selection, setSelection] = useState<StructureSelection>(null)
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [nameDraft, setNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
-  const [isPublicDraft, setIsPublicDraft] = useState(false)
   const [inviteCodeDraft, setInviteCodeDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isUploadingIcon, setIsUploadingIcon] = useState(false)
-  const [isUploadingBanner, setIsUploadingBanner] = useState(false)
+  const [sectionBusy, setSectionBusy] = useState(false)
   const [mediaPickerTarget, setMediaPickerTarget] = useState<MediaTarget | null>(null)
+  const [createCategoryName, setCreateCategoryName] = useState('')
+  const [createChannelName, setCreateChannelName] = useState('')
+  const [createChannelType, setCreateChannelType] = useState<'text' | 'voice' | 'announcement'>('text')
+  const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | null>(null)
+  const [channelNameDraft, setChannelNameDraft] = useState('')
+  const [channelTopicDraft, setChannelTopicDraft] = useState('')
+  const [channelCategoryDraft, setChannelCategoryDraft] = useState<string | null>(null)
+  const [channelIconDraft, setChannelIconDraft] = useState('hash')
+  const [categoryNameDraft, setCategoryNameDraft] = useState('')
+  const [roleNameDraft, setRoleNameDraft] = useState('')
+  const [roleColorDraft, setRoleColorDraft] = useState('#5865f2')
+  const [rolePermissionsDraft, setRolePermissionsDraft] = useState<PermissionKey[]>([])
+  const [creatingRole, setCreatingRole] = useState(false)
+  const [memberRoleIdsDraft, setMemberRoleIdsDraft] = useState<string[]>([])
+  const [banReasonDraft, setBanReasonDraft] = useState('')
+  const [overwriteDrafts, setOverwriteDrafts] = useState<PermissionOverwrite[]>([])
 
+  const sortedCategories = useMemo(() => [...categories].sort((a, b) => a.position - b.position), [categories])
+  const sortedChannels = useMemo(() => [...channels].sort((a, b) => a.position - b.position), [channels])
+  const sortedRoles = useMemo(() => [...roles].sort((a, b) => (a.isDefault === b.isDefault ? b.position - a.position : a.isDefault ? 1 : -1)), [roles])
+  const sortedMembers = useMemo(() => [...members].sort((a, b) => (a.nickname ?? a.user.username).localeCompare(b.nickname ?? b.user.username)), [members])
+
+  const myMember = useMemo(() => members.find((member) => member.userId === user?.id), [members, user?.id])
+  const myRoles = myMember?.roles ?? []
   const isOwner = Boolean(user && server && user.id === server.ownerId)
-  const myMember = useMemo(
-    () => members.find((member) => member.userId === user?.id),
-    [members, user?.id]
-  )
-  const canManageServer =
-    isOwner || (myMember?.roles.some((role) => hasPermission(role.permissions, 'MANAGE_SERVER')) ?? false)
-  const textChannels = useMemo(
-    () => channels.filter((channel) => channel.type === 'text').sort((a, b) => a.position - b.position),
-    [channels]
-  )
-  const inviteBaseUrl = typeof window === 'undefined' ? 'http://localhost:3000' : window.location.origin
-  const normalizedInviteCode = inviteCodeDraft.trim().toLowerCase()
-  const inviteUrl = normalizedInviteCode
-    ? `${inviteBaseUrl}/invite/${normalizedInviteCode}`
-    : `${inviteBaseUrl}/invite/${server?.inviteCode ?? ''}`
-  const iconUrl = server?.iconUrl ? resolveMediaUrl(server.iconUrl) : null
-  const bannerUrl = server?.bannerUrl ? resolveMediaUrl(server.bannerUrl) : null
-  const initials = (server?.name ?? 'SV')
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? '')
-    .join('')
-  const ownerLabel = useMemo(() => {
-    const ownerMember = members.find((member) => member.userId === server?.ownerId)
-    return ownerMember?.user.username ?? server?.ownerId.slice(0, 8) ?? 'unknown'
-  }, [members, server?.ownerId])
+  const canManageServer = isOwner || myRoles.some((role) => hasPermission(role.permissions, 'MANAGE_SERVER'))
+  const canManageChannels = isOwner || myRoles.some((role) => hasPermission(role.permissions, 'MANAGE_CHANNELS'))
+  const canManageRoles = isOwner || myRoles.some((role) => hasPermission(role.permissions, 'MANAGE_ROLES'))
+  const canKickMembers = isOwner || myRoles.some((role) => hasPermission(role.permissions, 'KICK_MEMBERS'))
+  const canBanMembers = isOwner || myRoles.some((role) => hasPermission(role.permissions, 'BAN_MEMBERS'))
+  const canOpen = canManageServer || canManageChannels || canManageRoles || canKickMembers || canBanMembers
+  const selectedChannel = selection?.kind === 'channel' ? channels.find((channel) => channel.id === selection.id) ?? null : null
+  const selectedCategory = selection?.kind === 'category' ? categories.find((category) => category.id === selection.id) ?? null : null
+  const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null
+  const selectedMember = members.find((member) => member.userId === selectedMemberId) ?? null
+
+  useEffect(() => {
+    if (!open || !serverId) return
+    serversApi.getDetails(serverId).then((response) => {
+      upsertServer(response.data.server)
+      setChannels(serverId, response.data.channels, response.data.categories)
+      setRoles(serverId, response.data.roles)
+    }).catch(() => undefined)
+    serversApi.getMembers(serverId, { limit: 200 }).then((response) => setMembers(serverId, response.data)).catch(() => undefined)
+  }, [open, serverId, setChannels, setMembers, setRoles, upsertServer])
 
   useEffect(() => {
     if (!open || !server) return
     setNameDraft(server.name)
     setDescriptionDraft(server.description ?? '')
-    setIsPublicDraft(server.isPublic)
     setInviteCodeDraft(server.inviteCode)
-    setCopied(false)
     setError(null)
     setSuccess(null)
   }, [open, server])
 
   useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+    if (selectedChannel) {
+      setChannelNameDraft(selectedChannel.name ?? '')
+      setChannelTopicDraft(selectedChannel.topic ?? '')
+      setChannelCategoryDraft(selectedChannel.categoryId)
+      setChannelIconDraft(selectedChannel.iconKey ?? 'hash')
+      setOverwriteDrafts(selectedChannel.overwrites ?? [])
+    } else if (selectedCategory) {
+      setCategoryNameDraft(selectedCategory.name)
+      setOverwriteDrafts(selectedCategory.overwrites ?? [])
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [selectedCategory, selectedChannel])
 
   useEffect(() => {
-    if (!open || canManageServer) return
-    onClose()
-  }, [canManageServer, onClose, open])
+    if (!selectedRole) return
+    setRoleNameDraft(selectedRole.name)
+    setRoleColorDraft(colorToHex(selectedRole.color))
+    setRolePermissionsDraft(enabledPermissions(selectedRole.permissions))
+    setCreatingRole(false)
+  }, [selectedRole])
 
-  const applyServerPatch = (patch: Partial<Pick<Server, 'iconUrl' | 'bannerUrl'>>) => {
-    const latest = useServersStore.getState().servers[serverId]
-    if (!latest) return
-    upsertServer({ ...latest, ...patch })
+  useEffect(() => {
+    if (!selectedMember) return
+    setMemberRoleIdsDraft(selectedMember.roles.filter((role) => !role.isDefault).map((role) => role.id))
+    setBanReasonDraft('')
+  }, [selectedMember])
+
+  const refreshAll = async () => {
+    const [details, memberList] = await Promise.all([
+      serversApi.getDetails(serverId),
+      serversApi.getMembers(serverId, { limit: 200 }),
+    ])
+    upsertServer(details.data.server)
+    setChannels(serverId, details.data.channels, details.data.categories)
+    setRoles(serverId, details.data.roles)
+    setMembers(serverId, memberList.data)
   }
 
-  const uploadIcon = async (formData: FormData) => {
-    const response = await serversApi.uploadIcon(serverId, formData)
-    applyServerPatch({ iconUrl: response.data.iconUrl })
-    setSuccess('Icono del servidor actualizado.')
-  }
-
-  const uploadBanner = async (formData: FormData) => {
-    const response = await serversApi.uploadBanner(serverId, formData)
-    applyServerPatch({ bannerUrl: response.data.bannerUrl })
-    setSuccess('Banner del servidor actualizado.')
-  }
-
-  const resolveGiphyUrl = (raw: string) => {
-    const url = raw.trim()
-    const embedMatch = url.match(/giphy\.com\/embed\/([a-zA-Z0-9]+)/)
-    if (embedMatch?.[1]) return `https://media.giphy.com/media/${embedMatch[1]}/giphy.gif`
-
-    const gifMatch = url.match(/giphy\.com\/gifs\/[^/]*-([a-zA-Z0-9]+)(?:$|[/?#])/)
-    if (gifMatch?.[1]) return `https://media.giphy.com/media/${gifMatch[1]}/giphy.gif`
-
-    return url
-  }
-
-  const uploadFromGiphy = async (target: MediaTarget, rawUrl: string) => {
-    const finalUrl = resolveGiphyUrl(rawUrl)
-    const isIcon = target === 'icon'
-    const setLoading = isIcon ? setIsUploadingIcon : setIsUploadingBanner
-    const fieldName = isIcon ? 'icon' : 'banner'
-
-    setLoading(true)
+  const updateSection = async (work: () => Promise<void>, fallback: string) => {
+    setSectionBusy(true)
     setError(null)
     setSuccess(null)
-
     try {
-      const response = await fetch(finalUrl)
-      if (!response.ok) {
-        throw new Error('REMOTE_FETCH_FAILED')
-      }
+      await work()
+    } catch (workError) {
+      setError(getRequestMessage(workError, fallback))
+    } finally {
+      setSectionBusy(false)
+    }
+  }
 
-      const blob = await response.blob()
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('INVALID_IMAGE')
-      }
-
-      const extension = blob.type.split('/')[1] ?? 'gif'
-      const fileName = `${fieldName}-giphy.${extension}`
+  async function handleUploadMedia(event: ChangeEvent<HTMLInputElement>, target: MediaTarget) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await updateSection(async () => {
       const formData = new FormData()
-      formData.append(fieldName, new File([blob], fileName, { type: blob.type }))
-
-      if (isIcon) {
-        await uploadIcon(formData)
+      formData.append(target, file)
+      if (target === 'icon') {
+        const response = await serversApi.uploadIcon(serverId, formData)
+        upsertServer({ ...server!, iconUrl: response.data.iconUrl })
       } else {
-        await uploadBanner(formData)
+        const response = await serversApi.uploadBanner(serverId, formData)
+        upsertServer({ ...server!, bannerUrl: response.data.bannerUrl })
       }
-
-      setMediaPickerTarget(null)
-    } catch (uploadError) {
-      setError(getRequestMessage(uploadError, 'No se pudo descargar la imagen desde Giphy.'))
-      throw uploadError
-    } finally {
-      setLoading(false)
-    }
+      setSuccess('Medio actualizado.')
+    }, 'No se pudo subir el archivo.')
+    event.target.value = ''
   }
 
-  const handleIconFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  if (!open || !server || !canOpen) return null
 
-    setIsUploadingIcon(true)
-    setError(null)
-    setSuccess(null)
+  const overview = (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <SettingBlock icon={<Shield size={16} />} title="General" description="Nombre, descripcion e invitacion.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Nombre">
+            <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" />
+          </Field>
+          <Field label="Codigo de invitacion">
+            <input value={inviteCodeDraft} onChange={(event) => setInviteCodeDraft(event.target.value.toLowerCase())} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" />
+          </Field>
+        </div>
+        <Field label="Descripcion">
+          <textarea value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} rows={4} className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none" />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <button type="button" onClick={() => setMediaPickerTarget('icon')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-700 text-[var(--t1)]" disabled={!isOwner}>
+            <Camera size={14} />
+            Cambiar icono
+          </button>
+          <button type="button" onClick={() => setMediaPickerTarget('banner')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-700 text-[var(--t1)]" disabled={!isOwner}>
+            <ImagePlus size={14} />
+            Cambiar banner
+          </button>
+        </div>
+        <button type="button" onClick={() => void updateSection(async () => {
+          const response = await serversApi.update(serverId, {
+            name: nameDraft.trim(),
+            description: descriptionDraft.trim() ? descriptionDraft.trim() : null,
+            inviteCode: inviteCodeDraft.trim().toLowerCase(),
+          })
+          upsertServer(response.data)
+          setSuccess('Configuracion general guardada.')
+        }, 'No se pudo guardar la configuracion general.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={!canManageServer || sectionBusy}>
+          {sectionBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />}
+          Guardar
+        </button>
+      </SettingBlock>
+    </div>
+  )
 
-    try {
-      const formData = new FormData()
-      formData.append('icon', file)
-      await uploadIcon(formData)
-    } catch (uploadError) {
-      setError(getRequestMessage(uploadError, 'No se pudo subir el icono del servidor.'))
-    } finally {
-      setIsUploadingIcon(false)
-      event.target.value = ''
-    }
-  }
+  const channelsSection = (
+    <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <SettingBlock icon={<Folder size={16} />} title="Estructura" description="Categorias y canales del servidor.">
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input value={createCategoryName} onChange={(event) => setCreateCategoryName(event.target.value)} className="h-10 flex-1 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" placeholder="Nueva categoria" />
+            <button type="button" onClick={() => void updateSection(async () => {
+              await serversApi.createCategory(serverId, { name: createCategoryName.trim() })
+              setCreateCategoryName('')
+              await refreshAll()
+              setSuccess('Categoria creada.')
+            }, 'No se pudo crear la categoria.')} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface-soft)] text-[var(--t1)]" disabled={!canManageChannels || sectionBusy}>
+              <Plus size={15} />
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <input value={createChannelName} onChange={(event) => setCreateChannelName(event.target.value)} className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" placeholder="nuevo-canal" />
+            <select value={createChannelType} onChange={(event) => setCreateChannelType(event.target.value as 'text' | 'voice' | 'announcement')} className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+              <option value="text">Texto</option>
+              <option value="voice">Voz</option>
+              <option value="announcement">Anuncio</option>
+            </select>
+            <select value={createChannelCategoryId ?? ''} onChange={(event) => setCreateChannelCategoryId(event.target.value || null)} className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+              <option value="">Sin categoria</option>
+              {sortedCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </div>
+          <button type="button" onClick={() => void updateSection(async () => {
+            await channelsApi.create(serverId, { name: createChannelName.trim(), type: createChannelType, categoryId: createChannelCategoryId })
+            setCreateChannelName('')
+            await refreshAll()
+            setSuccess('Canal creado.')
+          }, 'No se pudo crear el canal.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={!canManageChannels || sectionBusy}>
+            <Plus size={14} />
+            Crear canal
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          {sortedCategories.map((category) => (
+            <div key={category.id} className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3">
+              <button type="button" onClick={() => setSelection({ kind: 'category', id: category.id })} className="w-full text-left text-sm font-700 text-[var(--t0)]">{category.name}</button>
+              <div className="mt-2 space-y-1">
+                {sortedChannels.filter((channel) => channel.categoryId === category.id).map((channel) => (
+                  <button key={channel.id} type="button" onClick={() => setSelection({ kind: 'channel', id: channel.id })} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]">
+                    {channel.type === 'voice' ? <Volume2 size={14} /> : <Hash size={14} />}
+                    <span className="truncate">{channel.name ?? 'canal'}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </SettingBlock>
 
-  const handleBannerFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+      {selectedCategory ? (
+        <SettingBlock icon={<Folder size={16} />} title="Editar categoria" description="Nombre y overwrites de la categoria.">
+          <Field label="Nombre">
+            <input value={categoryNameDraft} onChange={(event) => setCategoryNameDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" />
+          </Field>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => void updateSection(async () => {
+              await serversApi.updateCategory(selectedCategory.id, { name: categoryNameDraft.trim() })
+              await refreshAll()
+              setSuccess('Categoria actualizada.')
+            }, 'No se pudo actualizar la categoria.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={sectionBusy}>
+              <Save size={14} />
+              Guardar categoria
+            </button>
+            <button type="button" onClick={() => void updateSection(async () => {
+              await serversApi.deleteCategory(selectedCategory.id)
+              setSelection(null)
+              await refreshAll()
+              setSuccess('Categoria eliminada.')
+            }, 'No se pudo eliminar la categoria.')} className="inline-flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-4 py-2 text-sm font-700 text-[var(--dnd)]">
+              <Trash2 size={14} />
+              Eliminar
+            </button>
+          </div>
+        </SettingBlock>
+      ) : null}
 
-    setIsUploadingBanner(true)
-    setError(null)
-    setSuccess(null)
+      {selectedChannel ? (
+        <SettingBlock icon={<Hash size={16} />} title="Editar canal" description="Nombre, descripcion, categoria e icono.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre">
+              <input value={channelNameDraft} onChange={(event) => setChannelNameDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" />
+            </Field>
+            <Field label="Categoria">
+              <select value={channelCategoryDraft ?? ''} onChange={(event) => setChannelCategoryDraft(event.target.value || null)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+                <option value="">Sin categoria</option>
+                {sortedCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Descripcion">
+            <textarea value={channelTopicDraft} onChange={(event) => setChannelTopicDraft(event.target.value)} rows={4} className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none" />
+          </Field>
+          <Field label="Icono">
+            <select value={channelIconDraft} onChange={(event) => setChannelIconDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+              {CHANNEL_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </select>
+          </Field>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => void updateSection(async () => {
+              const response = await channelsApi.update(selectedChannel.id, { name: channelNameDraft.trim(), topic: channelTopicDraft.trim() || null, categoryId: channelCategoryDraft, iconKey: channelIconDraft })
+              upsertChannel(response.data)
+              await refreshAll()
+              setSuccess('Canal actualizado.')
+            }, 'No se pudo actualizar el canal.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={sectionBusy}>
+              <Save size={14} />
+              Guardar canal
+            </button>
+            <button type="button" onClick={() => void updateSection(async () => {
+              await channelsApi.delete(selectedChannel.id)
+              removeChannel(selectedChannel.id)
+              setSelection(null)
+              await refreshAll()
+              setSuccess('Canal eliminado.')
+            }, 'No se pudo eliminar el canal.')} className="inline-flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-4 py-2 text-sm font-700 text-[var(--dnd)]">
+              <Trash2 size={14} />
+              Eliminar
+            </button>
+          </div>
+        </SettingBlock>
+      ) : null}
 
-    try {
-      const formData = new FormData()
-      formData.append('banner', file)
-      await uploadBanner(formData)
-    } catch (uploadError) {
-      setError(getRequestMessage(uploadError, 'No se pudo subir el banner del servidor.'))
-    } finally {
-      setIsUploadingBanner(false)
-      event.target.value = ''
-    }
-  }
+      {(selectedCategory || selectedChannel) ? (
+        <SettingBlock icon={<Shield size={16} />} title="Overwrites" description="Permisos por rol o miembro para este elemento.">
+          <OverwriteEditor overwrites={overwriteDrafts} roles={sortedRoles} members={sortedMembers} onChange={setOverwriteDrafts} />
+          <button type="button" onClick={() => void updateSection(async () => {
+            const payload = overwriteDrafts.map((overwrite) => ({
+              targetType: overwrite.targetType,
+              targetId: overwrite.targetId,
+              allowBits: overwrite.allowBits,
+              denyBits: overwrite.denyBits,
+            }))
+            if (selectedChannel) {
+              await serversApi.replaceChannelOverwrites(selectedChannel.id, payload)
+            } else if (selectedCategory) {
+              await serversApi.replaceCategoryOverwrites(selectedCategory.id, payload)
+            }
+            await refreshAll()
+            setSuccess('Overwrites actualizados.')
+          }, 'No se pudieron guardar los overwrites.')} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={!canManageRoles || sectionBusy}>
+            <Save size={14} />
+            Guardar overwrites
+          </button>
+        </SettingBlock>
+      ) : null}
+    </div>
+  )
 
-  const handleSave = async () => {
-    if (!server) return
-    if (!canManageServer) {
-      setError('No tienes permisos para guardar cambios en este servidor.')
-      setSuccess(null)
-      return
-    }
+  const rolesSection = (
+    <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <SettingBlock icon={<Shield size={16} />} title="Roles" description="Jerarquia y permisos globales.">
+        <button type="button" onClick={() => {
+          setCreatingRole(true)
+          setSelectedRoleId(null)
+          setRoleNameDraft('')
+          setRoleColorDraft('#5865f2')
+          setRolePermissionsDraft(['VIEW_CHANNEL', 'SEND_MESSAGES', 'ADD_REACTIONS', 'ATTACH_FILES', 'READ_MESSAGE_HISTORY'])
+        }} className="mb-3 inline-flex items-center gap-2 rounded-xl bg-[var(--surface-soft)] px-4 py-2 text-sm font-700 text-[var(--t1)]" disabled={!canManageRoles}>
+          <Plus size={14} />
+          Nuevo rol
+        </button>
+        <div className="space-y-2">
+          {sortedRoles.map((role) => (
+            <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)} className="flex w-full items-center justify-between rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 py-3 text-left">
+              <span className="text-sm font-700 text-[var(--t0)]">{role.name}</span>
+              <span className="h-4 w-4 rounded-full" style={{ backgroundColor: colorToHex(role.color) }} />
+            </button>
+          ))}
+        </div>
+      </SettingBlock>
 
-    const nextName = nameDraft.trim()
-    if (!nextName) {
-      setError('El nombre del servidor no puede estar vacio.')
-      setSuccess(null)
-      return
-    }
+      {selectedRole || creatingRole ? (
+        <SettingBlock icon={<Settings2 size={16} />} title={creatingRole ? 'Crear rol' : 'Editar rol'} description="Color y permisos del rol.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre">
+              <input value={roleNameDraft} onChange={(event) => setRoleNameDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none" />
+            </Field>
+            <Field label="Color">
+              <input type="color" value={roleColorDraft} onChange={(event) => setRoleColorDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-2" />
+            </Field>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {PERMISSION_OPTIONS.map((option) => (
+              <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)]">
+                <input type="checkbox" checked={rolePermissionsDraft.includes(option.key)} onChange={(event) => setRolePermissionsDraft((current) => event.target.checked ? [...current, option.key] : current.filter((entry) => entry !== option.key))} />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <button type="button" onClick={() => void updateSection(async () => {
+              if (creatingRole) {
+                const response = await serversApi.createRole(serverId, { name: roleNameDraft.trim(), color: hexToColor(roleColorDraft), permissions: bitsFromPermissions(rolePermissionsDraft) })
+                upsertRole(response.data)
+                setSelectedRoleId(response.data.id)
+                setCreatingRole(false)
+                setSuccess('Rol creado.')
+              } else if (selectedRole) {
+                const response = await serversApi.updateRole(selectedRole.id, { name: roleNameDraft.trim(), color: hexToColor(roleColorDraft), permissions: bitsFromPermissions(rolePermissionsDraft) })
+                upsertRole(response.data)
+                setSuccess('Rol actualizado.')
+              }
+              await refreshAll()
+            }, creatingRole ? 'No se pudo crear el rol.' : 'No se pudo actualizar el rol.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={!canManageRoles || sectionBusy || (!creatingRole && !!selectedRole?.isDefault)}>
+              <Save size={14} />
+              {creatingRole ? 'Crear rol' : 'Guardar rol'}
+            </button>
+            {!creatingRole && selectedRole && !selectedRole.isDefault ? (
+              <button type="button" onClick={() => void updateSection(async () => {
+                await serversApi.deleteRole(selectedRole.id)
+                removeRole(selectedRole.id)
+                setSelectedRoleId(null)
+                await refreshAll()
+                setSuccess('Rol eliminado.')
+              }, 'No se pudo eliminar el rol.')} className="inline-flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-4 py-2 text-sm font-700 text-[var(--dnd)]">
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            ) : null}
+          </div>
+        </SettingBlock>
+      ) : <EmptyState title="Selecciona un rol" description="Desde aqui puedes editar permisos del rol elegido." />}
+    </div>
+  )
 
-    const nextInviteCode = inviteCodeDraft.trim().toLowerCase()
-    if (!nextInviteCode) {
-      setError('La URL de invitacion no puede estar vacia.')
-      setSuccess(null)
-      return
-    }
-    if (nextInviteCode.length < 3 || nextInviteCode.length > 32) {
-      setError('La URL de invitacion debe tener entre 3 y 32 caracteres.')
-      setSuccess(null)
-      return
-    }
-    if (!/^[a-z0-9_-]+$/.test(nextInviteCode)) {
-      setError('La URL de invitacion solo permite letras, numeros, guion y guion bajo.')
-      setSuccess(null)
-      return
-    }
+  const membersSection = (
+    <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <SettingBlock icon={<Users size={16} />} title="Miembros" description="Roles y moderacion.">
+        <div className="space-y-2">
+          {sortedMembers.map((member) => (
+            <button key={member.userId} type="button" onClick={() => setSelectedMemberId(member.userId)} className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 py-3 text-left">
+              <p className="text-sm font-700 text-[var(--t0)]">{member.nickname ?? member.user.username}</p>
+              <p className="text-xs text-[var(--t4)]">@{member.user.username}</p>
+            </button>
+          ))}
+        </div>
+      </SettingBlock>
 
-    setError(null)
-    setSuccess(null)
-    setIsSaving(true)
-
-    try {
-      const response = await serversApi.update(serverId, {
-        name: nextName,
-        description: descriptionDraft.trim() ? descriptionDraft.trim() : null,
-        isPublic: isPublicDraft,
-        inviteCode: nextInviteCode,
-      })
-      upsertServer(response.data)
-      setSuccess('Ajustes del servidor guardados.')
-    } catch (saveError) {
-      setError(getRequestMessage(saveError, 'No se pudo guardar la configuracion del servidor.'))
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  if (!open || !server || !canManageServer) return null
-
-  const isMediaPickerBusy = isUploadingIcon || isUploadingBanner
+      {selectedMember ? (
+        <SettingBlock icon={<Users size={16} />} title="Gestionar miembro" description="Asignacion de roles y moderacion.">
+          <div className="space-y-2">
+            {sortedRoles.filter((role) => !role.isDefault).map((role) => (
+              <label key={role.id} className="flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)]">
+                <input type="checkbox" checked={memberRoleIdsDraft.includes(role.id)} onChange={(event) => setMemberRoleIdsDraft((current) => event.target.checked ? [...current, role.id] : current.filter((entry) => entry !== role.id))} disabled={!canManageRoles} />
+                {role.name}
+              </label>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => void updateSection(async () => {
+              const response = await serversApi.replaceMemberRoles(serverId, selectedMember.userId, memberRoleIdsDraft)
+              upsertMember(response.data)
+              await refreshAll()
+              setSuccess('Roles del miembro actualizados.')
+            }, 'No se pudieron actualizar los roles del miembro.')} className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)]" disabled={!canManageRoles || sectionBusy}>
+              <Save size={14} />
+              Guardar roles
+            </button>
+            <button type="button" onClick={() => void updateSection(async () => {
+              await serversApi.kickMember(serverId, selectedMember.userId)
+              removeMember(serverId, selectedMember.userId)
+              setSelectedMemberId(null)
+              await refreshAll()
+              setSuccess('Miembro expulsado.')
+            }, 'No se pudo expulsar al miembro.')} className="rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-4 py-2 text-sm font-700 text-[var(--t1)]" disabled={!canKickMembers || sectionBusy || selectedMember.userId === server.ownerId}>
+              Expulsar
+            </button>
+          </div>
+          <Field label="Motivo del ban">
+            <textarea value={banReasonDraft} onChange={(event) => setBanReasonDraft(event.target.value)} rows={3} className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none" />
+          </Field>
+          <button type="button" onClick={() => void updateSection(async () => {
+            await serversApi.banMember(serverId, { userId: selectedMember.userId, reason: banReasonDraft.trim() || null })
+            removeMember(serverId, selectedMember.userId)
+            setSelectedMemberId(null)
+            await refreshAll()
+            setSuccess('Miembro baneado.')
+          }, 'No se pudo banear al miembro.')} className="inline-flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--dnd)]/10 px-4 py-2 text-sm font-700 text-[var(--dnd)]" disabled={!canBanMembers || sectionBusy || selectedMember.userId === server.ownerId}>
+            <Ban size={14} />
+            Banear
+          </button>
+        </SettingBlock>
+      ) : <EmptyState title="Selecciona un miembro" description="Desde aqui puedes reasignar roles o aplicar moderacion." />}
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--modal-scrim)] p-4" onClick={onClose}>
-      <div
-        className="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="flex h-[92vh] w-full max-w-[1200px] overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]" onClick={(event) => event.stopPropagation()}>
         <aside className="hidden w-[260px] shrink-0 border-r border-[var(--b1)] bg-[var(--s1)] p-4 lg:block">
-          <div className="flex items-center gap-3 rounded-xl bg-[var(--s1)] px-3 py-2.5">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--s3)]">
-              {iconUrl ? (
-                <img src={iconUrl} alt={server.name} className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-display text-sm font-800 text-[var(--t0)]">{initials}</span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-700 text-[var(--t0)]">{server.name}</p>
-              <p className="text-xs text-[var(--t3)]">Editar servidor</p>
-            </div>
-          </div>
-
-          <div className="relative mt-3">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)]" />
-            <input
-              className="h-9 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] pl-9 pr-3 text-[13px] text-[var(--t2)] outline-none transition-colors focus:border-[var(--b2)]"
-              placeholder="Buscar"
-              disabled
-            />
-          </div>
-
-          <p className="mt-4 px-2 text-[11px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Ajustes del servidor</p>
+          <div className="relative mt-1"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)]" /><input className="h-9 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] pl-9 pr-3 text-[13px] text-[var(--t2)] outline-none" placeholder="Buscar" disabled /></div>
+          <p className="mt-4 px-2 text-[11px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Secciones</p>
           <div className="mt-2 space-y-1">
-            <SettingsNavItem icon={<Shield size={15} />} label="Vision general" active />
-            <SettingsNavItem icon={<ImagePlus size={15} />} label="Marca y apariencia" />
-            <SettingsNavItem icon={<Hash size={15} />} label="Canales" />
-            <SettingsNavItem icon={<Users size={15} />} label="Miembros" />
-          </div>
-
-          <p className="mt-5 px-2 text-[11px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Acceso</p>
-          <div className="mt-2 space-y-1">
-            <SettingsNavItem icon={<Link2 size={15} />} label="Invitaciones" />
-            <SettingsNavItem icon={isPublicDraft ? <Globe2 size={15} /> : <Lock size={15} />} label={isPublicDraft ? 'Servidor publico' : 'Servidor privado'} />
+            <SettingsNavItem icon={<Shield size={15} />} label="Vision general" active={section === 'overview'} onClick={() => setSection('overview')} />
+            {canManageChannels ? <SettingsNavItem icon={<Hash size={15} />} label="Canales" active={section === 'channels'} onClick={() => setSection('channels')} /> : null}
+            {canManageRoles ? <SettingsNavItem icon={<Settings2 size={15} />} label="Roles" active={section === 'roles'} onClick={() => setSection('roles')} /> : null}
+            {(canManageRoles || canKickMembers || canBanMembers) ? <SettingsNavItem icon={<Users size={15} />} label="Miembros" active={section === 'members'} onClick={() => setSection('members')} /> : null}
           </div>
         </aside>
-
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4 sm:px-6">
-            <h2 className="font-display text-[19px] font-700 text-[var(--t0)]">Ajustes del servidor</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-soft)] text-[var(--t3)] transition-colors hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t0)]"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-6 border-b border-[var(--b1)] px-6 pt-4">
-            <button className="border-b-2 border-[#6f8bff] pb-3 text-sm font-700 text-[#b8c5ff]">Identidad</button>
-            <button className="pb-3 text-sm font-700 text-[var(--t4)] transition-colors hover:text-[var(--t2)]">Control</button>
-          </div>
-
-          <div className="scrollable flex-1 p-4 sm:p-6">
-            <div className="mx-auto max-w-4xl space-y-6">
-              <div className="overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s3)]">
-                <div className="relative h-44 border-b border-[var(--b1)] bg-[var(--s2)]">
-                  {bannerUrl ? (
-                    <img src={bannerUrl} alt={`${server.name} banner`} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full bg-[linear-gradient(135deg,rgba(122,149,255,0.5),rgba(129,83,255,0.35),rgba(23,25,31,0.95))]" />
-                  )}
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(12,14,18,0.82))]" />
-                  <div className="absolute bottom-4 left-4 flex items-end gap-3">
-                    <div className="relative h-[82px] w-[82px]">
-                      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-[var(--s3)] bg-[var(--s3)]">
-                        {iconUrl ? (
-                          <img src={iconUrl} alt={server.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="font-display text-2xl font-800 text-[var(--t0)]">{initials}</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMediaPickerTarget('icon')}
-                        className="absolute -bottom-1 -right-1 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-lg bg-ember text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isUploadingIcon || !isOwner}
-                        title={isOwner ? 'Cambiar icono' : 'Solo el propietario puede cambiar el icono'}
-                      >
-                        {isUploadingIcon ? <LoaderCircle size={15} className="animate-spin" /> : <Camera size={15} />}
-                      </button>
-                    </div>
-                    <div className="pb-1">
-                      <p className="font-display text-xl font-800 text-white">{server.name}</p>
-                      <p className="text-sm text-white/75">
-                        {isPublicDraft ? 'Servidor publico' : 'Servidor privado'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setMediaPickerTarget('banner')}
-                    className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-lg bg-[var(--surface-overlay)] px-3 py-1.5 text-xs font-700 text-white transition-colors hover:bg-[var(--surface-overlay-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isUploadingBanner || !isOwner}
-                    title={isOwner ? 'Cambiar banner' : 'Solo el propietario puede cambiar el banner'}
-                  >
-                    {isUploadingBanner ? <LoaderCircle size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-                    Cambiar banner
-                  </button>
-                  <input
-                    ref={iconInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    className="hidden"
-                    onChange={handleIconFile}
-                  />
-                  <input
-                    ref={bannerInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    className="hidden"
-                    onChange={handleBannerFile}
-                  />
-                </div>
-
-                <div className="space-y-3 p-4">
-                  <ProfileRow label="Propietario" value={ownerLabel}>
-                    <span className="rounded-lg bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-700 text-[var(--t1)]">
-                      {isOwner ? 'Tu servidor' : 'Gestion por rol'}
-                    </span>
-                  </ProfileRow>
-                  <ProfileRow label="Tipo" value={isPublicDraft ? 'Publico' : 'Privado'}>
-                    <span className="rounded-lg bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-700 text-[var(--t1)]">
-                      {isPublicDraft ? 'Visible' : 'Restringido'}
-                    </span>
-                  </ProfileRow>
-                  <ProfileRow label="Invitacion" value={inviteUrl || server.inviteCode}>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(inviteUrl)
-                          setCopied(true)
-                          window.setTimeout(() => setCopied(false), 1200)
-                        } catch {
-                          setCopied(false)
-                        }
-                      }}
-                      className="rounded-lg bg-white/8 px-3 py-1.5 text-xs font-700 text-[var(--t1)] transition-colors hover:bg-white/15"
-                    >
-                      {copied ? 'Copiado' : 'Copiar'}
-                    </button>
-                  </ProfileRow>
-                </div>
-              </div>
-
-              <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-                <section className="space-y-5">
-                  <SettingBlock
-                    icon={<Shield size={16} />}
-                    title="Perfil del servidor"
-                    description="Ajusta el nombre, la descripcion y la visibilidad general."
-                  >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Nombre del servidor">
-                        <input
-                          value={nameDraft}
-                          onChange={(event) => setNameDraft(event.target.value)}
-                          maxLength={100}
-                          className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={!canManageServer || isSaving}
-                        />
-                      </Field>
-
-                      <Field label="Visibilidad">
-                        <button
-                          type="button"
-                          onClick={() => setIsPublicDraft((prev) => !prev)}
-                          className={cn(
-                            'flex h-11 w-full items-center justify-between rounded-xl border px-3 text-sm font-700 outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                            isPublicDraft
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                          )}
-                          disabled={!canManageServer || isSaving}
-                        >
-                          <span>{isPublicDraft ? 'Publico' : 'Privado'}</span>
-                          {isPublicDraft ? <Globe2 size={15} /> : <Lock size={15} />}
-                        </button>
-                      </Field>
-                    </div>
-
-                    <Field label="Descripcion">
-                      <textarea
-                        value={descriptionDraft}
-                        onChange={(event) => setDescriptionDraft(event.target.value)}
-                        rows={4}
-                        maxLength={400}
-                        className="w-full resize-none rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)] disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={!canManageServer || isSaving}
-                      />
-                    </Field>
-                  </SettingBlock>
-
-                  <SettingBlock
-                    icon={<Upload size={16} />}
-                    title="Medios"
-                    description="Usa los mismos flujos del perfil para cambiar icono y banner."
-                  >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-4">
-                        <p className="text-sm font-700 text-[var(--t0)]">Icono del servidor</p>
-                        <p className="mt-1 text-sm text-[var(--t3)]">
-                          JPG, PNG, GIF o WEBP. Tambien puedes pegar un enlace de Giphy.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setMediaPickerTarget('icon')}
-                          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white/8 px-4 py-2 text-sm font-700 text-[var(--t1)] transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={!isOwner || isUploadingIcon}
-                        >
-                          {isUploadingIcon ? <LoaderCircle size={14} className="animate-spin" /> : <Camera size={14} />}
-                          Cambiar icono
-                        </button>
-                      </div>
-
-                      <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-4">
-                        <p className="text-sm font-700 text-[var(--t0)]">Banner del servidor</p>
-                        <p className="mt-1 text-sm text-[var(--t3)]">
-                          Ideal para la cabecera del servidor. Solo el owner puede modificarlo.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setMediaPickerTarget('banner')}
-                          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white/8 px-4 py-2 text-sm font-700 text-[var(--t1)] transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={!isOwner || isUploadingBanner}
-                        >
-                          {isUploadingBanner ? <LoaderCircle size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-                          Cambiar banner
-                        </button>
-                      </div>
-                    </div>
-
-                    <Field label="URL unica de invitacion">
-                      <div className="flex items-center rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3">
-                        <span className="shrink-0 text-xs text-[var(--t4)]">{inviteBaseUrl}/invite/</span>
-                        <input
-                          value={inviteCodeDraft}
-                          onChange={(event) => setInviteCodeDraft(event.target.value.toLowerCase())}
-                          maxLength={32}
-                          className="h-11 w-full bg-transparent px-2 text-sm text-[var(--t1)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={!canManageServer || isSaving}
-                        />
-                      </div>
-                    </Field>
-                  </SettingBlock>
-                </section>
-
-                <aside className="space-y-5">
-                  <div className="rounded-2xl border border-[var(--b1)] bg-[var(--s2)] p-4">
-                    <p className="text-xs font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Vista previa</p>
-                    <div className="mt-4 rounded-2xl border border-[var(--b1)] bg-[var(--s0)] p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--s2)]">
-                          {iconUrl ? (
-                            <img src={iconUrl} alt={server.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="font-display text-lg font-800 text-[var(--t0)]">{initials}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-display text-lg font-700 text-[var(--t0)]">{nameDraft || server.name}</p>
-                          <p className="truncate text-sm text-[var(--t3)]">
-                            {descriptionDraft.trim() || 'Sin descripcion todavia'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-[var(--b1)] bg-[var(--s2)] p-4">
-                    <p className="text-xs font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Resumen</p>
-                    <div className="mt-3 grid gap-2">
-                      <SummaryRow label="Miembros" value={String(Math.max(members.length, server.memberCount))} icon={<Users size={14} />} />
-                      <SummaryRow label="Canales" value={String(textChannels.length)} icon={<Hash size={14} />} />
-                      <SummaryRow label="Categorias" value={String(categories.length)} icon={<Folder size={14} />} />
-                      <SummaryRow label="Acceso" value={canManageServer ? 'Edicion habilitada' : 'Solo lectura'} icon={<Shield size={14} />} />
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-[var(--b1)] bg-[var(--s2)] p-4">
-                    <p className="text-xs font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Canales visibles</p>
-                    <div className="mt-3 space-y-2">
-                      {textChannels.slice(0, 6).map((channel) => (
-                        <div
-                          key={channel.id}
-                          className="flex items-center justify-between rounded-xl border border-[var(--b1)] bg-[var(--s0)] px-3 py-2"
-                        >
-                          <p className="truncate text-sm text-[var(--t1)]">#{channel.name ?? 'canal'}</p>
-                          <span className="text-xs text-[var(--t4)]">{channel.canSendMessages === false ? 'Solo lectura' : 'Activo'}</span>
-                        </div>
-                      ))}
-                      {textChannels.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] px-3 py-3 text-sm text-[var(--t3)]">
-                          No hay canales de texto todavia.
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </aside>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-[var(--b1)] px-6 py-4">
-            <div className="min-h-[20px] text-sm">
-              {error ? <p className="text-[var(--dnd)]">{error}</p> : null}
-              {!error && success ? <p className="text-[var(--online)]">{success}</p> : null}
-              {!error && !success && !isOwner ? (
-                <p className="text-[var(--t4)]">Con este rol puedes editar ajustes generales e invitacion. Icono y banner siguen reservados al propietario.</p>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-4 py-2 text-sm font-600 text-[var(--t2)] transition-colors hover:text-[var(--t0)]"
-              >
-                Cerrar
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSaving || !canManageServer}
-              >
-                {isSaving ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />}
-                Guardar cambios
-              </button>
-            </div>
-          </div>
+          <div className="flex items-center justify-between border-b border-[var(--b1)] px-6 py-4"><div><h2 className="font-display text-[19px] font-700 text-[var(--t0)]">Ajustes del servidor</h2><p className="text-sm text-[var(--t3)]">{server.name}</p></div><button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-soft)] text-[var(--t3)]"><X size={18} /></button></div>
+          <div className="scrollable flex-1 p-6">{section === 'overview' ? overview : null}{section === 'channels' ? channelsSection : null}{section === 'roles' ? rolesSection : null}{section === 'members' ? membersSection : null}</div>
+          <div className="flex items-center justify-between border-t border-[var(--b1)] px-6 py-4 text-sm"><div>{error ? <p className="text-[var(--dnd)]">{error}</p> : null}{!error && success ? <p className="text-[var(--online)]">{success}</p> : null}</div></div>
         </div>
       </div>
-
-      <MediaSourcePickerModal
-        open={mediaPickerTarget !== null}
-        title={mediaPickerTarget === 'icon' ? 'Cambiar icono del servidor' : 'Cambiar banner del servidor'}
-        isBusy={isMediaPickerBusy}
-        onClose={() => setMediaPickerTarget(null)}
-        onPickLocal={() => {
-          const ref = mediaPickerTarget === 'icon' ? iconInputRef.current : bannerInputRef.current
-          ref?.click()
-          setMediaPickerTarget(null)
-        }}
-        onPickGiphy={async (url) => {
-          if (!mediaPickerTarget) return
-          await uploadFromGiphy(mediaPickerTarget, url)
-        }}
-      />
+      <input ref={iconInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(event) => void handleUploadMedia(event, 'icon')} />
+      <input ref={bannerInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(event) => void handleUploadMedia(event, 'banner')} />
+      <MediaSourcePickerModal open={mediaPickerTarget !== null} title={mediaPickerTarget === 'icon' ? 'Cambiar icono del servidor' : 'Cambiar banner del servidor'} isBusy={sectionBusy} onClose={() => setMediaPickerTarget(null)} onPickLocal={() => { if (mediaPickerTarget === 'icon') iconInputRef.current?.click(); if (mediaPickerTarget === 'banner') bannerInputRef.current?.click(); setMediaPickerTarget(null) }} onPickGiphy={async (url) => { const response = await fetch(url.trim()); const blob = await response.blob(); const formData = new FormData(); const field = mediaPickerTarget === 'icon' ? 'icon' : 'banner'; formData.append(field, new File([blob], `${field}.gif`, { type: blob.type })); await updateSection(async () => { if (mediaPickerTarget === 'icon') { const result = await serversApi.uploadIcon(serverId, formData); upsertServer({ ...server, iconUrl: result.data.iconUrl }) } else if (mediaPickerTarget === 'banner') { const result = await serversApi.uploadBanner(serverId, formData); upsertServer({ ...server, bannerUrl: result.data.bannerUrl }) } setSuccess('Medio actualizado.'); setMediaPickerTarget(null) }, 'No se pudo importar la imagen.') }} />
     </div>
   )
 }
 
-function SummaryRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return <div className="rounded-2xl border border-dashed border-[var(--b1)] bg-[var(--s2)] px-6 py-10 text-center"><p className="font-display text-lg font-700 text-[var(--t0)]">{title}</p><p className="mt-2 text-sm text-[var(--t3)]">{description}</p></div>
+}
+
+function OverwriteEditor({
+  overwrites,
+  roles,
+  members,
+  onChange,
+}: {
+  overwrites: PermissionOverwrite[]
+  roles: Role[]
+  members: ServerMember[]
+  onChange: (value: PermissionOverwrite[]) => void
+}) {
+  const [targetType, setTargetType] = useState<'role' | 'member'>('role')
+  const [targetId, setTargetId] = useState('')
+  const candidates = targetType === 'role' ? roles : members
+
   return (
-    <div className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-700 uppercase tracking-[0.14em] text-[var(--t4)]">{label}</p>
-        <span className="text-[var(--t4)]">{icon}</span>
+    <div className="space-y-4">
+      <div className="grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)_auto]">
+        <select value={targetType} onChange={(event) => setTargetType(event.target.value as 'role' | 'member')} className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+          <option value="role">Rol</option>
+          <option value="member">Miembro</option>
+        </select>
+        <select value={targetId} onChange={(event) => setTargetId(event.target.value)} className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none">
+          <option value="">Selecciona un objetivo</option>
+          {candidates.map((candidate) => (
+            <option key={targetType === 'role' ? (candidate as Role).id : (candidate as ServerMember).userId} value={targetType === 'role' ? (candidate as Role).id : (candidate as ServerMember).userId}>
+              {targetType === 'role' ? (candidate as Role).name : ((candidate as ServerMember).nickname ?? (candidate as ServerMember).user.username)}
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={() => {
+          if (!targetId) return
+          if (overwrites.some((overwrite) => overwrite.targetId === targetId && overwrite.targetType === targetType)) return
+          onChange([...overwrites, { id: `draft-${targetType}-${targetId}`, serverId: '', categoryId: null, channelId: null, targetType, targetId, allowBits: 0, denyBits: 0 }])
+          setTargetId('')
+        }} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--surface-soft)] px-4 text-sm font-700 text-[var(--t1)]">
+          <Plus size={14} />
+          Agregar
+        </button>
       </div>
-      <p className="mt-1 text-sm font-700 text-[var(--t0)]">{value}</p>
+
+      {overwrites.map((overwrite) => (
+        <div key={`${overwrite.targetType}-${overwrite.targetId}`} className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-700 text-[var(--t0)]">{labelForOverwrite(overwrite, roles, members)}</p>
+              <p className="text-xs text-[var(--t4)]">{overwrite.targetType}</p>
+            </div>
+            <button type="button" onClick={() => onChange(overwrites.filter((entry) => !(entry.targetId === overwrite.targetId && entry.targetType === overwrite.targetType)))} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-[var(--t3)]">
+              <Trash2 size={14} />
+            </button>
+          </div>
+          <div className="space-y-2">
+            {PERMISSION_OPTIONS.filter((option) => option.key !== 'ADMINISTRATOR').map((option) => {
+              const bit = Permissions[option.key]
+              const allow = (overwrite.allowBits & bit) !== 0
+              const deny = (overwrite.denyBits & bit) !== 0
+              return (
+                <div key={option.key} className="flex items-center justify-between rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 py-2">
+                  <span className="text-sm text-[var(--t1)]">{option.label}</span>
+                  <div className="flex gap-1">
+                    <TriButton active={allow} label="Allow" tone="allow" onClick={() => onChange(overwrites.map((entry) => entry === overwrite ? { ...entry, allowBits: entry.allowBits ^ bit, denyBits: entry.denyBits & ~bit } : entry))} />
+                    <TriButton active={!allow && !deny} label="Neutral" tone="neutral" onClick={() => onChange(overwrites.map((entry) => entry === overwrite ? { ...entry, allowBits: entry.allowBits & ~bit, denyBits: entry.denyBits & ~bit } : entry))} />
+                    <TriButton active={deny} label="Deny" tone="deny" onClick={() => onChange(overwrites.map((entry) => entry === overwrite ? { ...entry, allowBits: entry.allowBits & ~bit, denyBits: entry.denyBits ^ bit } : entry))} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
+}
+
+function TriButton({ active, label, tone, onClick }: { active: boolean; label: string; tone: 'allow' | 'neutral' | 'deny'; onClick: () => void }) {
+  const toneClassName =
+    tone === 'allow' ? (active ? 'bg-[var(--online)] text-white' : 'text-[var(--online)]') :
+    tone === 'deny' ? (active ? 'bg-[var(--dnd)] text-white' : 'text-[var(--dnd)]') :
+    active ? 'bg-[var(--surface-soft-hover)] text-[var(--t0)]' : 'text-[var(--t2)]'
+  return <button type="button" onClick={onClick} className={`rounded-lg px-3 py-1 text-xs font-700 ${toneClassName}`}>{label}</button>
 }

@@ -16,9 +16,9 @@ use crate::{
     error::{AppError, Result},
     middleware::auth::AuthUser,
     services::auth::{
-        consume_backup_code, decrypt_sensitive_value,
-        generate_access_token, generate_discriminator, generate_refresh_token,
-        generate_verification_token, hash_password, verify_password, verify_totp_code,
+        consume_backup_code, decrypt_sensitive_value, generate_access_token,
+        generate_discriminator, generate_refresh_token, generate_verification_token, hash_password,
+        verify_password, verify_totp_code,
     },
     state::AppState,
 };
@@ -60,13 +60,26 @@ pub async fn register(
 ) -> Result<impl IntoResponse> {
     // Validate
     if body.username.len() < 2 || body.username.len() > 32 {
-        return Err(AppError::validation("username", "Username must be 2–32 characters"));
+        return Err(AppError::validation(
+            "username",
+            "Username must be 2–32 characters",
+        ));
     }
-    if !body.username.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-') {
-        return Err(AppError::validation("username", "Username can only contain letters, numbers, dots, underscores, and dashes"));
+    if !body
+        .username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
+        return Err(AppError::validation(
+            "username",
+            "Username can only contain letters, numbers, dots, underscores, and dashes",
+        ));
     }
     if body.password.len() < 8 {
-        return Err(AppError::validation("password", "Password must be at least 8 characters"));
+        return Err(AppError::validation(
+            "password",
+            "Password must be at least 8 characters",
+        ));
     }
     if !body.email.contains('@') {
         return Err(AppError::validation("email", "Invalid email address"));
@@ -149,7 +162,10 @@ pub async fn login(
 ) -> Result<(CookieJar, impl IntoResponse)> {
     let login = body.login.trim();
     if login.is_empty() {
-        return Err(AppError::validation("login", "Username or email is required"));
+        return Err(AppError::validation(
+            "login",
+            "Username or email is required",
+        ));
     }
 
     let user = sqlx::query(
@@ -198,7 +214,11 @@ pub async fn login(
 
         let encrypted_secret = user
             .try_get::<Option<String>, _>("two_factor_secret_encrypted")?
-            .ok_or_else(|| AppError::Unauthorized("Two-factor authentication is not configured correctly".into()))?;
+            .ok_or_else(|| {
+                AppError::Unauthorized(
+                    "Two-factor authentication is not configured correctly".into(),
+                )
+            })?;
         let secret = decrypt_sensitive_value(&encrypted_secret, &state.config.jwt_secret)?;
         let account_name = user.try_get::<String, _>("email")?;
         let issuer = "DCC";
@@ -211,13 +231,11 @@ pub async fn login(
                 .unwrap_or_default();
 
             if let Some(next_backup_hashes) = consume_backup_code(&backup_hashes, code) {
-                sqlx::query(
-                    "UPDATE users SET two_factor_backup_codes = $2 WHERE id = $1",
-                )
-                .bind(user_id)
-                .bind(next_backup_hashes)
-                .execute(&state.db)
-                .await?;
+                sqlx::query("UPDATE users SET two_factor_backup_codes = $2 WHERE id = $1")
+                    .bind(user_id)
+                    .bind(next_backup_hashes)
+                    .execute(&state.db)
+                    .await?;
             } else {
                 return Err(AppError::Unauthorized("Invalid two-factor code".into()));
             }
@@ -231,8 +249,7 @@ pub async fn login(
     )?;
 
     let refresh_token = generate_refresh_token();
-    let refresh_expires = Utc::now()
-        + Duration::days(state.config.refresh_token_expiry_days);
+    let refresh_expires = Utc::now() + Duration::days(state.config.refresh_token_expiry_days);
 
     // Hash the refresh token before storing
     let token_hash = sha256_hex(&refresh_token);
@@ -260,9 +277,12 @@ pub async fn logout(
 ) -> Result<(CookieJar, impl IntoResponse)> {
     if let Some(refresh_cookie) = jar.get("refresh_token") {
         let token_hash = sha256_hex(refresh_cookie.value());
-        sqlx::query!("DELETE FROM refresh_tokens WHERE token_hash = $1", token_hash)
-            .execute(&state.db)
-            .await?;
+        sqlx::query!(
+            "DELETE FROM refresh_tokens WHERE token_hash = $1",
+            token_hash
+        )
+        .execute(&state.db)
+        .await?;
     }
 
     let removed = build_removed_refresh_cookie(&state);
@@ -273,10 +293,7 @@ pub async fn logout(
     ))
 }
 
-pub async fn refresh(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> Result<Response> {
+pub async fn refresh(State(state): State<AppState>, jar: CookieJar) -> Result<Response> {
     let Some(refresh_token) = jar.get("refresh_token").map(|c| c.value().to_string()) else {
         return Ok(StatusCode::NO_CONTENT.into_response());
     };
@@ -292,14 +309,18 @@ pub async fn refresh(
         token_hash,
     )
     .fetch_optional(&state.db)
-    .await? else {
+    .await?
+    else {
         return Ok(StatusCode::NO_CONTENT.into_response());
     };
 
     if row.expires_at < Utc::now() {
-        sqlx::query!("DELETE FROM refresh_tokens WHERE token_hash = $1", token_hash)
-            .execute(&state.db)
-            .await?;
+        sqlx::query!(
+            "DELETE FROM refresh_tokens WHERE token_hash = $1",
+            token_hash
+        )
+        .execute(&state.db)
+        .await?;
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
@@ -325,9 +346,12 @@ pub async fn verify_email(
     .ok_or_else(|| AppError::BadRequest("Invalid or expired token".into()))?;
 
     if row.expires_at < Utc::now() {
-        sqlx::query!("DELETE FROM email_verifications WHERE token = $1", body.token)
-            .execute(&state.db)
-            .await?;
+        sqlx::query!(
+            "DELETE FROM email_verifications WHERE token = $1",
+            body.token
+        )
+        .execute(&state.db)
+        .await?;
         return Err(AppError::BadRequest("Token has expired".into()));
     }
 
@@ -338,11 +362,16 @@ pub async fn verify_email(
     .execute(&state.db)
     .await?;
 
-    sqlx::query!("DELETE FROM email_verifications WHERE token = $1", body.token)
-        .execute(&state.db)
-        .await?;
+    sqlx::query!(
+        "DELETE FROM email_verifications WHERE token = $1",
+        body.token
+    )
+    .execute(&state.db)
+    .await?;
 
-    Ok(Json(json!({ "data": { "message": "Email verified successfully" } })))
+    Ok(Json(
+        json!({ "data": { "message": "Email verified successfully" } }),
+    ))
 }
 
 pub async fn resend_verification(
@@ -350,9 +379,12 @@ pub async fn resend_verification(
     AuthUser(user_id): AuthUser,
 ) -> Result<impl IntoResponse> {
     // Delete old tokens
-    sqlx::query!("DELETE FROM email_verifications WHERE user_id = $1", user_id)
-        .execute(&state.db)
-        .await?;
+    sqlx::query!(
+        "DELETE FROM email_verifications WHERE user_id = $1",
+        user_id
+    )
+    .execute(&state.db)
+    .await?;
 
     let token = generate_verification_token();
     let expires_at = Utc::now() + Duration::hours(24);
@@ -428,19 +460,23 @@ pub async fn oauth_google_callback(
         .as_str()
         .ok_or_else(|| AppError::BadRequest("No email in token".into()))?
         .to_string();
-    let name = claims["name"]
-        .as_str()
-        .unwrap_or("user")
-        .to_string();
+    let name = claims["name"].as_str().unwrap_or("user").to_string();
     let avatar_url = claims["picture"].as_str().map(|s| s.to_string());
 
     let (user_id, _) = upsert_oauth_user(&state, &email, &name, avatar_url).await?;
-    let access_token = generate_access_token(user_id, &state.config.jwt_secret, state.config.access_token_expiry_minutes)?;
+    let access_token = generate_access_token(
+        user_id,
+        &state.config.jwt_secret,
+        state.config.access_token_expiry_minutes,
+    )?;
     let refresh_token = set_refresh_cookie(&state, user_id).await?;
 
     let cookie = build_refresh_cookie(&state, refresh_token);
 
-    let redirect_url = format!("{}/channels/@me?token={}", state.config.app_url, access_token);
+    let redirect_url = format!(
+        "{}/channels/@me?token={}",
+        state.config.app_url, access_token
+    );
     Ok((jar.add(cookie), Redirect::temporary(&redirect_url)))
 }
 
@@ -504,7 +540,9 @@ pub async fn oauth_github_callback(
             .map_err(|e| AppError::Internal(anyhow::anyhow!("GitHub emails fetch failed: {}", e)))?
             .json()
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("GitHub emails parse failed: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("GitHub emails parse failed: {}", e))
+            })?;
 
         emails
             .iter()
@@ -518,12 +556,19 @@ pub async fn oauth_github_callback(
     let avatar_url = user_info["avatar_url"].as_str().map(|s| s.to_string());
 
     let (user_id, _) = upsert_oauth_user(&state, &email, &name, avatar_url).await?;
-    let access_token = generate_access_token(user_id, &state.config.jwt_secret, state.config.access_token_expiry_minutes)?;
+    let access_token = generate_access_token(
+        user_id,
+        &state.config.jwt_secret,
+        state.config.access_token_expiry_minutes,
+    )?;
     let refresh_token = set_refresh_cookie(&state, user_id).await?;
 
     let cookie = build_refresh_cookie(&state, refresh_token);
 
-    let redirect_url = format!("{}/channels/@me?token={}", state.config.app_url, access_token);
+    let redirect_url = format!(
+        "{}/channels/@me?token={}",
+        state.config.app_url, access_token
+    );
     Ok((jar.add(cookie), Redirect::temporary(&redirect_url)))
 }
 
@@ -541,8 +586,7 @@ fn base64_decode_url(input: &str) -> crate::error::Result<String> {
     let decoded = URL_SAFE_NO_PAD
         .decode(input)
         .map_err(|_| AppError::BadRequest("Invalid base64".into()))?;
-    String::from_utf8(decoded)
-        .map_err(|_| AppError::BadRequest("Invalid UTF-8 in token".into()))
+    String::from_utf8(decoded).map_err(|_| AppError::BadRequest("Invalid UTF-8 in token".into()))
 }
 
 async fn upsert_oauth_user(
@@ -587,7 +631,9 @@ async fn set_refresh_cookie(state: &AppState, user_id: Uuid) -> Result<String> {
 
     sqlx::query!(
         "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-        user_id, token_hash, expires_at,
+        user_id,
+        token_hash,
+        expires_at,
     )
     .execute(&state.db)
     .await?;

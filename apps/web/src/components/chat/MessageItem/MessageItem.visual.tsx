@@ -83,7 +83,7 @@ export function MessageItemVisual({
         // Espaciado compacto tipo chat
         grouped ? 'py-0.5' : message.replyTo ? 'pt-4 pb-2' : 'py-2.5',
         // Hover sutil del mensaje
-        'hover:bg-white/[0.03] border-l-2 border-transparent hover:border-l-[var(--b1)]/60',
+        'hover:bg-[var(--surface-soft)] border-l-2 border-transparent hover:border-l-[var(--b1)]/60',
         isMentioningMe && 'border-l-ember/80 bg-[rgba(255,176,77,0.09)] shadow-[inset_0_0_0_1px_rgba(255,176,77,0.12)]'
       )}
       onMouseEnter={onMouseEnter}
@@ -179,7 +179,7 @@ export function MessageItemVisual({
                   'flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-all animate-pop',
                   reaction.meReacted
                     ? 'border-ember/45 bg-[var(--ember-dim)] text-ember shadow-[0_0_0_1px_rgba(255,176,77,0.15)]'
-                    : 'border-[var(--b1)] bg-white/[0.03] text-[var(--t2)] hover:border-[var(--b2)] hover:bg-white/[0.08] hover:text-[var(--t1)]'
+                    : 'border-[var(--b1)] bg-[var(--surface-soft)] text-[var(--t2)] hover:border-[var(--b2)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
                 )}
               >
                 <span>{reaction.emoji}</span>
@@ -388,7 +388,7 @@ function ActionButton({
           : undefined
       }
       className={cn(
-        'flex h-7 w-7 items-center justify-center rounded-lg border border-transparent transition-all hover:bg-white/[0.07]',
+        'flex h-7 w-7 items-center justify-center rounded-lg border border-transparent transition-all hover:bg-[var(--surface-soft-hover)]',
         danger
           ? 'text-[var(--t3)] hover:border-[var(--dnd)]/30 hover:bg-[var(--dnd)]/15 hover:text-[var(--dnd)]'
           : 'text-[var(--t3)] hover:text-[var(--t1)]'

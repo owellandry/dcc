@@ -203,7 +203,7 @@ export default function InvitePage() {
                 <button
                   type="button"
                   onClick={handleJoin}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ember px-5 py-3 text-sm font-700 text-white transition-opacity hover:opacity-90"
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ember px-5 py-3 text-sm font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
                 >
                   Join server
                   <ArrowRight size={16} />
@@ -223,7 +223,7 @@ export default function InvitePage() {
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   <Link
                     href="/"
-                    className="rounded-xl bg-ember px-5 py-3 text-sm font-700 text-white transition-opacity hover:opacity-90"
+                    className="rounded-xl bg-ember px-5 py-3 text-sm font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
                   >
                     Go home
                   </Link>

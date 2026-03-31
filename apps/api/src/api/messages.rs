@@ -7,11 +7,14 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
-    api::servers::common::{can_manage_default_category, is_default_restricted_category_name},
+    api::servers::common::{
+        ensure_channel_view_access, has_permission, load_channel_access,
+        load_server_permissions_context, MANAGE_MESSAGES_PERMISSION, SEND_MESSAGES_PERMISSION,
+    },
     error::{AppError, Result},
     middleware::AuthUser,
     models::message::MessageRow,
-    services::pubsub::{publish, guild_channel, dm_channel},
+    services::pubsub::{dm_channel, guild_channel, publish},
     state::AppState,
 };
 
@@ -30,7 +33,7 @@ pub async fn list_messages(
     Path(channel_id): Path<Uuid>,
     Query(q): Query<MessagesQuery>,
 ) -> Result<Json<Value>> {
-    authorize_channel_access(&state, user_id, channel_id).await?;
+    ensure_channel_view_access(&state, user_id, channel_id).await?;
 
     let limit = q.limit.unwrap_or(50).min(100);
 
@@ -103,7 +106,11 @@ pub async fn list_messages(
     let _ = reverse_after; // direction handled by DB ORDER BY
 
     let has_more = rows.len() as i64 > limit;
-    let rows = if has_more { &rows[..limit as usize] } else { &rows[..] };
+    let rows = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
     let next_cursor = rows.last().map(|r| r.id.to_string());
 
     let mut messages: Vec<Value> = Vec::with_capacity(rows.len());
@@ -139,16 +146,20 @@ pub async fn send_message(
     Path(channel_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
 ) -> Result<Json<Value>> {
-    authorize_channel_access(&state, user_id, channel_id).await?;
+    ensure_channel_view_access(&state, user_id, channel_id).await?;
     ensure_can_send_message(&state, user_id, channel_id).await?;
 
     let content = body.content.as_deref().map(|s| s.trim().to_string());
     if content.as_deref().map(|s| s.is_empty()).unwrap_or(true) {
-        return Err(AppError::BadRequest("Message content cannot be empty".into()));
+        return Err(AppError::BadRequest(
+            "Message content cannot be empty".into(),
+        ));
     }
     let content = content.unwrap();
     if content.len() > 4000 {
-        return Err(AppError::BadRequest("Message exceeds 4000 character limit".into()));
+        return Err(AppError::BadRequest(
+            "Message exceeds 4000 character limit".into(),
+        ));
     }
 
     let reply_to_id = validate_reply_target(&state, body.reply_to_id, channel_id).await?;
@@ -212,7 +223,9 @@ pub async fn edit_message(
 ) -> Result<Json<Value>> {
     let content = body.content.trim().to_string();
     if content.is_empty() || content.len() > 4000 {
-        return Err(AppError::BadRequest("Message must be 1–4000 characters".into()));
+        return Err(AppError::BadRequest(
+            "Message must be 1–4000 characters".into(),
+        ));
     }
 
     let updated_message = sqlx::query!(
@@ -269,26 +282,17 @@ pub async fn delete_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     if row.author_id != user_id {
-        // Check if user is server owner (can delete any message)
-        let channel = sqlx::query!(
-            "SELECT server_id FROM channels WHERE id = $1",
-            row.channel_id
-        )
-        .fetch_one(&state.db)
-        .await?;
-
-        if let Some(server_id) = channel.server_id {
-            let owner = sqlx::query_scalar!(
-                "SELECT owner_id FROM servers WHERE id = $1",
-                server_id
-            )
-            .fetch_one(&state.db)
-            .await?;
-            if owner != user_id {
-                return Err(AppError::Forbidden("Cannot delete someone else's message".into()));
-            }
-        } else {
-            return Err(AppError::Forbidden("Cannot delete someone else's message".into()));
+        let access = load_channel_access(&state, user_id, row.channel_id).await?;
+        let Some(server_id) = access.server_id else {
+            return Err(AppError::Forbidden(
+                "Cannot delete someone else's message".into(),
+            ));
+        };
+        let context = load_server_permissions_context(&state, user_id, server_id).await?;
+        if !context.is_owner && !has_permission(access.permissions, MANAGE_MESSAGES_PERMISSION) {
+            return Err(AppError::Forbidden(
+                "Cannot delete someone else's message".into(),
+            ));
         }
     }
 
@@ -297,7 +301,8 @@ pub async fn delete_message(
         .await?;
 
     let pub_channel = get_pub_channel(&state, row.channel_id).await;
-    let event = json!({ "t": "MESSAGE_DELETE", "d": { "id": message_id, "channelId": row.channel_id } });
+    let event =
+        json!({ "t": "MESSAGE_DELETE", "d": { "id": message_id, "channelId": row.channel_id } });
     let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
 
     Ok(Json(json!({ "data": null })))
@@ -315,15 +320,12 @@ pub async fn add_reaction(
         .unwrap_or(emoji);
 
     // Verify message exists and user can access it
-    let msg = sqlx::query!(
-        "SELECT channel_id FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
+    let msg = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
-    authorize_channel_access(&state, user_id, msg.channel_id).await?;
+    ensure_channel_view_access(&state, user_id, msg.channel_id).await?;
 
     sqlx::query!(
         r#"INSERT INTO message_reactions (message_id, user_id, emoji)
@@ -355,15 +357,12 @@ pub async fn remove_reaction(
         .map(|s| s.into_owned())
         .unwrap_or(emoji);
 
-    let msg = sqlx::query!(
-        "SELECT channel_id FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
+    let msg = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
-    authorize_channel_access(&state, user_id, msg.channel_id).await?;
+    ensure_channel_view_access(&state, user_id, msg.channel_id).await?;
 
     sqlx::query!(
         "DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3",
@@ -386,93 +385,35 @@ pub async fn remove_reaction(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async fn authorize_channel_access(state: &AppState, user_id: Uuid, channel_id: Uuid) -> Result<()> {
-    let ch = sqlx::query!(
-        r#"SELECT c.server_id, cat.name as "category_name?"
-           FROM channels c
-           LEFT JOIN categories cat ON cat.id = c.category_id
-           WHERE c.id = $1"#,
-        channel_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
-
-    if let Some(server_id) = ch.server_id {
-        let exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2)",
-            server_id,
-            user_id
-        )
-        .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
-
-        if !exists {
-            return Err(AppError::Forbidden("Not a member of this server".into()));
-        }
-
-    } else {
-        let in_dm = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2)",
-            channel_id,
-            user_id
-        )
-        .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
-
-        if !in_dm {
-            return Err(AppError::Forbidden("Not a participant of this DM".into()));
-        }
-    }
-    Ok(())
-}
-
 async fn ensure_can_send_message(state: &AppState, user_id: Uuid, channel_id: Uuid) -> Result<()> {
-    let ch = sqlx::query!(
-        r#"SELECT c.server_id, cat.name as "category_name?"
-           FROM channels c
-           LEFT JOIN categories cat ON cat.id = c.category_id
-           WHERE c.id = $1"#,
-        channel_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
-
-    let Some(server_id) = ch.server_id else {
-        return Ok(());
-    };
-
-    if ch
-        .category_name
-        .as_deref()
-        .map(is_default_restricted_category_name)
-        .unwrap_or(false)
-        && !can_manage_default_category(state, user_id, server_id).await?
-    {
-        return Err(AppError::Forbidden("This channel is read-only for your role".into()));
+    let access = load_channel_access(state, user_id, channel_id).await?;
+    if access.server_id.is_some() && !has_permission(access.permissions, SEND_MESSAGES_PERMISSION) {
+        return Err(AppError::Forbidden(
+            "This channel is read-only for your role".into(),
+        ));
     }
 
     Ok(())
 }
 
-async fn validate_reply_target(state: &AppState, reply_to_id: Option<Uuid>, channel_id: Uuid) -> Result<Option<Uuid>> {
+async fn validate_reply_target(
+    state: &AppState,
+    reply_to_id: Option<Uuid>,
+    channel_id: Uuid,
+) -> Result<Option<Uuid>> {
     let Some(reply_to_id) = reply_to_id else {
         return Ok(None);
     };
 
-    let reply_target = sqlx::query!(
-        "SELECT channel_id FROM messages WHERE id = $1",
-        reply_to_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Reply target message was not found".into()))?;
+    let reply_target = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", reply_to_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("Reply target message was not found".into()))?;
 
     if reply_target.channel_id != channel_id {
-        return Err(AppError::BadRequest("Reply target must belong to the same channel".into()));
+        return Err(AppError::BadRequest(
+            "Reply target must belong to the same channel".into(),
+        ));
     }
 
     Ok(Some(reply_to_id))
@@ -572,25 +513,24 @@ async fn fetch_reactions(state: &AppState, message_id: Uuid, user_id: Uuid) -> R
 
     Ok(rows
         .into_iter()
-        .map(|r| json!({
-            "emoji": r.emoji,
-            "count": r.count.unwrap_or(0),
-            "meReacted": r.me_reacted.unwrap_or(false),
-        }))
+        .map(|r| {
+            json!({
+                "emoji": r.emoji,
+                "count": r.count.unwrap_or(0),
+                "meReacted": r.me_reacted.unwrap_or(false),
+            })
+        })
         .collect())
 }
 
 async fn get_pub_channel(state: &AppState, channel_id: Uuid) -> String {
     // Determine if DM or guild channel for routing
-    let server_id = sqlx::query_scalar!(
-        "SELECT server_id FROM channels WHERE id = $1",
-        channel_id
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .flatten();
+    let server_id = sqlx::query_scalar!("SELECT server_id FROM channels WHERE id = $1", channel_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .flatten();
 
     if let Some(sid) = server_id {
         guild_channel(sid)

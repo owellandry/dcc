@@ -100,7 +100,7 @@ export function InviteLinkModalVisual({
               <button
                 type="button"
                 onClick={onGenerateInvite}
-                className="rounded-md bg-[var(--ember)] px-3 py-1.5 text-[13px] font-700 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="rounded-md bg-[var(--ember)] px-3 py-1.5 text-[13px] font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
                 disabled={isGeneratingInvite || isCopyingInvite}
               >
                 {isGeneratingInvite ? 'Generando...' : 'Generar'}

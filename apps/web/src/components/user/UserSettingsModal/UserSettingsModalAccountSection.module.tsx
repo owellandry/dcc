@@ -56,7 +56,7 @@ export function UserSettingsModalAccountSection({
               <button
                 type="button"
                 onClick={() => onOpenMediaPicker('avatar')}
-                className="absolute -bottom-1 -right-1 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-ember text-white transition-opacity hover:opacity-90"
+                className="absolute -bottom-1 -right-1 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-ember text-[var(--ember-contrast)] transition-opacity hover:opacity-90"
                 disabled={isUploadingAvatar}
               >
                 {isUploadingAvatar ? <LoaderCircle size={15} className="animate-spin" /> : <Camera size={15} />}
@@ -70,7 +70,7 @@ export function UserSettingsModalAccountSection({
           <button
             type="button"
             onClick={() => onOpenMediaPicker('banner')}
-            className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-lg bg-[var(--surface-overlay)] px-3 py-1.5 text-xs font-700 text-white transition-colors hover:bg-[var(--surface-overlay-hover)]"
+            className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-lg border border-[var(--b2)] bg-[var(--surface-overlay)] px-3 py-1.5 text-xs font-700 text-[var(--t0)] transition-colors hover:bg-[var(--surface-overlay-hover)]"
             disabled={isUploadingBanner}
           >
             {isUploadingBanner ? <LoaderCircle size={14} className="animate-spin" /> : <ImagePlus size={14} />}

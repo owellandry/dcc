@@ -49,7 +49,7 @@ export function renderMessageContent(
             'rounded-md px-1 py-0.5 font-600',
             isMentioningMe
               ? 'bg-[var(--ember-dim)] text-ember'
-              : 'bg-white/[0.08] text-[var(--t1)]'
+              : 'bg-[var(--surface-soft-hover)] text-[var(--t1)]'
           )}
         >
           @{normalizedMentionedName}

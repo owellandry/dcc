@@ -107,7 +107,7 @@ export function MediaSourcePickerModal({
               <button
                 type="button"
                 onClick={handleSubmitGiphy}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-ember px-3 py-2 text-xs font-700 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ember px-3 py-2 text-xs font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
                 disabled={isBusy || isSubmitting}
               >
                 {isSubmitting ? <LoaderCircle size={13} className="animate-spin" /> : <ExternalLink size={13} />}

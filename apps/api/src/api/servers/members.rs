@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use super::*;
-use crate::api::servers::common::ensure_member;
+use crate::api::servers::common::{ensure_member, load_member_roles, role_payload};
 
 #[derive(Deserialize)]
 pub struct MembersQuery {
@@ -29,7 +31,7 @@ pub async fn list_members(
                  SELECT joined_at FROM server_members WHERE server_id = $1 AND user_id = $2
              ))
            ORDER BY sm.joined_at ASC
-           LIMIT $3"#
+           LIMIT $3"#,
     )
     .bind(server_id)
     .bind(q.after)
@@ -38,31 +40,43 @@ pub async fn list_members(
     .await?;
 
     let has_more = rows.len() as i64 > limit;
-    let rows = if has_more { &rows[..limit as usize] } else { &rows[..] };
+    let rows = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
     let next_cursor = rows.last().map(|r| r.user_id.to_string());
+
+    let mut roles_by_user = HashMap::<Uuid, Vec<Value>>::new();
+    for row in rows {
+        let roles = load_member_roles(&state, row.server_id, row.user_id).await?;
+        roles_by_user.insert(row.user_id, roles.iter().map(role_payload).collect());
+    }
 
     let members: Vec<Value> = rows
         .iter()
-        .map(|r| json!({
-            "serverId": r.server_id,
-            "userId": r.user_id,
-            "nickname": r.nickname,
-            "joinedAt": r.joined_at,
-            "roles": [],
-            "user": {
-                "id": r.user_id,
-                "username": r.username,
-                "discriminator": r.discriminator,
-                "avatarUrl": r.avatar_url,
-                "bannerUrl": r.banner_url,
-                "bio": r.bio,
-                "status": r.status,
-                "customStatus": r.custom_status,
-                "isVerified": r.is_verified,
-                "badges": r.badges,
-                "createdAt": r.user_created_at,
-            }
-        }))
+        .map(|r| {
+            json!({
+                "serverId": r.server_id,
+                "userId": r.user_id,
+                "nickname": r.nickname,
+                "joinedAt": r.joined_at,
+                "roles": roles_by_user.get(&r.user_id).cloned().unwrap_or_default(),
+                "user": {
+                    "id": r.user_id,
+                    "username": r.username,
+                    "discriminator": r.discriminator,
+                    "avatarUrl": r.avatar_url,
+                    "bannerUrl": r.banner_url,
+                    "bio": r.bio,
+                    "status": r.status,
+                    "customStatus": r.custom_status,
+                    "isVerified": r.is_verified,
+                    "badges": r.badges,
+                    "createdAt": r.user_created_at,
+                }
+            })
+        })
         .collect();
 
     Ok(Json(json!({

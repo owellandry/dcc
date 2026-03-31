@@ -1,6 +1,7 @@
 export type AppearanceTheme = 'oscuro' | 'claro' | 'sistema' | 'personalizado'
 export type ResolvedAppearanceTheme = Exclude<AppearanceTheme, 'sistema'>
 export type AppearanceDensity = 'comoda' | 'compacta'
+export type AppearanceCustomColorScheme = 'oscuro' | 'claro'
 
 export interface AppearancePalette {
   colorScheme: 'dark' | 'light'
@@ -20,6 +21,7 @@ interface BuildAppearancePaletteOptions {
   customPrimary: string
   customSecondary: string
   customIntensity?: number
+  customColorScheme?: AppearanceCustomColorScheme
 }
 
 type RgbColor = {
@@ -59,8 +61,10 @@ const DARK_PALETTE: AppearancePalette = {
     '--ember-hover': '#e85920',
     '--ember-dim': 'rgba(255,104,53,0.12)',
     '--ember-glow': 'rgba(255,104,53,0.30)',
+    '--ember-contrast': '#ffffff',
     '--volt': '#7c6bff',
     '--volt-dim': 'rgba(124,107,255,0.12)',
+    '--volt-contrast': '#ffffff',
     '--online': '#23d18b',
     '--online-glow': '0 0 0 3px rgba(35,209,139,0.25), 0 0 8px rgba(35,209,139,0.15)',
     '--idle': '#f5a623',
@@ -112,8 +116,10 @@ const LIGHT_PALETTE: AppearancePalette = {
     '--ember-hover': '#db4b17',
     '--ember-dim': 'rgba(240,96,43,0.12)',
     '--ember-glow': 'rgba(240,96,43,0.24)',
+    '--ember-contrast': '#ffffff',
     '--volt': '#6f63f6',
     '--volt-dim': 'rgba(111,99,246,0.12)',
+    '--volt-contrast': '#ffffff',
     '--online': '#129f67',
     '--online-glow': '0 0 0 3px rgba(18,159,103,0.16)',
     '--idle': '#d98712',
@@ -162,6 +168,7 @@ export function buildAppearancePalette({
   customPrimary,
   customSecondary,
   customIntensity = 74,
+  customColorScheme = 'oscuro',
 }: BuildAppearancePaletteOptions): AppearancePalette {
   if (theme === 'oscuro') return DARK_PALETTE
   if (theme === 'claro') return LIGHT_PALETTE
@@ -170,6 +177,25 @@ export function buildAppearancePalette({
   const secondary = normalizeHexColor(customSecondary, DEFAULT_SECONDARY)
   const blend = mixColors(primary, secondary, 0.5)
   const intensity = clamp(customIntensity, 0, 100) / 100
+
+  if (customColorScheme === 'claro') {
+    return buildLightCustomPalette({ primary, secondary, blend, intensity })
+  }
+
+  return buildDarkCustomPalette({ primary, secondary, blend, intensity })
+}
+
+function buildDarkCustomPalette({
+  primary,
+  secondary,
+  blend,
+  intensity,
+}: {
+  primary: string
+  secondary: string
+  blend: string
+  intensity: number
+}): AppearancePalette {
   const surfaceTint = 0.14 + intensity * 0.28
   const panelTint = 0.18 + intensity * 0.32
   const highlightTint = 0.22 + intensity * 0.36
@@ -212,8 +238,10 @@ export function buildAppearancePalette({
       '--ember-hover': mixColors(primary, '#05070d', 0.22),
       '--ember-dim': withAlpha(primary, 0.1 + intensity * 0.12),
       '--ember-glow': withAlpha(primary, 0.22 + intensity * 0.16),
+      '--ember-contrast': pickContrastTextColor(primary),
       '--volt': secondary,
       '--volt-dim': withAlpha(secondary, 0.1 + intensity * 0.12),
+      '--volt-contrast': pickContrastTextColor(secondary),
       '--online': '#28d490',
       '--online-glow': '0 0 0 3px rgba(40,212,144,0.25), 0 0 8px rgba(40,212,144,0.15)',
       '--idle': '#f7b13b',
@@ -238,6 +266,88 @@ export function buildAppearancePalette({
   }
 }
 
+function buildLightCustomPalette({
+  primary,
+  secondary,
+  blend,
+  intensity,
+}: {
+  primary: string
+  secondary: string
+  blend: string
+  intensity: number
+}): AppearancePalette {
+  const backgroundTint = 0.03 + intensity * 0.08
+  const surfaceTint = 0.04 + intensity * 0.1
+  const panelTint = 0.06 + intensity * 0.12
+  const elevatedTint = 0.08 + intensity * 0.14
+  const base0 = mixColors('#eef2f7', blend, backgroundTint)
+  const base1 = mixColors('#f7f9fc', primary, surfaceTint)
+  const base2 = mixColors('#ffffff', blend, surfaceTint)
+  const base3 = mixColors('#f4f7fb', secondary, panelTint)
+  const base4 = mixColors('#eef2f8', blend, elevatedTint)
+  const base5 = mixColors('#e8edf5', primary, elevatedTint)
+  const base6 = mixColors('#e0e6f0', secondary, elevatedTint)
+  const base7 = mixColors('#d7dfec', blend, 0.1 + intensity * 0.16)
+
+  return {
+    colorScheme: 'light',
+    themeColor: base0,
+    variables: {
+      '--custom-theme-color-1': primary,
+      '--custom-theme-color-2': secondary,
+      '--app-bg-gradient': `radial-gradient(circle at top left, ${withAlpha(primary, 0.18 + intensity * 0.08)}, transparent 32%), radial-gradient(circle at top right, ${withAlpha(secondary, 0.16 + intensity * 0.08)}, transparent 34%), linear-gradient(180deg, ${base1} 0%, ${base0} 100%)`,
+      '--s0': base0,
+      '--s1': base1,
+      '--s2': base2,
+      '--s3': base3,
+      '--s4': base4,
+      '--s5': base5,
+      '--s6': base6,
+      '--s7': base7,
+      '--b0': withAlpha('#0f172a', 0.04),
+      '--b1': withAlpha('#0f172a', 0.08),
+      '--b2': withAlpha('#0f172a', 0.14),
+      '--b3': withAlpha('#0f172a', 0.22),
+      '--highlight-top': 'inset 0 1px 0 rgba(255,255,255,0.82)',
+      '--highlight-top-strong': 'inset 0 1px 0 rgba(255,255,255,0.94)',
+      '--t0': '#0f172a',
+      '--t1': '#223042',
+      '--t2': '#506072',
+      '--t3': '#718198',
+      '--t4': '#98a5b7',
+      '--ember': primary,
+      '--ember-hover': mixColors(primary, '#0f172a', 0.12),
+      '--ember-dim': withAlpha(primary, 0.12 + intensity * 0.08),
+      '--ember-glow': withAlpha(primary, 0.2 + intensity * 0.1),
+      '--ember-contrast': pickContrastTextColor(primary),
+      '--volt': secondary,
+      '--volt-dim': withAlpha(secondary, 0.12 + intensity * 0.08),
+      '--volt-contrast': pickContrastTextColor(secondary),
+      '--online': '#129f67',
+      '--online-glow': '0 0 0 3px rgba(18,159,103,0.16)',
+      '--idle': '#d98712',
+      '--idle-glow': '0 0 0 3px rgba(217,135,18,0.18)',
+      '--dnd': '#d74d4d',
+      '--dnd-glow': '0 0 0 3px rgba(215,77,77,0.16)',
+      '--offline': '#8b94a5',
+      '--shadow-sm': 'none',
+      '--shadow-md': 'none',
+      '--shadow-lg': 'none',
+      '--shadow-xl': 'none',
+      '--glass-bg': withAlpha(base2, 0.82),
+      '--glass-blur': 'blur(16px) saturate(140%)',
+      '--glass-border': `1px solid ${withAlpha('#0f172a', 0.08)}`,
+      '--surface-soft': withAlpha('#0f172a', 0.05 + intensity * 0.04),
+      '--surface-soft-hover': withAlpha('#0f172a', 0.1 + intensity * 0.05),
+      '--surface-overlay': withAlpha('#ffffff', 0.74),
+      '--surface-overlay-hover': withAlpha('#ffffff', 0.9),
+      '--modal-scrim': 'rgba(15,23,42,0.42)',
+      '--panel-shadow': 'none',
+    },
+  }
+}
+
 export function applyAppearanceThemeToDocument({
   resolvedTheme,
   palette,
@@ -247,6 +357,7 @@ export function applyAppearanceThemeToDocument({
   const root = document.documentElement
 
   root.dataset.theme = resolvedTheme
+  root.dataset.colorScheme = palette.colorScheme
   root.dataset.uiDensity = uiDensity
   root.dataset.messageLayout = compactMode ? 'compact' : 'comfortable'
   root.style.colorScheme = palette.colorScheme
@@ -300,4 +411,37 @@ function rgbToHex({ r, g, b }: RgbColor) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function pickContrastTextColor(background: string) {
+  const light = '#f8fafc'
+  const dark = '#0f172a'
+
+  const contrastWithLight = getContrastRatio(background, light)
+  const contrastWithDark = getContrastRatio(background, dark)
+
+  return contrastWithDark >= contrastWithLight ? dark : light
+}
+
+function getContrastRatio(colorA: string, colorB: string) {
+  const luminanceA = getRelativeLuminance(hexToRgb(colorA))
+  const luminanceB = getRelativeLuminance(hexToRgb(colorB))
+  const brightest = Math.max(luminanceA, luminanceB)
+  const darkest = Math.min(luminanceA, luminanceB)
+
+  return (brightest + 0.05) / (darkest + 0.05)
+}
+
+function getRelativeLuminance({ r, g, b }: RgbColor) {
+  const red = toLinearChannel(r)
+  const green = toLinearChannel(g)
+  const blue = toLinearChannel(b)
+
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722
+}
+
+function toLinearChannel(value: number) {
+  const normalized = value / 255
+  if (normalized <= 0.03928) return normalized / 12.92
+  return ((normalized + 0.055) / 1.055) ** 2.4
 }

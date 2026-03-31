@@ -105,7 +105,7 @@ export default function VerifyEmailPage() {
               </p>
               <a
                 href={devVerificationUrl}
-                className="mt-3 inline-flex rounded-lg bg-ember px-4 py-2 text-sm font-600 text-white transition-all hover:shadow-glow-ember"
+                className="mt-3 inline-flex rounded-lg bg-ember px-4 py-2 text-sm font-600 text-[var(--ember-contrast)] transition-all hover:shadow-glow-ember"
               >
                 Open verification link
               </a>
@@ -178,7 +178,7 @@ function VerifyingState({ token, loginHref }: { token: string; loginHref: string
               <p className="mt-1 text-sm text-[var(--t3)]">Your account is now active.</p>
               <Link
                 href={loginHref}
-                className="mt-5 rounded-lg px-6 py-2.5 text-sm font-600 text-white transition-all hover:shadow-glow-ember"
+                className="mt-5 rounded-lg px-6 py-2.5 text-sm font-600 text-[var(--ember-contrast)] transition-all hover:shadow-glow-ember"
                 style={{ background: 'var(--ember)' }}
               >
                 Sign in

@@ -38,26 +38,28 @@ pub async fn list_friends(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|r| json!({
-            "id": r.id,
-            "requesterId": r.requester_id,
-            "addresseeId": r.addressee_id,
-            "status": r.status,
-            "createdAt": r.created_at,
-            "user": {
-                "id": r.user_id,
-                "username": r.username,
-                "discriminator": r.discriminator,
-                "avatarUrl": r.avatar_url,
-                "bannerUrl": r.banner_url,
-                "bio": r.bio,
-                "status": r.user_status,
-                "customStatus": r.custom_status,
-                "isVerified": r.is_verified,
-                "badges": r.badges,
-                "createdAt": r.user_created_at,
-            }
-        }))
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "requesterId": r.requester_id,
+                "addresseeId": r.addressee_id,
+                "status": r.status,
+                "createdAt": r.created_at,
+                "user": {
+                    "id": r.user_id,
+                    "username": r.username,
+                    "discriminator": r.discriminator,
+                    "avatarUrl": r.avatar_url,
+                    "bannerUrl": r.banner_url,
+                    "bio": r.bio,
+                    "status": r.user_status,
+                    "customStatus": r.custom_status,
+                    "isVerified": r.is_verified,
+                    "badges": r.badges,
+                    "createdAt": r.user_created_at,
+                }
+            })
+        })
         .collect();
 
     Ok(Json(json!({ "data": data })))
@@ -69,7 +71,9 @@ pub async fn send_request(
     Path(target_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
     if user_id == target_id {
-        return Err(AppError::BadRequest("Cannot send friend request to yourself".into()));
+        return Err(AppError::BadRequest(
+            "Cannot send friend request to yourself".into(),
+        ));
     }
 
     let target = sqlx::query!(
@@ -97,7 +101,9 @@ pub async fn send_request(
         return match rel.status.as_str() {
             "accepted" => Err(AppError::Conflict("Already friends".into())),
             "pending" => Err(AppError::Conflict("Friend request already pending".into())),
-            "blocked" => Err(AppError::Forbidden("Cannot send request to this user".into())),
+            "blocked" => Err(AppError::Forbidden(
+                "Cannot send request to this user".into(),
+            )),
             _ => Err(AppError::Conflict("Relationship already exists".into())),
         };
     }
@@ -145,7 +151,12 @@ pub async fn send_request(
             }
         }
     });
-    let _ = publish(&state.redis.clone(), &user_channel(target_id), &event.to_string()).await;
+    let _ = publish(
+        &state.redis.clone(),
+        &user_channel(target_id),
+        &event.to_string(),
+    )
+    .await;
 
     Ok(Json(json!({
         "data": {
@@ -218,7 +229,11 @@ pub async fn update_friendship(
             return Ok(Json(json!({ "data": null })));
         }
         "block" => "blocked",
-        _ => return Err(AppError::BadRequest("Invalid action. Use: accept, decline, or block".into())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid action. Use: accept, decline, or block".into(),
+            ))
+        }
     };
 
     sqlx::query!(
@@ -238,7 +253,8 @@ pub async fn update_friendship(
         &state.redis.clone(),
         &user_channel(friendship.requester_id),
         &event.to_string(),
-    ).await;
+    )
+    .await;
 
     Ok(Json(json!({ "data": { "status": new_status } })))
 }

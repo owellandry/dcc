@@ -52,10 +52,12 @@
   --ember-hover:  #e85920;
   --ember-dim:    rgba(255,104,53,0.12);
   --ember-glow:   rgba(255,104,53,0.30);
+  --ember-contrast: #ffffff;
 
   /* ── Secondary: volt violet */
   --volt:       #7c6bff;
   --volt-dim:   rgba(124,107,255,0.12);
+  --volt-contrast: #ffffff;
 
   /* ── Status — with glow variants */
   --online:         #23d18b;

@@ -7,7 +7,8 @@ export interface ChannelSidebarItem {
   name: string
   active: boolean
   serverId: string
-  type: 'text' | 'voice'
+  type: 'text' | 'voice' | 'announcement'
+  iconKey?: string | null
   voiceParticipants?: Array<{
     userId: string
     displayName: string

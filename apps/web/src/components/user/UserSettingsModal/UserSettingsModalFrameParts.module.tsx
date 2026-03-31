@@ -222,7 +222,7 @@ export function UserSettingsModalFooter({
         <button
           type="button"
           onClick={onSave}
-          className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-ember px-4 py-2 text-sm font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
           disabled={isSaving || !canSave}
         >
           {isSaving && <LoaderCircle size={14} className="animate-spin" />}
