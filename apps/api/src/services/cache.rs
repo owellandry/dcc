@@ -101,13 +101,17 @@ where
     let cache_key = user_cache_key(user_id);
 
     // Try to get from cache first
-    if let Some(profile) = get::<crate::models::user::UserPublic>(redis, &cache_key)
-        .await
-        .map_err(|e| {
-            crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
-        })?
-    {
-        return Ok(Some(profile));
+    match get::<crate::models::user::UserPublic>(redis, &cache_key).await {
+        Ok(Some(profile)) => return Ok(Some(profile)),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(
+                "Ignoring invalid cached user profile for key {}: {}",
+                cache_key,
+                error
+            );
+            let _ = delete(redis, &cache_key).await;
+        }
     }
 
     // Cache miss: fetch from source
@@ -138,13 +142,17 @@ where
     let cache_key = server_cache_key(server_id);
 
     // Try cache first
-    if let Some(server) = get::<crate::models::server::Server>(redis, &cache_key)
-        .await
-        .map_err(|e| {
-            crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
-        })?
-    {
-        return Ok(Some(server));
+    match get::<crate::models::server::Server>(redis, &cache_key).await {
+        Ok(Some(server)) => return Ok(Some(server)),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(
+                "Ignoring invalid cached server for key {}: {}",
+                cache_key,
+                error
+            );
+            let _ = delete(redis, &cache_key).await;
+        }
     }
 
     // Cache miss: fetch
