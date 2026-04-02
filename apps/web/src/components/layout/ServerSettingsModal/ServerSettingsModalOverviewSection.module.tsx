@@ -135,26 +135,6 @@ export function ServerSettingsModalOverviewSection({
               disabled={!canManageServer || sectionBusy}
             />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => onOpenMediaPicker('icon')}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-3 text-sm font-700 text-[var(--t1)] transition-colors hover:bg-[var(--surface-soft-hover)]"
-              disabled={!isOwner || sectionBusy}
-            >
-              <Camera size={14} />
-              Cambiar icono
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenMediaPicker('banner')}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-3 text-sm font-700 text-[var(--t1)] transition-colors hover:bg-[var(--surface-soft-hover)]"
-              disabled={!isOwner || sectionBusy}
-            >
-              <ImagePlus size={14} />
-              Cambiar banner
-            </button>
-          </div>
         </SettingBlock>
       </div>
     </ServerSettingsContentShell>
