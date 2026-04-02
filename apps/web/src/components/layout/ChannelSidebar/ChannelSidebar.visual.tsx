@@ -363,7 +363,7 @@ function ChannelItem({
                 onOpenChannelSettings(item.id)
               }}
               className={cn(
-                'ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--s2)]/92 text-[var(--t3)] transition-all hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]',
+                'relative z-[120] ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--s2)] text-[var(--t3)] transition-all hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]',
                 item.active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
               )}
               data-tooltip="Editar canal"

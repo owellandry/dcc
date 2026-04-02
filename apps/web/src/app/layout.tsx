@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import '@/styles/globals.css'
 import { Toaster } from 'react-hot-toast'
 import { AppearanceThemeProvider } from '@/components/theme/AppearanceThemeProvider'
+import { TooltipLayer } from '@/components/ui/TooltipLayer/TooltipLayer.main'
 
 export const metadata: Metadata = {
   title: { default: 'DCC', template: '%s · DCC' },
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full overflow-x-hidden antialiased">
         <AppearanceThemeProvider>
           {children}
+          <TooltipLayer />
           <Toaster
             position="bottom-right"
             toastOptions={{
