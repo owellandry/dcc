@@ -199,7 +199,7 @@ pub(crate) async fn load_server_permissions_context(
     }
 
     let row = sqlx::query_as::<_, OwnerMembershipRow>(
-        "SELECT s.owner_id, (sm.user_id IS NOT NULL) as \"is_member!\"
+        "SELECT s.owner_id, (sm.user_id IS NOT NULL) AS is_member
          FROM servers s
          LEFT JOIN server_members sm ON sm.server_id = s.id AND sm.user_id = $2
          WHERE s.id = $1",
