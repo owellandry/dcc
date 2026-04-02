@@ -27,7 +27,7 @@ export function MessageItemVisual({
   timestamp,
   groupedTimestamp,
   renderedContent,
-  previewPosition,
+  previewAnchorRect,
   previewMember,
   status,
   isOwner,
@@ -225,14 +225,14 @@ export function MessageItemVisual({
         : null}
 
       {/* Preview del usuario */}
-      {previewPosition && (
+      {previewAnchorRect && (
         <MemberPreviewCard
           previewRef={previewRef}
           member={previewMember}
           status={status}
           isOwner={isOwner}
-          x={previewPosition.x}
-          y={previewPosition.y}
+          anchorRect={previewAnchorRect}
+          preferredPlacement="right"
         />
       )}
 

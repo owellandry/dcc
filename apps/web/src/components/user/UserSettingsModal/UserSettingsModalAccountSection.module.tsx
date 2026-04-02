@@ -52,7 +52,7 @@ export function UserSettingsModalAccountSection({
           <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(12,14,18,0.82))]" />
           <div className="absolute bottom-4 left-4 flex items-end gap-3">
             <div className="relative">
-              <UserAvatar user={user} size={82} className="border-4 border-[var(--s3)]" />
+              <UserAvatar user={user} size={82} showStatus className="border-4 border-[var(--s3)]" />
               <button
                 type="button"
                 onClick={() => onOpenMediaPicker('avatar')}

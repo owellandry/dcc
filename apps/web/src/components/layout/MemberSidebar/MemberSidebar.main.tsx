@@ -12,6 +12,7 @@ import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Bad
 import { MemberPreviewCard } from '@/components/user/MemberPreviewCard'
 import type { ServerMember } from '@/lib/types'
 import { cn } from '@/lib/cn'
+import type { FloatingAnchorRect } from '@/lib/layout/floatingCard.shared'
 
 interface Props {
   serverId: string
@@ -22,7 +23,7 @@ export function MemberSidebar({ serverId }: Props) {
   const server = useServersStore((s) => s.servers[serverId])
   const setMembers = useServersStore((s) => s.setMembers)
   const presence = usePresenceStore((state) => state.presence)
-  const [preview, setPreview] = useState<{ member: ServerMember; x: number; y: number } | null>(null)
+  const [preview, setPreview] = useState<{ member: ServerMember; anchorRect: FloatingAnchorRect } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
   const resolveMemberStatus = (member: ServerMember): UserStatus =>
@@ -52,16 +53,18 @@ export function MemberSidebar({ serverId }: Props) {
 
   const openMemberPreview = (event: ReactMouseEvent<HTMLButtonElement>, member: ServerMember) => {
     event.preventDefault()
-    const width = 360
-    const height = 430
-    const margin = 24
-    const designViewportWidth = 1920
-    const leftOffset = 610
-    const fixedX = designViewportWidth - width - margin - leftOffset
-    const maxX = window.innerWidth - width - margin
-    const x = Math.min(Math.max(margin, fixedX), maxX)
-    const y = Math.min(72, Math.max(margin, window.innerHeight - height - margin))
-    setPreview({ member, x, y })
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPreview({
+      member,
+      anchorRect: {
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      },
+    })
   }
 
   useEffect(() => {
@@ -119,8 +122,8 @@ export function MemberSidebar({ serverId }: Props) {
           member={preview.member}
           status={resolveMemberStatus(preview.member)}
           isOwner={server?.ownerId === preview.member.userId}
-          x={preview.x}
-          y={preview.y}
+          anchorRect={preview.anchorRect}
+          preferredPlacement="left"
         />
       )}
     </>

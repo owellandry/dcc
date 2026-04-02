@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { dmsApi, resolveMediaUrl } from '@/lib/api'
@@ -12,23 +12,25 @@ import { UserAvatar } from '@/components/user/UserAvatar'
 import { avatarColor } from '@/components/user/UserAvatar/UserAvatar.shared'
 import { Badge, OfficialMemberTag, buildMemberBadges, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { MessageSquare, AtSign, UserRound } from 'lucide-react'
+import { getFloatingCardPosition, type FloatingAnchorRect, type FloatingPlacement } from '@/lib/layout/floatingCard.shared'
 
 interface Props {
   previewRef: RefObject<HTMLDivElement | null>
   member: ServerMember
   status: UserStatus
   isOwner: boolean
-  x: number
-  y: number
+  anchorRect: FloatingAnchorRect
+  preferredPlacement: FloatingPlacement
 }
 
-export function MemberPreviewCard({ previewRef, member, status, isOwner, x, y }: Props) {
+export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorRect, preferredPlacement }: Props) {
   if (typeof window === 'undefined') return null
   const router = useRouter()
   const myUserId = useAuthStore((state) => state.user?.id ?? null)
   const channels = useServersStore((state) => state.channels)
   const upsertChannel = useServersStore((state) => state.upsertChannel)
   const [isOpeningDm, setIsOpeningDm] = useState(false)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
   const isMock = isMockSession()
   const dmChannels = useMemo(
     () =>
@@ -65,6 +67,37 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, x, y }:
   }
   const isCurrentUser = myUserId === member.user.id
 
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      if (!previewRef.current) return
+      const rect = previewRef.current.getBoundingClientRect()
+      const nextPosition = getFloatingCardPosition({
+        anchorRect,
+        cardWidth: rect.width || 360,
+        cardHeight: rect.height || 430,
+        preferredPlacement,
+      })
+      setPosition({ left: nextPosition.left, top: nextPosition.top })
+    }
+
+    updatePosition()
+
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && previewRef.current) {
+      observer = new ResizeObserver(() => updatePosition())
+      observer.observe(previewRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      observer?.disconnect()
+    }
+  }, [anchorRect, preferredPlacement, previewRef])
+
   const openDm = async () => {
     if (isCurrentUser || isOpeningDm) return
     if (isMock) {
@@ -98,7 +131,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, x, y }:
     <div
       ref={previewRef}
       className="fixed z-[999] w-[360px] overflow-visible rounded-[24px] border backdrop-blur-xl"
-      style={{ left: x, top: y, ...cardSurfaceStyle }}
+      style={{ left: position?.left ?? -9999, top: position?.top ?? -9999, ...cardSurfaceStyle }}
     >
       <div className="relative h-32 overflow-hidden rounded-t-[24px]">
         <span className="absolute inset-0" style={bannerStyle} />

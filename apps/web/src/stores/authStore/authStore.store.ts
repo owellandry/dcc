@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/lib/types'
 import { setAccessToken } from '@/lib/api'
+import { syncUserAcrossClientStores } from '@/lib/users/userSync.shared'
 
 interface AuthState {
   user: User | null
@@ -23,7 +24,10 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: true,
 
-      setUser: (user) => set({ user, isAuthenticated: true, isLoading: false }),
+      setUser: (user) => {
+        syncUserAcrossClientStores(user.id, user)
+        set({ user, isAuthenticated: true, isLoading: false })
+      },
 
       setAccessToken: (token) => {
         setAccessToken(token)

@@ -10,6 +10,7 @@ import type { GatewayEvent } from '@/lib/types'
 import { getAccessToken } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
 import { emitGatewayEvent, setGatewaySender } from '@/lib/realtime/gatewayBus'
+import { syncUserAcrossClientStores } from '@/lib/users/userSync.shared'
 
 const WS_URL = resolveRuntimeWsUrl(process.env.NEXT_PUBLIC_WS_URL)
 const MAX_RECONNECT_DELAY = 30_000
@@ -134,6 +135,10 @@ export function useWebSocket(enabled = true) {
 
         case 'PRESENCE_UPDATE':
           setPresence(event.d.userId, event.d.status, event.d.customStatus)
+          syncUserAcrossClientStores(event.d.userId, {
+            status: event.d.status,
+            customStatus: event.d.customStatus,
+          })
           if (event.d.userId === meIdRef.current) {
             const currentUser = useAuthStore.getState().user
             if (currentUser) {

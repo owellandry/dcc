@@ -28,6 +28,7 @@ interface ServersState {
   removeRole: (roleId: string) => void
   setMembers: (serverId: string, members: ServerMember[]) => void
   upsertMember: (member: ServerMember) => void
+  syncUser: (userId: string, patch: Partial<ServerMember['user']>) => void
   removeMember: (serverId: string, userId: string) => void
   setActiveServer: (serverId: string | null) => void
   setActiveChannel: (channelId: string | null) => void
@@ -119,6 +120,44 @@ export const useServersStore = create<ServersState>((set) => ({
         },
       },
     })),
+
+  syncUser: (userId, patch) =>
+    set((s) => {
+      let channelsChanged = false
+      let membersChanged = false
+
+      const nextChannels = { ...s.channels }
+      for (const [channelId, channel] of Object.entries(s.channels)) {
+        if (!channel.participants?.some((participant) => participant.id === userId)) continue
+        channelsChanged = true
+        nextChannels[channelId] = {
+          ...channel,
+          participants: channel.participants.map((participant) =>
+            participant.id === userId ? { ...participant, ...patch } : participant
+          ),
+        }
+      }
+
+      const nextMembers = { ...s.members }
+      for (const [serverId, serverMembers] of Object.entries(s.members)) {
+        if (!(userId in serverMembers)) continue
+        membersChanged = true
+        nextMembers[serverId] = {
+          ...serverMembers,
+          [userId]: {
+            ...serverMembers[userId]!,
+            user: { ...serverMembers[userId]!.user, ...patch },
+          },
+        }
+      }
+
+      if (!channelsChanged && !membersChanged) return {}
+
+      return {
+        ...(channelsChanged ? { channels: nextChannels } : {}),
+        ...(membersChanged ? { members: nextMembers } : {}),
+      }
+    }),
 
   removeMember: (serverId, userId) =>
     set((s) => {

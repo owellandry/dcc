@@ -203,7 +203,8 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
   if (!open || !user) return null
 
   const mergeUser = (patch: Partial<typeof user>) => {
-    setUser({ ...user, ...patch })
+    const currentUser = useAuthStore.getState().user ?? user
+    setUser({ ...currentUser, ...patch })
   }
 
   const isMediaPickerBusy = isUploadingAvatar || isUploadingBanner

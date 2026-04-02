@@ -7,15 +7,11 @@ import type {
   RefObject,
 } from 'react'
 import type { Message, ServerMember, UserStatus } from '@/lib/types'
+import type { FloatingAnchorRect } from '@/lib/layout/floatingCard.shared'
 
 export interface MessageItemProps {
   message: Message
   grouped: boolean
-}
-
-export interface PreviewPosition {
-  x: number
-  y: number
 }
 
 export interface MessageItemVisualProps {
@@ -29,7 +25,7 @@ export interface MessageItemVisualProps {
   timestamp: string
   groupedTimestamp: string
   renderedContent: ReactNode
-  previewPosition: PreviewPosition | null
+  previewAnchorRect: FloatingAnchorRect | null
   previewMember: ServerMember
   status: UserStatus
   isOwner: boolean

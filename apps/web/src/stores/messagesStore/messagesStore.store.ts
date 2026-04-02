@@ -23,6 +23,7 @@ interface MessagesState {
   prependMessages: (channelId: string, messages: Message[], hasMoreBefore: boolean) => void
   appendMessage: (message: Message) => void
   updateMessage: (channelId: string, messageId: string, patch: Partial<Message>) => void
+  syncUser: (userId: string, patch: Partial<Message['author']>) => void
   deleteMessage: (channelId: string, messageId: string) => void
   addReaction: (channelId: string, messageId: string, emoji: string, userId: string, meId: string) => void
   removeReaction: (channelId: string, messageId: string, emoji: string, userId: string, meId: string) => void
@@ -109,6 +110,49 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           },
         },
       }
+    }),
+
+  syncUser: (userId, patch) =>
+    set((s) => {
+      let changed = false
+      const nextChannels = { ...s.channels }
+
+      for (const [channelId, channel] of Object.entries(s.channels)) {
+        let channelChanged = false
+        const nextMessages = channel.messages.map((message) => {
+          let nextMessage = message
+
+          if (message.author.id === userId) {
+            nextMessage = {
+              ...nextMessage,
+              author: { ...nextMessage.author, ...patch },
+            }
+            channelChanged = true
+          }
+
+          if (message.replyTo?.author.id === userId) {
+            const replyTo = message.replyTo
+            if (!replyTo) return nextMessage
+            nextMessage = {
+              ...nextMessage,
+              replyTo: {
+                ...replyTo,
+                author: { ...replyTo.author, ...patch },
+              },
+            }
+            channelChanged = true
+          }
+
+          return nextMessage
+        })
+
+        if (!channelChanged) continue
+        changed = true
+        nextChannels[channelId] = { ...channel, messages: nextMessages }
+      }
+
+      if (!changed) return {}
+      return { channels: nextChannels }
     }),
 
   deleteMessage: (channelId, messageId) =>

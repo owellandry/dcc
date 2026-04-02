@@ -262,7 +262,7 @@ export function ServerSettingsModalChannelsSection({
                         type="button"
                         onClick={() => onChannelIconDraftChange(option.key)}
                         className={cn(
-                          'group flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center transition-all',
+                          'group/channel-icon flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center transition-all',
                           channelIconDraft === option.key
                             ? 'border-[var(--ember)] bg-[var(--ember-dim)] text-[var(--t0)]'
                             : 'border-[var(--b1)] bg-[var(--s2)] text-[var(--t3)] hover:border-[var(--b2)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
@@ -273,7 +273,7 @@ export function ServerSettingsModalChannelsSection({
                             'flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
                             channelIconDraft === option.key
                               ? 'bg-[var(--ember)] text-[var(--ember-contrast)]'
-                              : 'bg-[var(--s1)] text-[var(--t2)] group-hover:text-[var(--t1)]'
+                              : 'bg-[var(--s1)] text-[var(--t2)] group-hover/channel-icon:text-[var(--t1)]'
                           )}
                         >
                           <Icon size={18} />

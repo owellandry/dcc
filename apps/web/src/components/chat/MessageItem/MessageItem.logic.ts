@@ -20,6 +20,7 @@ import { useServersStore } from '@/stores/serversStore'
 import type { ServerMember } from '@/lib/types'
 import { containsMentionForUser, formatTimestamp, renderMessageContent } from '../messageItemUtils'
 import { normalizeMentionTerm, type MessageItemProps, type MessageItemVisualProps } from './MessageItem.shared'
+import type { FloatingAnchorRect } from '@/lib/layout/floatingCard.shared'
 
 export function useMessageItemController({
   message,
@@ -30,7 +31,7 @@ export function useMessageItemController({
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
   const [reactionPickerStyle, setReactionPickerStyle] = useState({ top: 0, left: 0 })
   const [editContent, setEditContent] = useState(message.content ?? '')
-  const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null)
+  const [previewAnchorRect, setPreviewAnchorRect] = useState<FloatingAnchorRect | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
   const reactionPickerRef = useRef<HTMLDivElement>(null)
@@ -191,16 +192,15 @@ export function useMessageItemController({
 
   const handleOpenPreview = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault()
-    const width = 360
-    const height = 430
-    const margin = 24
-    const designViewportWidth = 1920
-    const leftOffset = 1150
-    const fixedX = designViewportWidth - width - margin - leftOffset
-    const maxX = window.innerWidth - width - margin
-    const x = Math.min(Math.max(margin, fixedX), maxX)
-    const y = Math.min(72, Math.max(margin, window.innerHeight - height - margin))
-    setPreviewPosition({ x, y })
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPreviewAnchorRect({
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    })
   }, [])
 
   const handleEditContentChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -237,13 +237,13 @@ export function useMessageItemController({
   }, [isReactionPickerOpen])
 
   useEffect(() => {
-    if (!previewPosition && !isReactionPickerOpen) return
+    if (!previewAnchorRect && !isReactionPickerOpen) return
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
       if (previewRef.current && !previewRef.current.contains(target)) {
-        setPreviewPosition(null)
+        setPreviewAnchorRect(null)
       }
       const clickedInTrigger = reactionTriggerRef.current?.contains(target) ?? false
       const clickedInActionsMenu = actionsMenuRef.current?.contains(target) ?? false
@@ -256,7 +256,7 @@ export function useMessageItemController({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setPreviewPosition(null)
+      setPreviewAnchorRect(null)
       setIsReactionPickerOpen(false)
     }
 
@@ -267,7 +267,7 @@ export function useMessageItemController({
       window.removeEventListener('mousedown', handleClickOutside)
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [isReactionPickerOpen, previewPosition])
+  }, [isReactionPickerOpen, previewAnchorRect])
 
   useEffect(() => {
     if (!isReactionPickerOpen) return
@@ -298,7 +298,7 @@ export function useMessageItemController({
     timestamp: formatTimestamp(message.createdAt),
     groupedTimestamp: format(new Date(message.createdAt), 'HH:mm'),
     renderedContent,
-    previewPosition,
+    previewAnchorRect,
     isReactionPickerOpen,
     reactionPickerStyle,
     previewMember,

@@ -59,7 +59,7 @@ export function UserSettingsModalSidebar({
   return (
     <aside className="hidden w-[260px] shrink-0 border-r border-[var(--b1)] bg-[var(--s1)] p-4 lg:block">
       <div className="flex items-center gap-3 rounded-xl bg-[var(--s1)] px-3 py-2.5">
-        <UserAvatar user={user} size={40} />
+        <UserAvatar user={user} size={40} showStatus />
         <div className="min-w-0">
           <p className="truncate text-sm font-700 text-[var(--t0)]">{user.username}</p>
           <p className="text-xs text-[var(--t3)]">Editar perfiles</p>
