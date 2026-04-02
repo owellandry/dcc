@@ -66,7 +66,7 @@ export default function LoginPage() {
       if (err instanceof ApiRequestError) {
         setError(err.message)
       } else {
-        setError('Something went wrong. Please try again.')
+        setError('Algo salió mal. Por favor intenta de nuevo.')
       }
     } finally {
       setIsLoading(false)
@@ -74,173 +74,148 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="animate-slide-up">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#5865F2] p-4 font-sans selection:bg-[#5865F2] selection:text-white sm:p-0">
+      {/* Background illustration (Discord style) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://cdn.discordapp.com/assets/images/128b9d79c6b65313543b.svg')] bg-cover bg-center bg-no-repeat opacity-80 mix-blend-overlay" />
+      </div>
+
       {/* Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s2)] shadow-xl">
-        {/* Top accent bar */}
-        <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ember), transparent)' }} />
+      <div className="relative z-10 w-full max-w-[480px] animate-slide-up rounded-md bg-[#313338] p-8 shadow-2xl">
+        <div className="mb-6 text-center">
+          <h1 className="mb-2 font-display text-2xl font-600 text-[#F2F3F5]">
+            {inviteCode ? 'Inicia sesión para aceptar la invitación' : '¡Hola de nuevo!'}
+          </h1>
+          <p className="text-[15px] text-[#B5BAC1]">
+            ¡Nos alegra verte de nuevo!
+          </p>
+        </div>
 
-        <div className="px-8 pb-8 pt-7">
-          {/* Header */}
-          <div className="mb-8 flex flex-col items-center gap-2">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl shadow-glow-ember"
-              style={{ background: 'linear-gradient(135deg, var(--ember), var(--ember-hover))' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
-              </svg>
-            </div>
-            <div className="text-center">
-              <h1 className="font-display text-2xl font-700 text-[var(--t0)]">Welcome back</h1>
-              <p className="mt-0.5 text-sm text-[var(--t3)]">
-                {inviteCode ? 'Sign in to accept your server invite' : 'Sign in to continue to DCC'}
-              </p>
-            </div>
+        {/* OAuth buttons (styled like Discord's alternative logins if needed, or kept simple) */}
+        <div className="mb-6 flex gap-3">
+          <a
+            href="/api/auth/oauth/google"
+            className="flex flex-1 items-center justify-center gap-2 rounded bg-[#2B2D31] px-4 py-2.5 text-sm font-500 text-[#DBDEE1] transition-colors hover:bg-[#1E1F22] hover:text-white"
+          >
+            <GoogleIcon />
+            Google
+          </a>
+          <a
+            href="/api/auth/oauth/github"
+            className="flex flex-1 items-center justify-center gap-2 rounded bg-[#2B2D31] px-4 py-2.5 text-sm font-500 text-[#DBDEE1] transition-colors hover:bg-[#1E1F22] hover:text-white"
+          >
+            <GithubIcon />
+            GitHub
+          </a>
+        </div>
+
+        <div className="mb-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#1E1F22]" />
+          <span className="text-xs font-600 text-[#B5BAC1]">O</span>
+          <div className="h-px flex-1 bg-[#1E1F22]" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-700 uppercase text-[#B5BAC1]">
+              Correo electrónico o número de teléfono <span className="text-[#F23F42]">*</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="username"
+              required
+              value={login}
+              onChange={(e) => {
+                setLogin(e.target.value)
+                setRequiresTwoFactor(false)
+                setTwoFactorCode('')
+              }}
+              className="rounded-[3px] border-none bg-[#1E1F22] p-2.5 text-[#DBDEE1] outline-none transition-colors focus:ring-1 focus:ring-[#00A8FC]"
+            />
           </div>
 
-          {/* OAuth buttons */}
-          <div className="mb-6 flex gap-3">
-            <a
-              href="/api/auth/oauth/google"
-              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t0)]"
-            >
-              <GoogleIcon />
-              Google
-            </a>
-            <a
-              href="/api/auth/oauth/github"
-              className="group flex flex-1 items-center justify-center gap-2.5 rounded-lg border border-[var(--b1)] bg-[var(--surface-soft)] px-4 py-2.5 text-sm font-500 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t0)]"
-            >
-              <GithubIcon />
-              GitHub
-            </a>
-          </div>
-
-          {/* Divider */}
-          <div className="mb-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--b0)]" />
-            <span className="text-xs text-[var(--t4)]">OR</span>
-            <div className="h-px flex-1 bg-[var(--b0)]" />
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Username or email */}
-            <div className="group flex flex-col gap-1.5">
-              <label className="text-xs font-600 uppercase tracking-wider text-[var(--t3)] transition-colors group-focus-within:text-ember">
-                Usuario o email
-              </label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-700 uppercase text-[#B5BAC1]">
+              Contraseña <span className="text-[#F23F42]">*</span>
+            </label>
+            <div className="relative">
               <input
-                type="text"
-                autoComplete="username"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 required
-                value={login}
+                value={password}
                 onChange={(e) => {
-                  setLogin(e.target.value)
+                  setPassword(e.target.value)
                   setRequiresTwoFactor(false)
                   setTwoFactorCode('')
                 }}
-                placeholder="tu_usuario o you@example.com"
-                className="input-base"
+                className="w-full rounded-[3px] border-none bg-[#1E1F22] p-2.5 pr-10 text-[#DBDEE1] outline-none transition-colors focus:ring-1 focus:ring-[#00A8FC]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5BAC1] transition-colors hover:text-[#DBDEE1]"
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+            <button type="button" className="mt-1 self-start text-sm font-500 text-[#00A8FC] hover:underline">
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
+          {requiresTwoFactor && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-700 uppercase text-[#B5BAC1]">
+                Código de autenticación <span className="text-[#F23F42]">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value)}
+                className="rounded-[3px] border-none bg-[#1E1F22] p-2.5 text-[#DBDEE1] outline-none transition-colors focus:ring-1 focus:ring-[#00A8FC]"
+                maxLength={32}
+                required
               />
             </div>
+          )}
 
-            {/* Password */}
-            <div className="group flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-600 uppercase tracking-wider text-[var(--t3)] transition-colors group-focus-within:text-ember">
-                  Password
-                </label>
-                <button type="button" className="text-xs text-[var(--t3)] transition-colors hover:text-ember">
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    setRequiresTwoFactor(false)
-                    setTwoFactorCode('')
-                  }}
-                  placeholder="••••••••"
-                  className="input-base pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--t4)] transition-colors hover:text-[var(--t3)]"
-                >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
-              </div>
+          {error && (
+            <div className="rounded-[3px] bg-[#F23F42]/10 p-2 text-sm text-[#F23F42]">
+              {error}
             </div>
+          )}
 
-            {requiresTwoFactor && (
-              <div className="group flex flex-col gap-1.5">
-                <label className="text-xs font-600 uppercase tracking-wider text-[var(--t3)] transition-colors group-focus-within:text-ember">
-                  Codigo de autenticacion
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={twoFactorCode}
-                  onChange={(e) => setTwoFactorCode(e.target.value)}
-                  placeholder="123456 o codigo de respaldo"
-                  className="input-base"
-                  maxLength={32}
-                  required
-                />
-                <p className="text-xs text-[var(--t4)]">
-                  Escribe el codigo de tu app autenticadora o uno de tus backup codes.
-                </p>
-              </div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="mt-2 flex w-full items-center justify-center rounded-[3px] bg-[#5865F2] py-3 text-sm font-600 text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : requiresTwoFactor ? (
+              'Verificar y entrar'
+            ) : (
+              'Iniciar sesión'
             )}
+          </button>
+        </form>
 
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--dnd)]/20 bg-[var(--dnd)]/10 px-4 py-3 text-sm text-[var(--dnd)]">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 4a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 5zm0 6.5a.875.875 0 1 1 0-1.75.875.875 0 0 1 0 1.75z"/>
-                </svg>
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="relative mt-1 flex h-11 items-center justify-center overflow-hidden rounded-lg text-sm font-600 text-[var(--ember-contrast)] transition-all hover:shadow-glow-ember active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, var(--ember), var(--ember-hover))' }}
-            >
-              {isLoading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              ) : (
-                requiresTwoFactor ? 'Verificar y entrar' : 'Sign in'
-              )}
-            </button>
-          </form>
-
-          {/* Footer */}
-          <p className="mt-6 text-center text-sm text-[var(--t3)]">
-            Don&apos;t have an account?{' '}
-            <Link href={inviteCode ? `/register?invite=${encodeURIComponent(inviteCode)}` : '/register'} className="text-ember transition-colors hover:text-ember-300">
-              Create one
-            </Link>
-          </p>
+        <div className="mt-4 text-sm text-[#949BA4]">
+          ¿Necesitas una cuenta?{' '}
+          <Link
+            href={inviteCode ? `/register?invite=${encodeURIComponent(inviteCode)}` : '/register'}
+            className="font-500 text-[#00A8FC] hover:underline"
+          >
+            Registrarse
+          </Link>
         </div>
       </div>
     </div>
   )
 }
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function GoogleIcon() {
   return (

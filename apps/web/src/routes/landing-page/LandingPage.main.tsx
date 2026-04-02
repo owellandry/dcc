@@ -1,160 +1,102 @@
 'use client'
 
 import Link from 'next/link'
-import { Cpu, Globe, MessageSquare, Radio, Shield, Sparkles, Users, Zap } from 'lucide-react'
-import {
-  MotionPage,
-  interactiveMotion,
-  itemVariants,
-  listVariants,
-  motion,
-  sectionVariants,
-} from '@/lib/motion'
+import { Download, Sparkles } from 'lucide-react'
+import { motion } from '@/lib/motion'
 
 export default function LandingPage() {
   return (
-    <MotionPage className="app-shell-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12 sm:px-6">
-      <motion.div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)
-          `,
-          backgroundSize: '60px 60px',
-        }}
-        animate={{ opacity: [0.02, 0.04, 0.02] }}
-        transition={{ repeat: Infinity, duration: 7, ease: 'easeInOut' }}
-      />
+    <div className="relative min-h-screen overflow-hidden bg-[#404EED] font-sans selection:bg-[#5865F2] selection:text-white">
+      {/* Navbar */}
+      <nav className="relative z-50 flex items-center justify-between px-6 py-6 sm:px-12 lg:px-24">
+        <div className="flex items-center gap-2 text-white">
+          {/* Custom Discord-like Logo */}
+          <svg width="32" height="32" viewBox="0 0 127.14 96.36" fill="currentColor">
+            <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14c0,0,.04-.06.04-.09A71.18,71.18,0,0,0,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.3,46,96.19,53,91.08,65.69,84.69,65.69Z" />
+          </svg>
+          <span className="font-display text-xl font-800 tracking-tight">DCC</span>
+        </div>
+        
+        <div className="hidden items-center gap-8 text-sm font-600 text-white lg:flex">
+          <Link href="#" className="hover:underline">Descargar</Link>
+          <Link href="#" className="hover:underline">Nitro</Link>
+          <Link href="#" className="hover:underline">Descubrir</Link>
+          <Link href="#" className="hover:underline">Seguridad</Link>
+          <Link href="#" className="hover:underline">Soporte</Link>
+          <Link href="#" className="hover:underline">Blog</Link>
+        </div>
 
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <motion.div
-          className="h-[620px] w-[620px] rounded-full opacity-[0.06] blur-[120px]"
-          style={{ background: 'var(--ember)' }}
-          animate={{ scale: [1, 1.1, 1], opacity: [0.04, 0.1, 0.04] }}
-          transition={{ repeat: Infinity, duration: 9, ease: 'easeInOut' }}
-        />
-      </div>
+        <div>
+          <Link
+            href="/login"
+            className="rounded-full bg-white px-4 py-2 text-sm font-500 text-[#23272A] transition-colors hover:text-[#5865F2] hover:shadow-lg"
+          >
+            Iniciar sesión
+          </Link>
+        </div>
+      </nav>
 
-      <div className="pointer-events-none absolute -left-20 top-12 h-56 w-56 rounded-full bg-[#8f78ff]/20 blur-[90px]" />
-      <div className="pointer-events-none absolute -right-16 bottom-10 h-52 w-52 rounded-full bg-[var(--ember)]/20 blur-[80px]" />
-
-      <motion.div
-        className="relative z-10 w-full max-w-6xl"
-        initial="hidden"
-        animate="visible"
-        variants={listVariants(0.1, 0.08)}
-      >
-        <motion.div
-          className="overflow-hidden rounded-[34px] border border-[var(--b1)] bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] shadow-[0_34px_90px_rgba(0,0,0,0.45)] backdrop-blur-sm"
-          variants={sectionVariants}
+      {/* Hero Section */}
+      <main className="relative z-10 flex flex-col items-center justify-center px-6 pt-20 text-center text-white sm:pt-32 lg:px-24">
+        <motion.h1 
+          className="font-display text-[40px] font-800 uppercase leading-[95%] tracking-tight sm:text-[56px] md:text-[72px] lg:text-[84px]"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="px-6 pb-7 pt-6 sm:px-8 sm:pb-9 sm:pt-8">
-              <motion.div className="flex items-center gap-3" variants={itemVariants}>
-                <motion.div
-                  className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-glow-ember"
-                  style={{ background: 'linear-gradient(135deg, var(--ember), var(--ember-hover))' }}
-                  animate={{ rotate: [0, 4, -4, 0], scale: [1, 1.04, 1] }}
-                  transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-                >
-                  <MessageSquare size={28} className="text-white" />
-                </motion.div>
-                <div>
-                  <p className="font-display text-3xl font-800 tracking-tight text-[var(--t0)]">dcc</p>
-                  <p className="text-sm text-[var(--t3)]">Tu comunidad, con otra vibra</p>
-                </div>
-              </motion.div>
+          Imagina un lugar...
+        </motion.h1>
+        
+        <motion.p 
+          className="mt-8 max-w-[780px] text-base leading-[1.6] sm:text-lg md:text-xl"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          ...en el que puedas formar parte de un club escolar, un grupo de gamers, o una comunidad mundial de arte. En el que puedas pasar tiempo con unos cuantos amigos. Un lugar que haga que hablar a diario y divertirte más a menudo sea fácil.
+        </motion.p>
 
-              <motion.div className="mt-7 max-w-3xl space-y-4" variants={sectionVariants}>
-                <h1 className="font-display text-5xl font-800 leading-[0.98] tracking-tight text-[var(--t0)] sm:text-6xl md:text-7xl">
-                  Habla, juega y conecta en un espacio que se siente vivo.
-                </h1>
-                <p className="max-w-2xl text-base leading-7 text-[var(--t2)] sm:text-lg">
-                  Mensajeria en tiempo real, canales de voz fluidos y servidores organizados en una experiencia moderna, intensa y con estilo.
-                </p>
-              </motion.div>
-
-              <motion.div className="mt-7 flex flex-wrap items-center gap-3" variants={itemVariants}>
-                <motion.div {...interactiveMotion}>
-                  <Link
-                    href="/register"
-                    className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-700 text-white transition-all hover:shadow-glow-ember active:scale-95"
-                    style={{ background: 'var(--ember)' }}
-                  >
-                    <Sparkles size={16} />
-                    Empezar gratis
-                  </Link>
-                </motion.div>
-                <motion.div {...interactiveMotion}>
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center gap-2 rounded-xl border border-[var(--b1)] px-6 py-3 text-sm font-600 text-[var(--t1)] transition-all hover:border-[var(--b2)] hover:bg-white/[0.04] hover:text-[var(--t0)] active:scale-95"
-                  >
-                    Iniciar sesion
-                  </Link>
-                </motion.div>
-              </motion.div>
-
-              <motion.div className="mt-7 flex flex-wrap gap-2.5" variants={listVariants(0.08)}>
-                {[
-                  { icon: <Shield size={14} />, label: 'Privacidad real' },
-                  { icon: <Globe size={14} />, label: 'Edge global' },
-                  { icon: <Cpu size={14} />, label: 'Backend en Rust' },
-                  { icon: <Radio size={14} />, label: 'Voz de baja latencia' },
-                ].map(({ icon, label }) => (
-                  <motion.span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b0)] bg-white/[0.03] px-3.5 py-1.5 text-xs font-600 text-[var(--t3)]"
-                    variants={itemVariants}
-                    {...interactiveMotion}
-                  >
-                    {icon}
-                    {label}
-                  </motion.span>
-                ))}
-              </motion.div>
-            </div>
-
-            <div className="border-t border-[var(--b1)] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06))] px-6 py-6 sm:px-8 lg:border-l lg:border-t-0">
-              <motion.div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1" variants={listVariants(0.08)}>
-                {[
-                  {
-                    icon: <Users size={18} />,
-                    title: 'Comunidades activas',
-                    text: 'Crea servidores con canales claros y espacios por tema.',
-                  },
-                  {
-                    icon: <Zap size={18} />,
-                    title: 'Interfaz rapida',
-                    text: 'Navegacion fluida con transiciones suaves en cada vista.',
-                  },
-                  {
-                    icon: <MessageSquare size={18} />,
-                    title: 'Conversaciones vivas',
-                    text: 'Mensajes, menciones y respuestas listos para tu ritmo diario.',
-                  },
-                ].map((item) => (
-                  <motion.div
-                    key={item.title}
-                    className="rounded-2xl border border-[var(--b1)] bg-[var(--s2)]/70 p-4"
-                    variants={itemVariants}
-                    {...interactiveMotion}
-                  >
-                    <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--ember-dim)] text-[var(--ember)]">
-                      {item.icon}
-                    </div>
-                    <p className="font-display text-xl font-700 text-[var(--t0)]">{item.title}</p>
-                    <p className="mt-1.5 text-sm leading-6 text-[var(--t3)]">{item.text}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </div>
-          </div>
+        <motion.div 
+          className="mt-10 flex flex-col items-center gap-6 sm:flex-row"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Link
+            href="/register"
+            className="flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-500 text-[#23272A] transition-all hover:text-[#5865F2] hover:shadow-xl"
+          >
+            <Download size={24} />
+            Descargar para Mac
+          </Link>
+          <Link
+            href="/login"
+            className="flex items-center gap-2 rounded-full bg-[#23272A] px-8 py-4 text-lg font-500 text-white transition-all hover:bg-[#36393f] hover:shadow-xl"
+          >
+            Abrir DCC en tu navegador
+          </Link>
         </motion.div>
-      </motion.div>
+      </main>
 
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-    </MotionPage>
+      {/* Abstract Background Shapes mimicking Discord's clouds/illustrations */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[50vh] w-full overflow-hidden">
+        {/* Left abstract shoe/mountain */}
+        <motion.div 
+          className="absolute -bottom-10 -left-20 hidden h-[400px] w-[500px] bg-[url('https://cdn.discordapp.com/assets/discovering/discovering-1.svg')] bg-contain bg-no-repeat lg:block"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+        />
+        {/* Right abstract drink/console */}
+        <motion.div 
+          className="absolute -bottom-10 -right-20 hidden h-[400px] w-[500px] bg-[url('https://cdn.discordapp.com/assets/discovering/discovering-2.svg')] bg-contain bg-no-repeat lg:block"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+        />
+        {/* Clouds */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-[url('https://cdn.discordapp.com/assets/discovering/clouds.svg')] bg-cover bg-bottom bg-no-repeat opacity-50" />
+      </div>
+    </div>
   )
 }
