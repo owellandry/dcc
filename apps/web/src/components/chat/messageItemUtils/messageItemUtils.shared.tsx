@@ -1,6 +1,7 @@
 import { format, isToday, isYesterday } from 'date-fns'
 import Link from 'next/link'
 import { cn } from '@/lib/cn'
+import { CodeEditorBlock, splitByFencedCodeBlocks } from '@/components/chat/CodeEditorBlock/CodeEditorBlock.module'
 
 export function formatTimestamp(dateStr: string): string {
   const date = new Date(dateStr)
@@ -35,6 +36,44 @@ export function renderMessageContent(
 ): React.ReactNode {
   if (!content) return null
 
+  const segments = splitByFencedCodeBlocks(content)
+  const rendered: React.ReactNode[] = []
+
+  segments.forEach((segment, segmentIndex) => {
+    if (segment.type === 'code') {
+      rendered.push(
+        <CodeEditorBlock
+          key={`code-${segmentIndex}`}
+          code={segment.code}
+          language={segment.language}
+        />
+      )
+      return
+    }
+
+    rendered.push(
+      ...renderTextSegment(
+        segment.value,
+        `text-${segmentIndex}`,
+        currentUserId,
+        currentUsername,
+        resolveChannelHref,
+        resolveUserMention,
+      )
+    )
+  })
+
+  return rendered
+}
+
+function renderTextSegment(
+  content: string,
+  keyPrefix: string,
+  currentUserId: string | null,
+  currentUsername: string | null,
+  resolveChannelHref?: (channelName: string) => string | null,
+  resolveUserMention?: (token: string) => { display: string; username?: string | null; id?: string | null } | null,
+): React.ReactNode[] {
   const mentionPattern = /@\{([^}]+)\}|#\{([^}]+)\}|(^|[^\w])(@([a-zA-Z0-9._-]+)|#([a-zA-Z0-9._-]+))/g
   const nodes: React.ReactNode[] = []
   let lastIndex = 0
@@ -112,7 +151,7 @@ export function renderMessageContent(
     nodes.push(content.slice(lastIndex))
   }
 
-  return linkifyNodes(nodes)
+  return linkifyNodes(nodes, keyPrefix)
 }
 
 function escapeRegExp(value: string): string {
@@ -132,7 +171,7 @@ export function extractFirstUrl(content: string | null): string | null {
   return normalizedUrl
 }
 
-function linkifyNodes(nodes: React.ReactNode[]): React.ReactNode[] {
+function linkifyNodes(nodes: React.ReactNode[], keyPrefix: string): React.ReactNode[] {
   const linked: React.ReactNode[] = []
 
   nodes.forEach((node, index) => {
@@ -141,7 +180,7 @@ function linkifyNodes(nodes: React.ReactNode[]): React.ReactNode[] {
       return
     }
 
-    linked.push(...linkifyTextSegment(node, `seg-${index}`))
+    linked.push(...linkifyTextSegment(node, `${keyPrefix}-seg-${index}`))
   })
 
   return linked

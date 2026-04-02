@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, interactiveMotion, motion, overlayCardVariants } from '@/lib/motion'
-import { getUserDisplayName, getUserHandle } from '@/lib/users/displayName.shared'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { type UserStatusSwitcherVisualProps } from './UserStatusSwitcher.shared'
 
@@ -25,7 +25,6 @@ export function UserStatusSwitcherVisual({
         <p className="truncate text-[15px] font-700 leading-none text-[var(--t0)]">{displayName}</p>
         {hasOfficialMemberBadge({ user }) && <OfficialMemberTag compact className="-translate-y-px" />}
       </div>
-      <p className="mt-1 truncate text-[11px] leading-none text-[var(--t4)]">{getUserHandle(user)}</p>
       <motion.button
         type="button"
         onClick={onToggleMenu}

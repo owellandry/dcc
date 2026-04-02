@@ -2,7 +2,7 @@
 
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
-import { CornerUpLeft, Pencil, Smile, Trash2 } from 'lucide-react'
+import { Copy, CornerUpLeft, Pencil, Smile, Trash2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/cn'
 import { getMemberDisplayName, getUserDisplayName } from '@/lib/users/displayName.shared'
@@ -10,6 +10,7 @@ import { interactiveMotion, motion, overlayCardVariants } from '@/lib/motion'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { MemberPreviewCard } from '@/components/user/MemberPreviewCard'
+import { extractFencedCodeBlocks } from '@/components/chat/CodeEditorBlock/CodeEditorBlock.module'
 import { ReactionPicker } from '../ReactionPicker'
 import { SystemWelcomeCard } from '../MessageItemSystemWelcomeCard'
 import { MessageItemAttachment } from '../MessageItemAttachment'
@@ -58,6 +59,8 @@ export function MessageItemVisual({
   const isOfficialAuthor = hasOfficialMemberBadge({ user: message.author })
   const authorDisplayName = getMemberDisplayName(previewMember)
   const [externalTargetUrl, setExternalTargetUrl] = useState<string | null>(null)
+  const codeBlocks = extractFencedCodeBlocks(message.content ?? '')
+  const hasCodeBlocks = codeBlocks.length > 0
 
   const handleOpenExternalModal = useCallback((url: string) => {
     setExternalTargetUrl(url)
@@ -77,6 +80,12 @@ export function MessageItemVisual({
     }
     setExternalTargetUrl(null)
   }, [externalTargetUrl])
+
+  const handleCopyCode = useCallback(() => {
+    if (codeBlocks.length === 0) return
+    const codeToCopy = codeBlocks.map((block) => block.code).join('\n\n')
+    void navigator.clipboard.writeText(codeToCopy)
+  }, [codeBlocks])
 
   return (
     <motion.div
@@ -206,6 +215,9 @@ export function MessageItemVisual({
               triggerOnMouseDown
             />
           </div>
+          {hasCodeBlocks && (
+            <ActionButton title="Copiar codigo" icon={<Copy size={18} />} onActivate={handleCopyCode} />
+          )}
           <ActionButton title="Responder" icon={<CornerUpLeft size={18} />} onActivate={onReply} />
           {isOwn && (
             <>
@@ -298,7 +310,7 @@ function MessageContent({
   attachments: MessageItemVisualProps['message']['attachments']
   onOpenExternalLink: (url: string) => void
 }) {
-  const handleContentClickCapture = useCallback((event: ReactMouseEvent<HTMLParagraphElement>) => {
+  const handleContentClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     const target = event.target
     if (!(target instanceof HTMLElement)) return
     const link = target.closest('a[href]') as HTMLAnchorElement | null
@@ -326,10 +338,10 @@ function MessageContent({
   return (
     <div className="message-content">
       {content && (
-        <p className="message-body" onClickCapture={handleContentClickCapture}>
+        <div className="message-body" onClickCapture={handleContentClickCapture}>
           {renderedContent}
           {isEdited && <span className="ml-1 text-[11px] text-[var(--t4)]">(editado)</span>}
-        </p>
+        </div>
       )}
 
       <MessageLinkPreview content={content} onOpenExternalLink={onOpenExternalLink} />

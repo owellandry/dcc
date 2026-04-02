@@ -41,8 +41,8 @@ export function MessageInputVisual({
   return (
     <div
       className={cn(
-        'relative rounded-xl border bg-[var(--s4)] transition-colors surface-raised',
-        attachmentsEnabled && isDragOver ? 'border-[var(--ember)] bg-[var(--ember-dim)]' : 'border-[var(--b1)]'
+        'relative rounded-xl border transition-colors surface-raised',
+        attachmentsEnabled && isDragOver ? 'border-[var(--ember)]' : 'border-[var(--b1)]'
       )}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -106,7 +106,7 @@ export function MessageInputVisual({
         </div>
       )}
 
-      <div className="flex items-end gap-2 px-3 py-2.5">
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <label
           data-tooltip={attachmentsEnabled ? 'Adjuntar archivos' : 'Adjuntos proximamente'}
           data-tooltip-position="top"
@@ -136,7 +136,7 @@ export function MessageInputVisual({
           onClick={onTextareaClick}
           placeholder={placeholder}
           rows={1}
-          className="scrollable max-h-[300px] flex-1 resize-none bg-transparent text-[15px] leading-relaxed text-[var(--t1)] placeholder:text-[var(--t4)] outline-none"
+          className="scrollable max-h-[300px] flex-1 resize-none bg-transparent text-[15px] leading-6 text-[var(--t1)] placeholder:text-[var(--t4)] outline-none"
           style={{ height: 'auto' }}
           disabled={!canSendMessages}
         />

@@ -4,7 +4,7 @@ import { motion } from '@/lib/motion'
 import { type TypingIndicatorVisualProps } from './TypingIndicator.shared'
 
 export function TypingIndicatorVisual({ showIndicator, label }: TypingIndicatorVisualProps) {
-  if (!showIndicator) return <div className="h-5" />
+  if (!showIndicator) return null
 
   return (
     <motion.div
