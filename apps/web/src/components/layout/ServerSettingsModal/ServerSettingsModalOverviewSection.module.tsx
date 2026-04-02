@@ -57,7 +57,7 @@ export function ServerSettingsModalOverviewSection({
             <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(12,14,18,0.82))]" />
             <div className="absolute bottom-4 left-4 flex items-end gap-3">
               <div className="relative">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-[var(--s3)] bg-[var(--s2)]">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--s3)] bg-[var(--s2)]">
                   {serverIconUrl ? (
                     <UserAvatarImage src={serverIconUrl} alt={displayName} status="online" />
                   ) : (

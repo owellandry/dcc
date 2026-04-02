@@ -105,7 +105,7 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
   if (isGif && !isActive && stillSrc === null) {
     return (
       <span
-        className={cn('block h-full w-full bg-[var(--surface-soft)] transition-[filter] duration-300', status === 'offline' && 'grayscale')}
+        className={cn('block h-full w-full rounded-full bg-[var(--surface-soft)] transition-[filter] duration-300', status === 'offline' && 'grayscale')}
       />
     )
   }
@@ -119,7 +119,7 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
       loading="lazy"
       decoding="async"
       draggable={false}
-      className={cn('h-full w-full object-cover transition-[filter] duration-300', status === 'offline' && 'grayscale')}
+      className={cn('h-full w-full rounded-full object-cover transition-[filter] duration-300', status === 'offline' && 'grayscale')}
     />
   )
 }, areEqualAvatarImageProps)

@@ -23,11 +23,12 @@ const previewCache = new Map<string, LinkPreviewData | null>()
 
 export function MessageLinkPreview({ content, onOpenExternalLink }: Props) {
   const previewUrl = useMemo(() => extractFirstUrl(content), [content])
+  const canRequestPreview = useMemo(() => isPreviewableUrl(previewUrl), [previewUrl])
   const [preview, setPreview] = useState<LinkPreviewData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    if (!previewUrl) {
+    if (!previewUrl || !canRequestPreview) {
       setPreview(null)
       return
     }
@@ -61,9 +62,10 @@ export function MessageLinkPreview({ content, onOpenExternalLink }: Props) {
     return () => {
       cancelled = true
     }
-  }, [previewUrl])
+  }, [canRequestPreview, previewUrl])
 
   if (!previewUrl) return null
+  if (!canRequestPreview) return null
 
   if (isLoading) {
     return <div className="mt-2 h-20 w-full max-w-[460px] animate-pulse rounded-xl border border-[var(--b1)] bg-[var(--s1)]" />
@@ -102,4 +104,30 @@ export function MessageLinkPreview({ content, onOpenExternalLink }: Props) {
       </div>
     </a>
   )
+}
+
+function isPreviewableUrl(url: string | null): boolean {
+  if (!url) return false
+
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    const hostname = parsed.hostname.toLowerCase()
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return false
+    if (hostname.endsWith('.local')) return false
+
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false
+
+    const private172 = /^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(hostname)
+    if (private172) {
+      const secondOctet = Number(private172[1])
+      if (secondOctet >= 16 && secondOctet <= 31) return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
 }
