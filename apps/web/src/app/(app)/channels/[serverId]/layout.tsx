@@ -1,5 +1,3 @@
-'use client'
-
 import { ChannelSidebar } from '@/components/layout/ChannelSidebar'
 import { MobileSidebarShell } from '@/components/layout/MobileSidebarShell'
 
