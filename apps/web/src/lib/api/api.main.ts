@@ -81,12 +81,23 @@ function rewriteMediaUrl(urlValue: string) {
 // ── In-memory access token ───────────────────────────────────────────────────
 let _accessToken: string | null = null
 let _refreshing: Promise<string | null> | null = null
+const ACCESS_TOKEN_STORAGE_KEY = 'dcc_access_token'
 
 export function setAccessToken(token: string | null) {
   _accessToken = token
+  if (typeof window === 'undefined') return
+
+  if (token) {
+    window.sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token)
+  } else {
+    window.sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+  }
 }
 
 export function getAccessToken() {
+  if (!_accessToken && typeof window !== 'undefined') {
+    _accessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+  }
   return _accessToken
 }
 

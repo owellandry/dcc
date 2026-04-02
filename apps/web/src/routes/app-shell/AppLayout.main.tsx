@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { useServersStore } from '@/stores/serversStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { authApi, serversApi, setAccessToken, usersApi } from '@/lib/api'
+import { authApi, getAccessToken, serversApi, setAccessToken, usersApi } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
 import { MotionPage, motion } from '@/lib/motion'
 import { ServerSidebar } from '@/components/layout/ServerSidebar'
@@ -28,8 +28,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       setLoading(true)
       try {
-        const res = await authApi.refresh()
-        const token = res?.data?.accessToken
+        let token = getAccessToken()
+
+        if (!token) {
+          const res = await authApi.refresh()
+          token = res?.data?.accessToken ?? null
+        }
 
         if (!token) {
           logout()
