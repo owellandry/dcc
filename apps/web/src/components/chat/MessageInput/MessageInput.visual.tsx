@@ -24,6 +24,7 @@ export function MessageInputVisual({
   placeholder,
   inputChannelId,
   replyTarget,
+  replyPreviewContent,
   textareaRef,
   onFileChange,
   onTextareaChange,
@@ -53,7 +54,7 @@ export function MessageInputVisual({
             <span className="shrink-0 text-[var(--t3)]">Respondiendo a</span>
             <span className="shrink-0 font-600 text-[var(--t1)]">{getUserDisplayName(replyTarget.author)}</span>
             <span className="min-w-0 truncate text-[var(--t3)]">
-              {replyTarget.content ?? 'Adjunto'}
+              {replyPreviewContent}
             </span>
           </div>
           <button

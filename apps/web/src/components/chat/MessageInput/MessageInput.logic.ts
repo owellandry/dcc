@@ -94,7 +94,7 @@ export function useMessageInputController({
           value: member.user.username,
           label: getUserHandle(member.user),
           description: getMemberDisplayName(member),
-          token: `@{${member.userId}}`,
+          token: `@${member.user.username}`,
         }))
         .filter((item) => {
           if (!query) return true
@@ -121,6 +121,22 @@ export function useMessageInputController({
       })
       .slice(0, 6)
   }, [serverChannels, serverMembers, tokenContext])
+
+  const replyPreviewContent = useMemo(() => {
+    const rawContent = replyTarget?.content
+    if (!rawContent) return 'Adjunto'
+
+    return rawContent
+      .replace(/@\{([^}]+)\}/g, (_, token: string) => {
+        const normalizedToken = token.trim()
+        const matchedMember = serverMembers.find((member) =>
+          member.userId === normalizedToken || member.user.username.toLowerCase() === normalizedToken.toLowerCase()
+        )
+        const mentionName = matchedMember?.user.username ?? normalizedToken.replace(/^@+/, '')
+        return `@${mentionName}`
+      })
+      .replace(/#\{([^}]+)\}/g, '#$1')
+  }, [replyTarget?.content, serverMembers])
 
   const applySuggestion = useCallback((suggestion: MentionSuggestion) => {
     if (!tokenContext || !textareaRef.current) return
@@ -310,6 +326,7 @@ export function useMessageInputController({
     placeholder: canSendMessages ? `Escribe en #${channelName}` : 'Este canal es solo de lectura',
     inputChannelId: channelId,
     replyTarget,
+    replyPreviewContent,
     textareaRef,
     onFileChange: handleFileChange,
     onTextareaChange: handleTextareaChange,

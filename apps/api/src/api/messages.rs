@@ -490,7 +490,7 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
         author_status: Option<String>,
         author_custom_status: Option<String>,
         author_is_verified: bool,
-        author_badges: serde_json::Value,
+        author_badges: Vec<String>,
         author_created_at: chrono::DateTime<chrono::Utc>,
     }
 

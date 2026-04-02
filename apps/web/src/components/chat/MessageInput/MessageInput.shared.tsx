@@ -52,6 +52,7 @@ export interface MessageInputVisualProps {
   placeholder: string
   inputChannelId: string
   replyTarget: Message | null
+  replyPreviewContent: string
   textareaRef: RefObject<HTMLTextAreaElement | null>
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
   onTextareaChange: (event: ChangeEvent<HTMLTextAreaElement>) => void
@@ -130,10 +131,15 @@ export function SuggestionTypeLabel({ type }: { type: SuggestionType }) {
 }
 
 export function SuggestionPrefix({ type, children }: { type: SuggestionType; children: ReactNode }) {
+  const normalizedChildren =
+    typeof children === 'string' || typeof children === 'number'
+      ? String(children).replace(/^[@#]+/, '')
+      : children
+
   return (
     <span className="truncate">
       {type === 'user' ? '@' : '#'}
-      {children}
+      {normalizedChildren}
     </span>
   )
 }
