@@ -106,12 +106,13 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
     // mpsc: Redis events → WS sender (bounded channel to prevent memory growth)
     let (event_tx, mut event_rx) = mpsc::channel(1000); // buffer de 1000 eventos
 
-    // Spawn Redis subscriber reutilizando el ConnectionManager del estado
-    let redis = state.redis.clone();
+    // Spawn Redis subscriber: para PubSub necesitamos una conexión dedicada
+    // (ConnectionManager no soporta PubSub).
+    let redis_client = state.redis_client.clone();
     let event_tx_clone = event_tx.clone();
     let sub_channels_clone = sub_channels.clone();
     tokio::spawn(async move {
-        subscribe_and_forward(redis, sub_channels_clone, event_tx_clone).await;
+        subscribe_and_forward(redis_client, sub_channels_clone, event_tx_clone).await;
     });
 
     // Send READY
@@ -288,13 +289,16 @@ async fn join_voice_channel(
     let session_json = serde_json::to_string(&session)?;
 
     // Use pipeline for atomic multi-key operations + TTL (1 hour)
-    let mut conn = redis.get_async_connection().await?;
-    let mut pipe = redis::pipeline();
-    pipe.set(session_key, session_json);
-    pipe.hset(participants_key, user_id.to_string(), joined_at.to_rfc3339());
-    pipe.expire(session_key, 3600);
-    pipe.expire(participants_key, 3600);
-    let _: () = pipe.ignore(&mut conn).await?;
+    let mut pipe = redis::pipe();
+    pipe.set(&session_key, session_json);
+    pipe.hset(
+        &participants_key,
+        user_id.to_string(),
+        joined_at.to_rfc3339(),
+    );
+    pipe.expire(&session_key, 3600);
+    pipe.expire(&participants_key, 3600);
+    let _: () = pipe.ignore().query_async(&mut redis).await?;
 
     let joined_event = serde_json::json!({
         "t": "VOICE_USER_JOINED",
@@ -328,11 +332,10 @@ async fn leave_active_voice_channel(state: &AppState, user_id: Uuid) -> anyhow::
     let participants_key = voice_participants_key(session.channel_id);
 
     // Use pipeline for atomic delete operations
-    let mut conn = redis.get_async_connection().await?;
-    let mut pipe = redis::pipeline();
+    let mut pipe = redis::pipe();
     pipe.del(session_key);
     pipe.hdel(participants_key, user_id.to_string());
-    let _: () = pipe.ignore(&mut conn).await?;
+    let _: () = pipe.ignore().query_async(&mut redis).await?;
 
     let left_event = serde_json::json!({
         "t": "VOICE_USER_LEFT",
@@ -423,21 +426,21 @@ async fn load_joinable_voice_channel(
     user_id: Uuid,
     channel_id: Uuid,
 ) -> anyhow::Result<Option<Uuid>> {
-    let row = sqlx::query!(
-        r#"SELECT c.server_id as "server_id?"
+    let server_id = sqlx::query_scalar::<_, Uuid>(
+        r#"SELECT c.server_id
            FROM channels c
            JOIN server_members sm
              ON sm.server_id = c.server_id
             AND sm.user_id = $2
            WHERE c.id = $1
              AND c.channel_type = 'voice'"#,
-        channel_id,
-        user_id
     )
+    .bind(channel_id)
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await?;
 
-    Ok(row.and_then(|record| record.server_id))
+    Ok(server_id)
 }
 
 fn voice_session_key(user_id: Uuid) -> String {
@@ -472,15 +475,15 @@ fn try_identify(
 }
 
 async fn subscribe_and_forward(
-    mut redis: redis::aio::ConnectionManager,
+    redis_client: redis::Client,
     channels: Vec<String>,
     tx: mpsc::Sender<String>,
 ) {
-    let conn = match redis.get_async_connection().await {
+    let conn = match redis_client.get_async_connection().await {
         Ok(conn) => conn,
         Err(_) => return,
     };
-    let mut pubsub = redis::pubsub(&mut conn);
+    let mut pubsub = conn.into_pubsub();
 
     for ch in &channels {
         if pubsub.subscribe(ch).await.is_err() {

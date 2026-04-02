@@ -183,15 +183,13 @@ pub async fn send_message(
 
     // Validate parent_message_id if provided (thread participation)
     if let Some(pid) = parent_message_id {
-        let parent_msg = sqlx::query!(
-            "SELECT channel_id FROM messages WHERE id = $1",
-            pid
-        )
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::BadRequest("Parent message not found".into()))?;
+        let parent_channel_id = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+            .bind(pid)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("Parent message not found".into()))?;
 
-        if parent_msg.channel_id != channel_id {
+        if parent_channel_id != channel_id {
             return Err(AppError::BadRequest(
                 "Parent message is not in this channel".into(),
             ));
@@ -229,13 +227,11 @@ pub async fn send_message(
     .await?;
 
     // Update last_message_id on channel
-    sqlx::query!(
-        "UPDATE channels SET last_message_id = $1 WHERE id = $2",
-        message_id,
-        channel_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE channels SET last_message_id = $1 WHERE id = $2")
+        .bind(message_id)
+        .bind(channel_id)
+        .execute(&state.db)
+        .await?;
 
     let message = build_message_payload(&state, &row, user_id).await?;
 
@@ -267,18 +263,20 @@ pub async fn edit_message(
         ));
     }
 
-    let updated_message = sqlx::query!(
+    let res = sqlx::query(
         r#"UPDATE messages
            SET content = $1, is_edited = TRUE, edited_at = NOW()
-           WHERE id = $2 AND author_id = $3
-           RETURNING id"#,
-        content,
-        message_id,
-        user_id,
+           WHERE id = $2 AND author_id = $3"#,
     )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found or not yours".into()))?;
+    .bind(content)
+    .bind(message_id)
+    .bind(user_id)
+    .execute(&state.db)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        return Err(AppError::NotFound("Message not found or not yours".into()));
+    }
 
     let row = sqlx::query_as::<_, MessageRow>(
         r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
@@ -292,7 +290,7 @@ pub async fn edit_message(
            JOIN users u ON u.id = m.author_id
            WHERE m.id = $1"#,
     )
-    .bind(updated_message.id)
+    .bind(message_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -312,10 +310,17 @@ pub async fn delete_message(
     State(state): State<AppState>,
     Path(message_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let row = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct MessageOwnerRow {
+        id: Uuid,
+        channel_id: Uuid,
+        author_id: Uuid,
+    }
+
+    let row = sqlx::query_as::<_, MessageOwnerRow>(
         "SELECT id, channel_id, author_id FROM messages WHERE id = $1",
-        message_id
     )
+    .bind(message_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
@@ -335,7 +340,8 @@ pub async fn delete_message(
         }
     }
 
-    sqlx::query!("DELETE FROM messages WHERE id = $1", message_id)
+    sqlx::query("DELETE FROM messages WHERE id = $1")
+        .bind(message_id)
         .execute(&state.db)
         .await?;
 
@@ -359,28 +365,29 @@ pub async fn add_reaction(
         .unwrap_or(emoji);
 
     // Verify message exists and user can access it
-    let msg = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", message_id)
+    let msg = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+        .bind(message_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
-    ensure_channel_view_access(&state, user_id, msg.channel_id).await?;
+    ensure_channel_view_access(&state, user_id, msg).await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO message_reactions (message_id, user_id, emoji)
            VALUES ($1, $2, $3)
            ON CONFLICT (message_id, user_id, emoji) DO NOTHING"#,
-        message_id,
-        user_id,
-        emoji,
     )
+    .bind(message_id)
+    .bind(user_id)
+    .bind(&emoji)
     .execute(&state.db)
     .await?;
 
-    let pub_channel = get_pub_channel(&state, msg.channel_id).await;
+    let pub_channel = get_pub_channel(&state, msg).await;
     let event = json!({
         "t": "REACTION_ADD",
-        "d": { "messageId": message_id, "channelId": msg.channel_id, "userId": user_id, "emoji": emoji }
+        "d": { "messageId": message_id, "channelId": msg, "userId": user_id, "emoji": emoji }
     });
     let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
 
@@ -396,26 +403,27 @@ pub async fn remove_reaction(
         .map(|s| s.into_owned())
         .unwrap_or(emoji);
 
-    let msg = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", message_id)
+    let msg = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+        .bind(message_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
-    ensure_channel_view_access(&state, user_id, msg.channel_id).await?;
+    ensure_channel_view_access(&state, user_id, msg).await?;
 
-    sqlx::query!(
+    sqlx::query(
         "DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3",
-        message_id,
-        user_id,
-        emoji,
     )
+    .bind(message_id)
+    .bind(user_id)
+    .bind(&emoji)
     .execute(&state.db)
     .await?;
 
-    let pub_channel = get_pub_channel(&state, msg.channel_id).await;
+    let pub_channel = get_pub_channel(&state, msg).await;
     let event = json!({
         "t": "REACTION_REMOVE",
-        "d": { "messageId": message_id, "channelId": msg.channel_id, "userId": user_id, "emoji": emoji }
+        "d": { "messageId": message_id, "channelId": msg, "userId": user_id, "emoji": emoji }
     });
     let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
 
@@ -444,12 +452,13 @@ async fn validate_reply_target(
         return Ok(None);
     };
 
-    let reply_target = sqlx::query!("SELECT channel_id FROM messages WHERE id = $1", reply_to_id)
+    let reply_channel_id = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+        .bind(reply_to_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::BadRequest("Reply target message was not found".into()))?;
 
-    if reply_target.channel_id != channel_id {
+    if reply_channel_id != channel_id {
         return Err(AppError::BadRequest(
             "Reply target must belong to the same channel".into(),
         ));
@@ -463,7 +472,24 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
         return Ok(None);
     };
 
-    let reply = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct ReplyPreviewRow {
+        id: Uuid,
+        content: String,
+        author_id: Uuid,
+        author_username: String,
+        author_discriminator: String,
+        author_avatar_url: Option<String>,
+        author_banner_url: Option<String>,
+        author_bio: Option<String>,
+        author_status: Option<String>,
+        author_custom_status: Option<String>,
+        author_is_verified: bool,
+        author_badges: serde_json::Value,
+        author_created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let reply = sqlx::query_as::<_, ReplyPreviewRow>(
         r#"SELECT m.id, m.content,
                   u.id as author_id,
                   u.username as author_username,
@@ -479,8 +505,8 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
            FROM messages m
            JOIN users u ON u.id = m.author_id
            WHERE m.id = $1"#,
-        reply_to_id
     )
+    .bind(reply_to_id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -539,15 +565,22 @@ async fn build_message_payload(state: &AppState, row: &MessageRow, user_id: Uuid
 }
 
 async fn fetch_reactions(state: &AppState, message_id: Uuid, user_id: Uuid) -> Result<Vec<Value>> {
-    let rows = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct ReactionRow {
+        emoji: String,
+        count: Option<i64>,
+        me_reacted: Option<bool>,
+    }
+
+    let rows = sqlx::query_as::<_, ReactionRow>(
         r#"SELECT emoji, COUNT(*) as count,
                   BOOL_OR(user_id = $2) as me_reacted
            FROM message_reactions
            WHERE message_id = $1
            GROUP BY emoji"#,
-        message_id,
-        user_id,
     )
+    .bind(message_id)
+    .bind(user_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -565,7 +598,8 @@ async fn fetch_reactions(state: &AppState, message_id: Uuid, user_id: Uuid) -> R
 
 async fn get_pub_channel(state: &AppState, channel_id: Uuid) -> String {
     // Determine if DM or guild channel for routing
-    let server_id = sqlx::query_scalar!("SELECT server_id FROM channels WHERE id = $1", channel_id)
+    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+        .bind(channel_id)
         .fetch_optional(&state.db)
         .await
         .ok()

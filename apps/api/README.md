@@ -61,7 +61,6 @@ apps/api/
 ├── migrations/              # Migraciones SQL (sqlx)
 ├── uploads/                 # Archivos subidos (avatars, banners)
 ├── .env.example             # Variables de entorno de ejemplo
-├── .sqlx/                   # Cache de queries (generado)
 └── Cargo.toml
 ```
 
@@ -121,13 +120,7 @@ S3_PUBLIC_URL=
    docker-compose up -d  # Desde la raíz del repo
    ```
 
-2. **Preparar cache sqlx** (una vez, requiere Postgres activa):
-   ```bash
-   cargo install sqlx-cli --no-default-features --features rustls,postgres
-   cargo sqlx prepare
-   ```
-
-3. **Ejecutar en desarrollo**:
+2. **Ejecutar en desarrollo**:
    ```bash
    cargo run
    ```

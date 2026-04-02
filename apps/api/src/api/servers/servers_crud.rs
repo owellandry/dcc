@@ -2,7 +2,7 @@ use super::*;
 use crate::api::servers::common::{
     ensure_owner, ensure_owner_or_manage_server, load_all_overwrites_for_server,
     load_server_permissions_context, load_server_roles, overwrite_payload,
-    role_payload, apply_overwrites, OverwritesBatch,
+    role_payload, apply_overwrites,
     DEFAULT_EVERYONE_PERMISSIONS, SEND_MESSAGES_PERMISSION, VIEW_CHANNEL_PERMISSION,
 };
 use crate::services::cache;
@@ -51,15 +51,15 @@ pub async fn list_my_servers(
     AuthUser(user_id): AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Value>> {
-    let servers = sqlx::query!(
+    let servers = sqlx::query_as::<_, crate::models::server::Server>(
         r#"SELECT s.id, s.name, s.description, s.icon_url, s.banner_url,
                   s.owner_id, s.invite_code, s.is_public, s.member_count, s.created_at
            FROM servers s
            JOIN server_members sm ON sm.server_id = s.id
            WHERE sm.user_id = $1
            ORDER BY sm.joined_at ASC"#,
-        user_id
     )
+    .bind(user_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -92,20 +92,20 @@ pub async fn get_server(
     let context = load_server_permissions_context(&state, user_id, server_id).await?;
 
     // Try cache first, or fetch and cache
-    let s = cache::get_or_fetch_server(&mut state.redis.clone(), server_id, |db_state| {
-        let server_id = server_id;
-        async move {
-            sqlx::query_as::<_, crate::models::server::Server>(
-                r#"SELECT id, name, description, icon_url, banner_url,
-                          owner_id, invite_code, is_public, member_count, created_at
-                   FROM servers WHERE id = $1"#
-            )
-            .bind(server_id)
-            .fetch_optional(&db_state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Server not found".into()))
-        }
-    }).await?;
+    let mut redis = state.redis.clone();
+    let s = cache::get_or_fetch_server(&mut redis, server_id, async {
+        let server = sqlx::query_as::<_, crate::models::server::Server>(
+            r#"SELECT id, name, description, icon_url, banner_url,
+                      owner_id, invite_code, is_public, member_count, created_at
+               FROM servers WHERE id = $1"#,
+        )
+        .bind(server_id)
+        .fetch_optional(&state.db)
+        .await?;
+        Ok(server)
+    })
+    .await?
+    .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
 
     let categories = sqlx::query_as::<_, ServerCategoryRow>(
         r#"SELECT id, server_id, name, position
@@ -244,121 +244,115 @@ pub async fn create_server(
 
     let mut tx = state.db.begin().await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO servers (id, name, description, owner_id, invite_code)
            VALUES ($1, $2, $3, $4, $5)"#,
-        server_id,
-        name,
-        body.description,
-        user_id,
-        invite_code,
     )
+    .bind(server_id)
+    .bind(&name)
+    .bind(body.description)
+    .bind(user_id)
+    .bind(&invite_code)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
-        "INSERT INTO server_members (server_id, user_id) VALUES ($1, $2)",
-        server_id,
-        user_id
-    )
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("INSERT INTO server_members (server_id, user_id) VALUES ($1, $2)")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO roles (
                 id, server_id, name, permissions, position, is_hoisted,
                 is_managed, is_mentionable, is_default
            )
            VALUES ($1, $2, '@everyone', $3, -1, FALSE, FALSE, FALSE, TRUE)"#,
-        everyone_role_id,
-        server_id,
-        DEFAULT_EVERYONE_PERMISSIONS,
     )
+    .bind(everyone_role_id)
+    .bind(server_id)
+    .bind(DEFAULT_EVERYONE_PERMISSIONS)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
-        "INSERT INTO categories (id, server_id, name, position) VALUES ($1, $2, $3, $4)",
-        cat_info_id,
-        server_id,
-        "INFORMACION",
-        0
-    )
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("INSERT INTO categories (id, server_id, name, position) VALUES ($1, $2, $3, $4)")
+        .bind(cat_info_id)
+        .bind(server_id)
+        .bind("INFORMACION")
+        .bind(0_i32)
+        .execute(&mut *tx)
+        .await?;
 
-    sqlx::query!(
-        "INSERT INTO categories (id, server_id, name, position) VALUES ($1, $2, $3, $4)",
-        cat_gen_id,
-        server_id,
-        "GENERAL",
-        1
-    )
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("INSERT INTO categories (id, server_id, name, position) VALUES ($1, $2, $3, $4)")
+        .bind(cat_gen_id)
+        .bind(server_id)
+        .bind("GENERAL")
+        .bind(1_i32)
+        .execute(&mut *tx)
+        .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO channels (id, server_id, category_id, name, channel_type, position)
            VALUES ($1, $2, $3, 'reglas', 'text', 0)"#,
-        ch_reglas_id,
-        server_id,
-        cat_info_id
     )
+    .bind(ch_reglas_id)
+    .bind(server_id)
+    .bind(cat_info_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO channels (id, server_id, category_id, name, channel_type, position)
            VALUES ($1, $2, $3, 'bienvenida', 'text', 1)"#,
-        ch_bienvenida_id,
-        server_id,
-        cat_info_id
     )
+    .bind(ch_bienvenida_id)
+    .bind(server_id)
+    .bind(cat_info_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO channels (id, server_id, category_id, name, channel_type, position)
            VALUES ($1, $2, $3, 'chat-general', 'text', 0)"#,
-        ch_general_id,
-        server_id,
-        cat_gen_id
     )
+    .bind(ch_general_id)
+    .bind(server_id)
+    .bind(cat_gen_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO channels (id, server_id, category_id, name, channel_type, position)
            VALUES ($1, $2, $3, 'voz-general', 'voice', 1)"#,
-        ch_voz_id,
-        server_id,
-        cat_gen_id
     )
+    .bind(ch_voz_id)
+    .bind(server_id)
+    .bind(cat_gen_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO permission_overwrites (
                 id, server_id, category_id, target_type, target_id, allow_bits, deny_bits
            )
            VALUES ($1, $2, $3, 'role', $4, 0, $5)"#,
-        Uuid::new_v4(),
-        server_id,
-        cat_info_id,
-        everyone_role_id,
-        SEND_MESSAGES_PERMISSION,
     )
+    .bind(Uuid::new_v4())
+    .bind(server_id)
+    .bind(cat_info_id)
+    .bind(everyone_role_id)
+    .bind(SEND_MESSAGES_PERMISSION)
     .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
-    let s = sqlx::query!(
+    let s = sqlx::query_as::<_, crate::models::server::Server>(
         r#"SELECT id, name, description, icon_url, banner_url,
                   owner_id, invite_code, is_public, member_count, created_at
            FROM servers WHERE id = $1"#,
-        server_id
     )
+    .bind(server_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -467,19 +461,18 @@ pub async fn update_server(
             ));
         }
 
-        let is_taken = sqlx::query_scalar!(
+        let is_taken: bool = sqlx::query_scalar(
             r#"SELECT EXISTS(
                 SELECT 1
                 FROM servers
                 WHERE invite_code = $1
                   AND id <> $2
             )"#,
-            normalized,
-            server_id
         )
+        .bind(&normalized)
+        .bind(server_id)
         .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
+        .await?;
 
         if is_taken {
             return Err(AppError::Conflict(
@@ -492,7 +485,7 @@ pub async fn update_server(
         None
     };
 
-    let s = sqlx::query!(
+    let s = sqlx::query_as::<_, crate::models::server::Server>(
         r#"UPDATE servers
            SET name        = COALESCE($2, name),
                description = COALESCE($3, description),
@@ -503,14 +496,14 @@ pub async fn update_server(
            WHERE id = $1
            RETURNING id, name, description, icon_url, banner_url,
                      owner_id, invite_code, is_public, member_count, created_at"#,
-        server_id,
-        body.name,
-        body.description,
-        body.is_public,
-        body.icon_url,
-        body.banner_url,
-        invite_code,
     )
+    .bind(server_id)
+    .bind(body.name)
+    .bind(body.description)
+    .bind(body.is_public)
+    .bind(body.icon_url)
+    .bind(body.banner_url)
+    .bind(invite_code)
     .fetch_one(&state.db)
     .await?;
 
@@ -595,13 +588,11 @@ pub async fn upload_server_icon(
 
     let icon_url = format!("/uploads/server-icons/{}", filename);
 
-    sqlx::query!(
-        "UPDATE servers SET icon_url = $1 WHERE id = $2",
-        icon_url,
-        server_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE servers SET icon_url = $1 WHERE id = $2")
+        .bind(&icon_url)
+        .bind(server_id)
+        .execute(&state.db)
+        .await?;
 
     // Invalidate cache
     let mut redis = state.redis.clone();
@@ -671,13 +662,11 @@ pub async fn upload_server_banner(
 
     let banner_url = format!("/uploads/server-banners/{}", filename);
 
-    sqlx::query!(
-        "UPDATE servers SET banner_url = $1 WHERE id = $2",
-        banner_url,
-        server_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE servers SET banner_url = $1 WHERE id = $2")
+        .bind(&banner_url)
+        .bind(server_id)
+        .execute(&state.db)
+        .await?;
 
     // Invalidate cache
     let mut redis = state.redis.clone();
@@ -693,7 +682,8 @@ pub async fn delete_server(
 ) -> Result<Json<Value>> {
     ensure_owner(&state, user_id, server_id).await?;
 
-    sqlx::query!("DELETE FROM servers WHERE id = $1", server_id)
+    sqlx::query("DELETE FROM servers WHERE id = $1")
+        .bind(server_id)
         .execute(&state.db)
         .await?;
 

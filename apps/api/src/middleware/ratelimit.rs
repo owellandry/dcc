@@ -75,7 +75,10 @@ pub async fn rate_limit_middleware(
     // Increment counter, set TTL if first request
     let _: u32 = redis.incr(&key, 1).await.unwrap_or(0);
     if current == 0 {
-        let _: () = redis.expire(&key, config.window_secs as usize).await.unwrap_or(());
+        let _: () = redis
+            .expire(&key, config.window_secs as i64)
+            .await
+            .unwrap_or(());
     }
 
     // Continue to next middleware/handler
@@ -115,7 +118,7 @@ impl Default for RateLimitConfig {
 }
 
 /// Determine rate limit config based on request path and method
-fn get_rate_limit_config(method: &http::Method, path: &str) -> Option<RateLimitConfig> {
+fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig> {
     // Skip rate limiting for these paths
     if path.starts_with("/ws") || path.starts_with("/health") || path.starts_with("/ready") {
         return None;
@@ -131,7 +134,7 @@ fn get_rate_limit_config(method: &http::Method, path: &str) -> Option<RateLimitC
     }
 
     // Message creation: 10 per second
-    if method == http::Method::POST && path.starts_with("/v1/channels/") && path.ends_with("/messages") {
+    if method == Method::POST && path.starts_with("/v1/channels/") && path.ends_with("/messages") {
         return Some(RateLimitConfig {
             max_requests: 10,
             window_secs: 1,
@@ -140,7 +143,7 @@ fn get_rate_limit_config(method: &http::Method, path: &str) -> Option<RateLimitC
     }
 
     // Upload endpoints: 10 per minute
-    if method == http::Method::POST && (
+    if method == Method::POST && (
         path.ends_with("/avatar") ||
         path.ends_with("/banner") ||
         path.ends_with("/icon")

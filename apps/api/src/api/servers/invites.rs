@@ -26,8 +26,22 @@ struct ResolvedInviteServer {
     tracked_invite: bool,
 }
 
+#[derive(sqlx::FromRow)]
+struct ServerRow {
+    id: Uuid,
+    name: String,
+    description: Option<String>,
+    icon_url: Option<String>,
+    banner_url: Option<String>,
+    owner_id: Uuid,
+    invite_code: String,
+    is_public: bool,
+    member_count: i32,
+    created_at: chrono::DateTime<Utc>,
+}
+
 async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedInviteServer> {
-    let tracked = sqlx::query!(
+    let tracked = sqlx::query_as::<_, ServerRow>(
         r#"SELECT s.id, s.name, s.description, s.icon_url, s.banner_url,
                   s.owner_id, s.invite_code, s.is_public, s.member_count, s.created_at
            FROM server_invites i
@@ -35,8 +49,8 @@ async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedI
            WHERE i.code = $1
              AND (i.expires_at IS NULL OR i.expires_at > NOW())
              AND (i.max_uses IS NULL OR i.uses < i.max_uses)"#,
-        code
     )
+    .bind(code)
     .fetch_optional(&state.db)
     .await?;
 
@@ -57,13 +71,13 @@ async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedI
         });
     }
 
-    let permanent = sqlx::query!(
+    let permanent = sqlx::query_as::<_, ServerRow>(
         r#"SELECT id, name, description, icon_url, banner_url,
                   owner_id, invite_code, is_public, member_count, created_at
            FROM servers
            WHERE invite_code = $1"#,
-        code
     )
+    .bind(code)
     .fetch_optional(&state.db)
     .await?;
 
@@ -126,16 +140,16 @@ pub async fn create_invite(
 
     let code = generate_invite_code();
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO server_invites (code, server_id, creator_id, expires_at, max_uses)
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT DO NOTHING"#,
-        code,
-        server_id,
-        user_id,
-        expires_at,
-        body.max_uses,
     )
+    .bind(&code)
+    .bind(server_id)
+    .bind(user_id)
+    .bind(expires_at)
+    .bind(body.max_uses)
     .execute(&state.db)
     .await?;
 
@@ -175,14 +189,13 @@ pub async fn join_server(
 ) -> Result<Json<Value>> {
     let row = resolve_invite_server(&state, &code).await?;
 
-    let is_banned = sqlx::query_scalar!(
+    let is_banned: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM server_bans WHERE server_id = $1 AND user_id = $2)",
-        row.id,
-        user_id
     )
+    .bind(row.id)
+    .bind(user_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
+    .await?;
 
     if is_banned {
         return Err(AppError::Forbidden(
@@ -190,30 +203,28 @@ pub async fn join_server(
         ));
     }
 
-    let join_result = sqlx::query!(
+    let join_result = sqlx::query(
         r#"INSERT INTO server_members (server_id, user_id)
            VALUES ($1, $2)
            ON CONFLICT (server_id, user_id) DO NOTHING"#,
-        row.id,
-        user_id,
     )
+    .bind(row.id)
+    .bind(user_id)
     .execute(&state.db)
     .await?;
 
     if join_result.rows_affected() > 0 {
         if row.tracked_invite {
-            sqlx::query!(
-                "UPDATE server_invites SET uses = uses + 1 WHERE code = $1",
-                code
-            )
-            .execute(&state.db)
-            .await?;
+            sqlx::query("UPDATE server_invites SET uses = uses + 1 WHERE code = $1")
+                .bind(&code)
+                .execute(&state.db)
+                .await?;
         }
 
-        sqlx::query!(
+        sqlx::query(
             "UPDATE servers SET member_count = (SELECT COUNT(*) FROM server_members WHERE server_id = $1) WHERE id = $1",
-            row.id
         )
+        .bind(row.id)
         .execute(&state.db)
         .await?;
 
@@ -221,7 +232,7 @@ pub async fn join_server(
         let mut redis = state.redis.clone();
         cache::invalidate_server(&mut redis, row.id).await;
 
-        let first_text_channel = sqlx::query!(
+        let first_text_channel = sqlx::query_scalar::<_, Uuid>(
             r#"SELECT id
                FROM channels
                WHERE server_id = $1 AND channel_type = 'text'
@@ -236,19 +247,32 @@ pub async fn join_server(
                  position ASC,
                  created_at ASC
                LIMIT 1"#,
-            row.id
         )
+        .bind(row.id)
         .fetch_optional(&state.db)
         .await?;
 
-        if let Some(channel) = first_text_channel {
-            let joined_user = sqlx::query!(
+        if let Some(channel_id) = first_text_channel {
+            #[derive(sqlx::FromRow)]
+            struct JoinedUserRow {
+                username: String,
+                discriminator: String,
+                avatar_url: Option<String>,
+                banner_url: Option<String>,
+                bio: Option<String>,
+                status: Option<String>,
+                custom_status: Option<String>,
+                is_verified: bool,
+                created_at: chrono::DateTime<Utc>,
+            }
+
+            let joined_user = sqlx::query_as::<_, JoinedUserRow>(
                 r#"SELECT username, discriminator, avatar_url, banner_url, bio, status,
                           custom_status, is_verified, created_at
                    FROM users
                    WHERE id = $1"#,
-                user_id
             )
+            .bind(user_id)
             .fetch_optional(&state.db)
             .await?;
 
@@ -257,31 +281,29 @@ pub async fn join_server(
                 let welcome_content =
                     format!("{} joined the server. Welcome!", joined_user.username);
 
-                let inserted = sqlx::query!(
+                let created_at = sqlx::query_scalar::<_, chrono::DateTime<Utc>>(
                     r#"INSERT INTO messages (id, channel_id, author_id, content, message_type)
                        VALUES ($1, $2, $3, $4, 'system')
                        RETURNING created_at"#,
-                    message_id,
-                    channel.id,
-                    user_id,
-                    welcome_content,
                 )
+                .bind(message_id)
+                .bind(channel_id)
+                .bind(user_id)
+                .bind(&welcome_content)
                 .fetch_one(&state.db)
                 .await?;
 
-                sqlx::query!(
-                    "UPDATE channels SET last_message_id = $1 WHERE id = $2",
-                    message_id,
-                    channel.id
-                )
-                .execute(&state.db)
-                .await?;
+                sqlx::query("UPDATE channels SET last_message_id = $1 WHERE id = $2")
+                    .bind(message_id)
+                    .bind(channel_id)
+                    .execute(&state.db)
+                    .await?;
 
                 let event = json!({
                     "t": "MESSAGE_CREATE",
                     "d": {
                         "id": message_id,
-                        "channelId": channel.id,
+                        "channelId": channel_id,
                         "author": {
                             "id": user_id,
                             "username": joined_user.username,
@@ -300,7 +322,7 @@ pub async fn join_server(
                         "attachments": [],
                         "reactions": [],
                         "isEdited": false,
-                        "createdAt": inserted.created_at,
+                        "createdAt": created_at,
                         "editedAt": null,
                     }
                 });

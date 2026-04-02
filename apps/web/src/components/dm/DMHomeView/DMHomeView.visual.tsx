@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { ArrowRight, Check, MessageCircle, Users, X, Zap } from 'lucide-react'
+import { ArrowRight, Check, Menu, MessageCircle, Users, X, Zap } from 'lucide-react'
 import { UserAvatar } from '@/components/user/UserAvatar'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type {
   DMFriendCard,
   DMPendingFriendCard,
@@ -13,6 +14,7 @@ import type {
 } from './DMHomeView.shared'
 
 export function DMHomeViewVisual({ model }: DMHomeViewVisualProps) {
+  const mobileSidebar = useMobileSidebar()
   const {
     greeting,
     username,
@@ -36,6 +38,16 @@ export function DMHomeViewVisual({ model }: DMHomeViewVisualProps) {
       <div className="relative border-b border-[var(--b1)] px-8 pb-12 pt-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 flex items-baseline gap-3">
+            {mobileSidebar && (
+              <button
+                type="button"
+                aria-label="Abrir sidebar"
+                className="mr-1 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-[var(--s1)] text-[var(--t3)] transition-all hover:border-[var(--b1)] hover:text-[var(--t1)] md:hidden"
+                onClick={mobileSidebar.toggle}
+              >
+                <Menu size={18} />
+              </button>
+            )}
             <p className="font-display text-sm font-700 uppercase tracking-widest text-[var(--t3)]">
               {greeting}
             </p>

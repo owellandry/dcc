@@ -86,25 +86,21 @@ pub async fn register(
     }
 
     // Check uniqueness
-    let email_exists: bool = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
-        body.email
-    )
-    .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
+    let email_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
+            .bind(&body.email)
+            .fetch_one(&state.db)
+            .await?;
 
     if email_exists {
         return Err(AppError::validation("email", "Email already in use"));
     }
 
-    let username_exists: bool = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)",
-        body.username
-    )
-    .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
+    let username_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)")
+            .bind(&body.username)
+            .fetch_one(&state.db)
+            .await?;
 
     if username_exists {
         return Err(AppError::validation("username", "Username already taken"));
@@ -114,17 +110,17 @@ pub async fn register(
     let discriminator = generate_discriminator();
     let user_id = Uuid::new_v4();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, username, discriminator, email, password_hash)
         VALUES ($1, $2, $3, $4, $5)
         "#,
-        user_id,
-        body.username,
-        discriminator,
-        body.email,
-        password_hash,
     )
+    .bind(user_id)
+    .bind(&body.username)
+    .bind(&discriminator)
+    .bind(&body.email)
+    .bind(&password_hash)
     .execute(&state.db)
     .await?;
 
@@ -132,14 +128,12 @@ pub async fn register(
     let verification_token = generate_verification_token();
     let expires_at = Utc::now() + Duration::hours(24);
 
-    sqlx::query!(
-        "INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)",
-        user_id,
-        verification_token,
-        expires_at,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&verification_token)
+        .bind(expires_at)
+        .execute(&state.db)
+        .await?;
 
     let verification_url = build_verification_url(&state, &verification_token);
     log_verification_link(&body.email, &verification_token, &verification_url);
@@ -254,14 +248,12 @@ pub async fn login(
     // Hash the refresh token before storing
     let token_hash = sha256_hex(&refresh_token);
 
-    sqlx::query!(
-        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-        user_id,
-        token_hash,
-        refresh_expires,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&token_hash)
+        .bind(refresh_expires)
+        .execute(&state.db)
+        .await?;
 
     let cookie = build_refresh_cookie(&state, refresh_token);
 
@@ -277,12 +269,10 @@ pub async fn logout(
 ) -> Result<(CookieJar, impl IntoResponse)> {
     if let Some(refresh_cookie) = jar.get("refresh_token") {
         let token_hash = sha256_hex(refresh_cookie.value());
-        sqlx::query!(
-            "DELETE FROM refresh_tokens WHERE token_hash = $1",
-            token_hash
-        )
-        .execute(&state.db)
-        .await?;
+        sqlx::query("DELETE FROM refresh_tokens WHERE token_hash = $1")
+            .bind(&token_hash)
+            .execute(&state.db)
+            .await?;
     }
 
     let removed = build_removed_refresh_cookie(&state);
@@ -300,14 +290,20 @@ pub async fn refresh(State(state): State<AppState>, jar: CookieJar) -> Result<Re
 
     let token_hash = sha256_hex(&refresh_token);
 
-    let Some(row) = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct RefreshRow {
+        user_id: Uuid,
+        expires_at: chrono::DateTime<Utc>,
+    }
+
+    let Some(row) = sqlx::query_as::<_, RefreshRow>(
         r#"
         SELECT rt.user_id, rt.expires_at
         FROM refresh_tokens rt
         WHERE rt.token_hash = $1
         "#,
-        token_hash,
     )
+    .bind(&token_hash)
     .fetch_optional(&state.db)
     .await?
     else {
@@ -315,12 +311,10 @@ pub async fn refresh(State(state): State<AppState>, jar: CookieJar) -> Result<Re
     };
 
     if row.expires_at < Utc::now() {
-        sqlx::query!(
-            "DELETE FROM refresh_tokens WHERE token_hash = $1",
-            token_hash
-        )
-        .execute(&state.db)
-        .await?;
+        sqlx::query("DELETE FROM refresh_tokens WHERE token_hash = $1")
+            .bind(&token_hash)
+            .execute(&state.db)
+            .await?;
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
@@ -337,37 +331,37 @@ pub async fn verify_email(
     State(state): State<AppState>,
     Json(body): Json<VerifyEmailBody>,
 ) -> Result<impl IntoResponse> {
-    let row = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct VerificationRow {
+        user_id: Uuid,
+        expires_at: chrono::DateTime<Utc>,
+    }
+
+    let row = sqlx::query_as::<_, VerificationRow>(
         "SELECT user_id, expires_at FROM email_verifications WHERE token = $1",
-        body.token,
     )
+    .bind(&body.token)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::BadRequest("Invalid or expired token".into()))?;
 
     if row.expires_at < Utc::now() {
-        sqlx::query!(
-            "DELETE FROM email_verifications WHERE token = $1",
-            body.token
-        )
-        .execute(&state.db)
-        .await?;
+        sqlx::query("DELETE FROM email_verifications WHERE token = $1")
+            .bind(&body.token)
+            .execute(&state.db)
+            .await?;
         return Err(AppError::BadRequest("Token has expired".into()));
     }
 
-    sqlx::query!(
-        "UPDATE users SET is_verified = TRUE WHERE id = $1",
-        row.user_id,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE users SET is_verified = TRUE WHERE id = $1")
+        .bind(row.user_id)
+        .execute(&state.db)
+        .await?;
 
-    sqlx::query!(
-        "DELETE FROM email_verifications WHERE token = $1",
-        body.token
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("DELETE FROM email_verifications WHERE token = $1")
+        .bind(&body.token)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(
         json!({ "data": { "message": "Email verified successfully" } }),
@@ -379,24 +373,20 @@ pub async fn resend_verification(
     AuthUser(user_id): AuthUser,
 ) -> Result<impl IntoResponse> {
     // Delete old tokens
-    sqlx::query!(
-        "DELETE FROM email_verifications WHERE user_id = $1",
-        user_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("DELETE FROM email_verifications WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
 
     let token = generate_verification_token();
     let expires_at = Utc::now() + Duration::hours(24);
 
-    sqlx::query!(
-        "INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)",
-        user_id,
-        token,
-        expires_at,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&token)
+        .bind(expires_at)
+        .execute(&state.db)
+        .await?;
 
     let verification_url = build_verification_url(&state, &token);
     log_verification_link(&user_id.to_string(), &token, &verification_url);
@@ -595,11 +585,12 @@ async fn upsert_oauth_user(
     name: &str,
     avatar_url: Option<String>,
 ) -> Result<(Uuid, bool)> {
-    if let Some(row) = sqlx::query!("SELECT id FROM users WHERE email = $1", email)
+    let existing = sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE email = $1")
+        .bind(email)
         .fetch_optional(&state.db)
-        .await?
-    {
-        return Ok((row.id, false));
+        .await?;
+    if let Some(user_id) = existing {
+        return Ok((user_id, false));
     }
 
     // New user
@@ -607,17 +598,17 @@ async fn upsert_oauth_user(
     let username = sanitize_username(name);
     let discriminator = generate_discriminator();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, username, discriminator, email, avatar_url, is_verified)
         VALUES ($1, $2, $3, $4, $5, TRUE)
         "#,
-        user_id,
-        username,
-        discriminator,
-        email,
-        avatar_url,
     )
+    .bind(user_id)
+    .bind(username)
+    .bind(&discriminator)
+    .bind(email)
+    .bind(avatar_url)
     .execute(&state.db)
     .await?;
 
@@ -629,14 +620,12 @@ async fn set_refresh_cookie(state: &AppState, user_id: Uuid) -> Result<String> {
     let token_hash = sha256_hex(&refresh_token);
     let expires_at = Utc::now() + Duration::days(state.config.refresh_token_expiry_days);
 
-    sqlx::query!(
-        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-        user_id,
-        token_hash,
-        expires_at,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&token_hash)
+        .bind(expires_at)
+        .execute(&state.db)
+        .await?;
 
     Ok(refresh_token)
 }

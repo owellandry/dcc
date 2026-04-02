@@ -50,7 +50,6 @@ pub fn is_blocked_url(url: &str) -> bool {
 /// Censura palabras profanas reemplazando con asteriscos
 pub fn censor_profanity(text: &str) -> String {
     let mut result = text.to_string();
-    let lower_text = text.to_lowercase();
     for word in PROFANITY_WORDS {
         let pattern = regex::Regex::new(&format!(r"(?i)\b{}\b", regex::escape(word))).unwrap();
         result = pattern.replace_all(&result, "*".repeat(word.len())).to_string();

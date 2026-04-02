@@ -7,6 +7,7 @@ import { resolveMediaUrl } from '@/lib/api'
 import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared'
 import { cn } from '@/lib/cn'
 import { AnimatePresence, interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import { InviteLinkModal } from '@/components/layout/InviteLinkModal'
 import { ServerSettingsModal } from '@/components/layout/ServerSettingsModal'
 import {
@@ -269,6 +270,7 @@ export function ChannelSidebarVisual({
 }
 
 function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number }) {
+  const mobileSidebar = useMobileSidebar()
   const normalizedName = item.name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -292,6 +294,7 @@ function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number 
     <motion.div {...interactiveMotion}>
       <Link
         href={`/channels/${item.serverId}/${item.id}`}
+        onClick={() => mobileSidebar?.close()}
         className={cn(
           'group channel-item',
           item.active && 'active',

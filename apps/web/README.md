@@ -117,20 +117,37 @@ apps/web/
 ## Scripts npm
 
 ```bash
-# Desarrollo
-npm run dev              # Servidor de desarrollo (HTTP)
-npm run dev:https        # Servidor de desarrollo con HTTPS
-npm run dev:https:cert   # Generar certificado dev HTTPS
+# Desarrollo (desde apps/web)
+pnpm dev                 # Servidor de desarrollo (HTTP)
+pnpm dev:https           # Servidor de desarrollo con HTTPS (Windows)
+pnpm dev:https:cert      # Generar certificado dev HTTPS (Windows)
 
 # Build & Deploy
-npm run build            # Build de producción
-npm run start            # Servidor de producción (after build)
-npm run deploy           # Deploy a Cloudflare Workers
+pnpm build               # Build de producción
+pnpm start               # Servidor de producción (after build)
+pnpm deploy              # Deploy a Cloudflare Workers
 
 # Calidad de código
-npm run lint             # ESLint
-npm run type-check       # Verificación de tipos TypeScript
+pnpm lint                # ESLint
+pnpm type-check          # Verificación de tipos TypeScript
 ```
+
+Desde la raíz del monorepo:
+
+```bash
+pnpm dev                 # turbo run dev (api + web)
+pnpm build               # turbo run build
+```
+
+## Arquitectura de UI
+
+La UI está organizada con un layout tipo Discord:
+- rail de servidores (izquierda)
+- sidebar de DMs/canales (izquierda)
+- contenido principal (centro)
+- lista de miembros (derecha)
+
+Detalles: ver [`docs/ui-architecture.md`](./docs/ui-architecture.md).
 
 ## Configuración
 

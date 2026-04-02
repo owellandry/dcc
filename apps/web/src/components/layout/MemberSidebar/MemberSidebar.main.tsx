@@ -89,7 +89,7 @@ export function MemberSidebar({ serverId }: Props) {
 
   return (
     <>
-      <aside className="h-full w-60 shrink-0 border-l border-[var(--b0)] bg-[var(--s1)]">
+      <aside className="h-full w-72 shrink-0 border-l border-[var(--b0)] bg-[var(--s1)] lg:w-60">
         <div className="scrollable h-full px-2 py-4">
           {online.length > 0 && (
             <MemberGroup

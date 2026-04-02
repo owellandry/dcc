@@ -42,14 +42,13 @@ pub async fn reorder_structure(
 
     if let Some(categories) = body.categories {
         for category in categories {
-            let belongs_to_server = sqlx::query_scalar!(
+            let belongs_to_server: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1 AND server_id = $2)",
-                category.id,
-                server_id
             )
+            .bind(category.id)
+            .bind(server_id)
             .fetch_one(&mut *tx)
-            .await?
-            .unwrap_or(false);
+            .await?;
 
             if !belongs_to_server {
                 return Err(AppError::BadRequest(
@@ -57,23 +56,21 @@ pub async fn reorder_structure(
                 ));
             }
 
-            sqlx::query!(
-                "UPDATE categories SET position = $2 WHERE id = $1",
-                category.id,
-                category.position
-            )
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("UPDATE categories SET position = $2 WHERE id = $1")
+                .bind(category.id)
+                .bind(category.position)
+                .execute(&mut *tx)
+                .await?;
         }
     }
 
     if let Some(channels) = body.channels {
         for channel in channels {
             if let Some(category_id) = channel.category_id {
-                let category_server_id = sqlx::query_scalar!(
+                let category_server_id: Uuid = sqlx::query_scalar(
                     "SELECT server_id FROM categories WHERE id = $1",
-                    category_id
                 )
+                .bind(category_id)
                 .fetch_optional(&mut *tx)
                 .await?
                 .ok_or_else(|| AppError::BadRequest("Category does not exist".into()))?;
@@ -85,14 +82,13 @@ pub async fn reorder_structure(
                 }
             }
 
-            let belongs_to_server = sqlx::query_scalar!(
+            let belongs_to_server: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND server_id = $2)",
-                channel.id,
-                server_id
             )
+            .bind(channel.id)
+            .bind(server_id)
             .fetch_one(&mut *tx)
-            .await?
-            .unwrap_or(false);
+            .await?;
 
             if !belongs_to_server {
                 return Err(AppError::BadRequest(
@@ -100,14 +96,12 @@ pub async fn reorder_structure(
                 ));
             }
 
-            sqlx::query!(
-                "UPDATE channels SET position = $2, category_id = $3 WHERE id = $1",
-                channel.id,
-                channel.position,
-                channel.category_id,
-            )
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("UPDATE channels SET position = $2, category_id = $3 WHERE id = $1")
+                .bind(channel.id)
+                .bind(channel.position)
+                .bind(channel.category_id)
+                .execute(&mut *tx)
+                .await?;
         }
     }
 

@@ -5,9 +5,11 @@ import { Plus, Search, Users } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
 import { UserAvatar } from '@/components/user/UserAvatar'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type { DMSidebarItem, DMSidebarVisualProps } from './DMSidebar.shared'
 
 export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSidebarVisualProps) {
+  const mobileSidebar = useMobileSidebar()
   return (
     <motion.aside
       className="flex h-full w-80 flex-col border-r border-[var(--b1)] bg-[var(--s1)]"
@@ -27,10 +29,11 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
 
       <div className="px-2 pb-3">
         <Link
-          href="/channels/@me"
+          href="/friends"
+          onClick={() => mobileSidebar?.close()}
           className={cn(
             'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-500 transition-colors',
-            pathname === '/channels/@me'
+            pathname === '/friends' || pathname === '/channels/@me'
               ? 'bg-[var(--ember-dim)] text-[var(--t0)]'
               : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
           )}
@@ -87,10 +90,14 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
 }
 
 function DMItem({ item, onClick }: { item: DMSidebarItem; onClick: () => void }) {
+  const mobileSidebar = useMobileSidebar()
   return (
     <motion.button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        onClick()
+        mobileSidebar?.close()
+      }}
       disabled={item.isLoading}
       className={cn(
         'group flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors',

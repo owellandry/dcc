@@ -46,10 +46,10 @@ pub async fn create_channel(
     }
 
     if let Some(category_id) = body.category_id {
-        let category_server_id = sqlx::query_scalar!(
+        let category_server_id = sqlx::query_scalar::<_, Uuid>(
             "SELECT server_id FROM categories WHERE id = $1",
-            category_id
         )
+        .bind(category_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
@@ -61,36 +61,51 @@ pub async fn create_channel(
         }
     }
 
-    let position: i32 = sqlx::query_scalar!(
+    let position: i32 = sqlx::query_scalar(
         r#"SELECT COALESCE(MAX(position) + 1, 0)
            FROM channels
            WHERE server_id = $1
              AND (($2::uuid IS NULL AND category_id IS NULL) OR category_id = $2)"#,
-        server_id,
-        body.category_id
     )
+    .bind(server_id)
+    .bind(body.category_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let c = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct ChannelRow {
+        id: Uuid,
+        server_id: Uuid,
+        category_id: Option<Uuid>,
+        name: String,
+        topic: Option<String>,
+        icon_key: Option<String>,
+        channel_type: String,
+        position: i32,
+        is_nsfw: bool,
+        slowmode_seconds: i32,
+        last_message_id: Option<Uuid>,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let c = sqlx::query_as::<_, ChannelRow>(
         r#"INSERT INTO channels (
                 id, server_id, category_id, name, topic, icon_key, channel_type, position, is_nsfw, slowmode_seconds
            )
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, FALSE), COALESCE($10, 0))
            RETURNING id, server_id, category_id, name, topic, icon_key, channel_type,
                      position, is_nsfw, slowmode_seconds, last_message_id, created_at"#,
-        Uuid::new_v4(),
-        server_id,
-        body.category_id,
-        name,
-        body.topic,
-        body.icon_key,
-        channel_type,
-        position,
-        body.is_nsfw,
-        body.slowmode_seconds,
     )
+    .bind(Uuid::new_v4())
+    .bind(server_id)
+    .bind(body.category_id)
+    .bind(name)
+    .bind(body.topic)
+    .bind(body.icon_key)
+    .bind(channel_type)
+    .bind(position)
+    .bind(body.is_nsfw)
+    .bind(body.slowmode_seconds)
     .fetch_one(&state.db)
     .await?;
 

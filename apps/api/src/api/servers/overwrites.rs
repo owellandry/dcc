@@ -25,10 +25,8 @@ pub async fn replace_category_overwrites(
     Path(category_id): Path<Uuid>,
     Json(body): Json<ReplaceOverwritesBody>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar!(
-        "SELECT server_id FROM categories WHERE id = $1",
-        category_id
-    )
+    let server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+    .bind(category_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
@@ -59,7 +57,8 @@ pub async fn replace_channel_overwrites(
     Path(channel_id): Path<Uuid>,
     Json(body): Json<ReplaceOverwritesBody>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar!("SELECT server_id FROM channels WHERE id = $1", channel_id)
+    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+        .bind(channel_id)
         .fetch_optional(&state.db)
         .await?
         .flatten()
@@ -134,39 +133,35 @@ async fn replace_overwrites(
     let mut tx = state.db.begin().await?;
     match (category_id, channel_id) {
         (Some(category_id), None) => {
-            sqlx::query!(
-                "DELETE FROM permission_overwrites WHERE category_id = $1",
-                category_id
-            )
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("DELETE FROM permission_overwrites WHERE category_id = $1")
+                .bind(category_id)
+                .execute(&mut *tx)
+                .await?;
         }
         (None, Some(channel_id)) => {
-            sqlx::query!(
-                "DELETE FROM permission_overwrites WHERE channel_id = $1",
-                channel_id
-            )
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("DELETE FROM permission_overwrites WHERE channel_id = $1")
+                .bind(channel_id)
+                .execute(&mut *tx)
+                .await?;
         }
         _ => {}
     }
 
     for overwrite in overwrites {
-        sqlx::query!(
+        sqlx::query(
             r#"INSERT INTO permission_overwrites (
                     id, server_id, category_id, channel_id, target_type, target_id, allow_bits, deny_bits
                )
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"#,
-            Uuid::new_v4(),
-            server_id,
-            category_id,
-            channel_id,
-            overwrite.target_type,
-            overwrite.target_id,
-            overwrite.allow_bits,
-            overwrite.deny_bits,
         )
+        .bind(Uuid::new_v4())
+        .bind(server_id)
+        .bind(category_id)
+        .bind(channel_id)
+        .bind(overwrite.target_type)
+        .bind(overwrite.target_id)
+        .bind(overwrite.allow_bits)
+        .bind(overwrite.deny_bits)
         .execute(&mut *tx)
         .await?;
     }

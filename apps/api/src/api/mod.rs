@@ -6,7 +6,7 @@ pub mod link_preview;
 pub mod messages;
 pub mod search;
 pub mod servers;
-// pub mod threads; // TODO: Enable after database migration is applied
+pub mod threads;
 pub mod users;
 
 use crate::state::AppState;
@@ -126,14 +126,8 @@ pub fn router() -> Router<AppState> {
             post(messages::add_reaction).delete(messages::remove_reaction),
         )
         // ── Threads ───────────────────────────────────────────────────────────
-        // .route(
-        //     "/messages/:message_id/thread",
-        //     post(threads::create_thread),
-        // )
-        // .route(
-        //     "/threads/:thread_id/archive",
-        //     patch(threads::archive_thread),
-        // )
+        .route("/messages/:message_id/thread", post(threads::create_thread))
+        .route("/threads/:thread_id/archive", patch(threads::archive_thread))
         // ── DMs ──────────────────────────────────────────────────────────────
         .route("/dms", get(dms::list_dms))
         .route("/dms/:user_id", post(dms::open_dm))

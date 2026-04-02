@@ -33,7 +33,7 @@ export function ServerSidebar() {
   const [preview, setPreview] = useState<{ server: Server; x: number; y: number } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
-  const isDMs = pathname.startsWith('/channels/@me')
+  const isDMs = pathname.startsWith('/channels/@me') || pathname.startsWith('/friends')
   const getServerHref = (serverId: string) => {
     const firstChannel = [...channels]
       .filter((ch) => ch.serverId === serverId && ch.type === 'text')

@@ -10,7 +10,14 @@ mod state;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::{middleware as axum_middleware, routing::get, response::IntoResponse, Router, Json, extract::State};
+use axum::{
+    extract::State,
+    http::HeaderValue,
+    middleware as axum_middleware,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use serde_json::json;
 use tower_http::{
     compression::CompressionLayer,
@@ -68,11 +75,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Redis connection manager
     let redis_client = redis::Client::open(config.redis_url.as_str())?;
-    let redis = redis::aio::ConnectionManager::new(redis_client).await?;
+    let redis = redis::aio::ConnectionManager::new(redis_client.clone()).await?;
     tracing::info!("Connected to Redis");
 
-    let state = AppState::new(db, redis, config.clone());
-    let allowed_origins = config
+    let state = AppState::new(db, redis_client, redis, config.clone());
+    let allowed_origins: Vec<HeaderValue> = config
         .cors_origins
         .iter()
         .filter_map(|origin| origin.parse::<HeaderValue>().ok())
@@ -115,10 +122,10 @@ async fn main() -> anyhow::Result<()> {
             tower_http::services::ServeDir::new("uploads"),
         )
         .layer(cors)
-        .layer(axum_middleware::from_fn({
-            let state = state.clone();
-            move |req, next| rate_limit(&state, req, next)
-        }))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            |State(state): State<AppState>, req, next| async move { rate_limit(&state, req, next).await },
+        ))
         .layer(axum_middleware::from_fn(request_id_middleware))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
@@ -152,7 +159,11 @@ async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
 /// health: /health checks DB and Redis connectivity
 async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
     let db_ok = sqlx::query("SELECT 1").fetch_optional(&state.db).await.is_ok();
-    let redis_ok = state.redis.get_async_connection().await.is_ok();
+    let mut redis = state.redis.clone();
+    let redis_ok = redis::cmd("PING")
+        .query_async::<_, String>(&mut redis)
+        .await
+        .is_ok();
 
     let status = if db_ok && redis_ok {
         axum::http::StatusCode::OK
@@ -168,4 +179,3 @@ async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
 
     (status, Json(body)).into_response()
 }
-

@@ -35,14 +35,14 @@ pub async fn ensure_thread_exists(
         let thread_id = Uuid::new_v4();
         let now = chrono::Utc::now();
 
-        sqlx::query!(
+        sqlx::query(
             r#"INSERT INTO threads (id, channel_id, first_message_id, is_archived, created_at, updated_at)
                VALUES ($1, $2, $3, FALSE, $4, $4)"#,
-            thread_id,
-            channel_id,
-            first_message_id,
-            now,
         )
+        .bind(thread_id)
+        .bind(channel_id)
+        .bind(first_message_id)
+        .bind(now)
         .execute(&state.db)
         .await?;
     }
@@ -89,12 +89,20 @@ pub async fn create_thread(
     Json(body): Json<CreateThreadBody>,
 ) -> Result<Json<Value>> {
     // Find the message and ensure it's in the channel the user has access to
-    let message_row = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct MessageRow {
+        channel_id: Uuid,
+        author_id: Uuid,
+        content: String,
+        message_type: String,
+    }
+
+    let message_row = sqlx::query_as::<_, MessageRow>(
         r#"SELECT m.channel_id, m.author_id, m.content, m.message_type
            FROM messages m
            WHERE m.id = $1"#,
-        message_id
     )
+    .bind(message_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
@@ -107,12 +115,32 @@ pub async fn create_thread(
     )
     .await?;
 
-    // If body.content is provided, we'll create a new message as part of the thread
-    // with parent_message_id = message_id
-    if let Some(content) = body.content {
-        // Additional message creation flow...
-        // Similar to send_message but with parent_message_id set
-        // For brevity, we'll skip full implementation here and just create thread metadata
+    // Si body.content viene, creamos un primer mensaje dentro del thread
+    // (en este modelo, se representa con `parent_message_id = message_id`).
+    if let Some(content) = body.content.as_deref().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+        if content.len() > 4000 {
+            return Err(AppError::BadRequest("Message exceeds 4000 character limit".into()));
+        }
+
+        let reply_message_id = Uuid::new_v4();
+        sqlx::query(
+            r#"INSERT INTO messages (id, channel_id, author_id, content, reply_to_id, parent_message_id)
+               VALUES ($1, $2, $3, $4, NULL, $5)"#,
+        )
+        .bind(reply_message_id)
+        .bind(message_row.channel_id)
+        .bind(user_id)
+        .bind(content.to_string())
+        .bind(message_id)
+        .execute(&state.db)
+        .await?;
+
+        // Best-effort: actualizar last_message_id del canal
+        let _ = sqlx::query("UPDATE channels SET last_message_id = $1 WHERE id = $2")
+            .bind(reply_message_id)
+            .bind(message_row.channel_id)
+            .execute(&state.db)
+            .await;
     }
 
     // Check if thread already exists
@@ -134,14 +162,14 @@ pub async fn create_thread(
     let thread_id = Uuid::new_v4();
     let now = chrono::Utc::now();
 
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO threads (id, channel_id, first_message_id, is_archived, created_at, updated_at)
            VALUES ($1, $2, $3, FALSE, $4, $4)"#,
-        thread_id,
-        message_row.channel_id,
-        message_id,
-        now,
     )
+    .bind(thread_id)
+    .bind(message_row.channel_id)
+    .bind(message_id)
+    .bind(now)
     .execute(&state.db)
     .await?;
 
@@ -190,10 +218,10 @@ pub async fn archive_thread(
         // need to get server_id from channel
         // We'll query it
         {
-            let server_id = sqlx::query_scalar!(
+            let server_id = sqlx::query_scalar::<_, Uuid>(
                 "SELECT s.id FROM channels c JOIN servers s ON s.id = c.server_id WHERE c.id = $1",
-                thread.channel_id
             )
+            .bind(thread.channel_id)
             .fetch_optional(&state.db)
             .await?
             .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
@@ -207,20 +235,20 @@ pub async fn archive_thread(
     let now = chrono::Utc::now();
 
     if body.archived {
-        sqlx::query!(
+        sqlx::query(
             "UPDATE threads SET is_archived = TRUE, archived_at = $1, updated_at = $2 WHERE id = $3",
-            now,
-            now,
-            thread_id
         )
+        .bind(now)
+        .bind(now)
+        .bind(thread_id)
         .execute(&state.db)
         .await?;
     } else {
-        sqlx::query!(
+        sqlx::query(
             "UPDATE threads SET is_archived = FALSE, archived_at = NULL, updated_at = $1 WHERE id = $2",
-            now,
-            thread_id
         )
+        .bind(now)
+        .bind(thread_id)
         .execute(&state.db)
         .await?;
     }

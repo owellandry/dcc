@@ -16,6 +16,14 @@ pub struct UpdateCategoryBody {
     pub position: Option<i32>,
 }
 
+#[derive(sqlx::FromRow)]
+struct CategoryRow {
+    id: Uuid,
+    server_id: Uuid,
+    name: String,
+    position: i32,
+}
+
 pub async fn create_category(
     AuthUser(user_id): AuthUser,
     State(state): State<AppState>,
@@ -39,23 +47,22 @@ pub async fn create_category(
         ));
     }
 
-    let position = sqlx::query_scalar!(
+    let position: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(position) + 1, 0) FROM categories WHERE server_id = $1",
-        server_id
     )
+    .bind(server_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let category = sqlx::query!(
+    let category = sqlx::query_as::<_, CategoryRow>(
         r#"INSERT INTO categories (id, server_id, name, position)
            VALUES ($1, $2, $3, $4)
            RETURNING id, server_id, name, position"#,
-        Uuid::new_v4(),
-        server_id,
-        name,
-        position,
     )
+    .bind(Uuid::new_v4())
+    .bind(server_id)
+    .bind(name)
+    .bind(position)
     .fetch_one(&state.db)
     .await?;
 
@@ -76,10 +83,10 @@ pub async fn update_category(
     Path(category_id): Path<Uuid>,
     Json(body): Json<UpdateCategoryBody>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar!(
+    let server_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT server_id FROM categories WHERE id = $1",
-        category_id
     )
+    .bind(category_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
@@ -93,16 +100,16 @@ pub async fn update_category(
     )
     .await?;
 
-    let category = sqlx::query!(
+    let category = sqlx::query_as::<_, CategoryRow>(
         r#"UPDATE categories
            SET name = COALESCE($2, name),
                position = COALESCE($3, position)
            WHERE id = $1
            RETURNING id, server_id, name, position"#,
-        category_id,
-        body.name,
-        body.position,
     )
+    .bind(category_id)
+    .bind(body.name)
+    .bind(body.position)
     .fetch_one(&state.db)
     .await?;
 
@@ -124,10 +131,10 @@ pub async fn delete_category(
     State(state): State<AppState>,
     Path(category_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar!(
+    let server_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT server_id FROM categories WHERE id = $1",
-        category_id
     )
+    .bind(category_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
@@ -141,7 +148,8 @@ pub async fn delete_category(
     )
     .await?;
 
-    sqlx::query!("DELETE FROM categories WHERE id = $1", category_id)
+    sqlx::query("DELETE FROM categories WHERE id = $1")
+        .bind(category_id)
         .execute(&state.db)
         .await?;
 

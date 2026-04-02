@@ -1,10 +1,11 @@
 'use client'
 
-import { MessageSquare, Pin, Search, UserRound } from 'lucide-react'
+import { Menu, MessageSquare, Pin, Search, UserRound } from 'lucide-react'
 import { interactiveMotion, motion } from '@/lib/motion'
 import { ChannelHeaderBar } from '@/components/chat/ChannelHeaderBar'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { UserAvatar } from '@/components/user/UserAvatar'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import { type ChatHeaderVisualProps } from './ChatHeader.shared'
 
 export function ChatHeaderVisual({
@@ -17,6 +18,7 @@ export function ChatHeaderVisual({
   dmUser,
   dmSearchPlaceholder,
 }: ChatHeaderVisualProps) {
+  const mobileSidebar = useMobileSidebar()
   if (kind === 'dm' && dmUser) {
     return (
       <motion.header
@@ -25,8 +27,19 @@ export function ChatHeaderVisual({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
       >
-        <div className="flex h-14 items-center gap-3 rounded-bl-2xl border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-4">
+        <div className="flex h-14 items-center gap-3 rounded-bl-2xl border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-3">
+            {mobileSidebar && (
+              <motion.button
+                type="button"
+                aria-label="Abrir sidebar"
+                className="mr-0.5 flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-[var(--s1)] text-[var(--t3)] transition-all hover:border-[var(--b1)] hover:text-[var(--t1)] md:hidden"
+                onClick={mobileSidebar.toggle}
+                {...interactiveMotion}
+              >
+                <Menu size={18} />
+              </motion.button>
+            )}
             <UserAvatar user={dmUser} size={20} showStatus />
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -40,7 +53,7 @@ export function ChatHeaderVisual({
             <HeaderButton title="Mensajes fijados" icon={<Pin size={18} />} />
             <HeaderButton title="Mostrar perfil" icon={<UserRound size={18} />} />
 
-            <div className="ml-1 flex h-8 w-48 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2.5 transition-colors focus-within:border-[var(--b2)]">
+            <div className="ml-1 hidden h-8 w-48 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2.5 transition-colors focus-within:border-[var(--b2)] sm:flex">
               <Search size={14} className="shrink-0 text-[var(--t3)]" />
               <input
                 placeholder={dmSearchPlaceholder ?? `Buscar ${channelName}`}

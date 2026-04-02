@@ -17,7 +17,27 @@ pub async fn list_friends(
     AuthUser(user_id): AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Value>> {
-    let rows = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct FriendRow {
+        id: Uuid,
+        requester_id: Uuid,
+        addressee_id: Uuid,
+        status: String,
+        created_at: chrono::DateTime<chrono::Utc>,
+        user_id: Uuid,
+        username: String,
+        discriminator: String,
+        avatar_url: Option<String>,
+        banner_url: Option<String>,
+        bio: Option<String>,
+        user_status: Option<String>,
+        custom_status: Option<String>,
+        is_verified: bool,
+        badges: serde_json::Value,
+        user_created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let rows = sqlx::query_as::<_, FriendRow>(
         r#"SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at,
                   u.id as user_id, u.username, u.discriminator,
                   u.avatar_url, u.banner_url, u.bio,
@@ -31,8 +51,8 @@ pub async fn list_friends(
            WHERE (f.requester_id = $1 OR f.addressee_id = $1)
              AND f.status != 'blocked'
            ORDER BY f.created_at DESC"#,
-        user_id
     )
+    .bind(user_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -76,24 +96,30 @@ pub async fn send_request(
         ));
     }
 
-    let target = sqlx::query!(
+    let target = sqlx::query_as::<_, crate::models::user::UserPublic>(
         r#"SELECT id, username, discriminator, avatar_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
-        target_id
     )
+    .bind(target_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     // Check existing relationship
-    let existing = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct FriendshipStatusRow {
+        id: Uuid,
+        status: String,
+    }
+
+    let existing = sqlx::query_as::<_, FriendshipStatusRow>(
         r#"SELECT id, status FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
               OR (requester_id = $2 AND addressee_id = $1)"#,
-        user_id,
-        target_id,
     )
+    .bind(user_id)
+    .bind(target_id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -109,23 +135,23 @@ pub async fn send_request(
     }
 
     let friendship_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO friendships (id, requester_id, addressee_id, status)
            VALUES ($1, $2, $3, 'pending')"#,
-        friendship_id,
-        user_id,
-        target_id,
     )
+    .bind(friendship_id)
+    .bind(user_id)
+    .bind(target_id)
     .execute(&state.db)
     .await?;
 
     // Notify target user
-    let requester = sqlx::query!(
+    let requester = sqlx::query_as::<_, crate::models::user::UserPublic>(
         r#"SELECT id, username, discriminator, avatar_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
-        user_id
     )
+    .bind(user_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -193,14 +219,22 @@ pub async fn update_friendship(
     Path(target_id): Path<Uuid>,
     Json(body): Json<UpdateFriendshipBody>,
 ) -> Result<Json<Value>> {
-    let friendship = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct FriendshipRow {
+        id: Uuid,
+        requester_id: Uuid,
+        addressee_id: Uuid,
+        status: String,
+    }
+
+    let friendship = sqlx::query_as::<_, FriendshipRow>(
         r#"SELECT id, requester_id, addressee_id, status
            FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
               OR (requester_id = $2 AND addressee_id = $1)"#,
-        user_id,
-        target_id,
     )
+    .bind(user_id)
+    .bind(target_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Friendship not found".into()))?;
@@ -223,7 +257,8 @@ pub async fn update_friendship(
                 return Err(AppError::BadRequest("Request is not pending".into()));
             }
             // Delete on decline
-            sqlx::query!("DELETE FROM friendships WHERE id = $1", friendship.id)
+            sqlx::query("DELETE FROM friendships WHERE id = $1")
+                .bind(friendship.id)
                 .execute(&state.db)
                 .await?;
             return Ok(Json(json!({ "data": null })));
@@ -236,13 +271,11 @@ pub async fn update_friendship(
         }
     };
 
-    sqlx::query!(
-        "UPDATE friendships SET status = $1 WHERE id = $2",
-        new_status,
-        friendship.id,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE friendships SET status = $1 WHERE id = $2")
+        .bind(new_status)
+        .bind(friendship.id)
+        .execute(&state.db)
+        .await?;
 
     // Notify the requester
     let event = json!({
@@ -264,13 +297,13 @@ pub async fn remove_friend(
     State(state): State<AppState>,
     Path(target_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"DELETE FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
               OR (requester_id = $2 AND addressee_id = $1)"#,
-        user_id,
-        target_id,
     )
+    .bind(user_id)
+    .bind(target_id)
     .execute(&state.db)
     .await?;
 

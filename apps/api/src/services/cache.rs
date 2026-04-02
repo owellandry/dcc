@@ -33,10 +33,11 @@ pub async fn get<T: for<'de> serde::Deserialize<'de>>(
     match data {
         Some(bytes) => {
             let value = bincode::deserialize(&bytes).map_err(|e| {
-                redis::RedisError::new(
+                redis::RedisError::from((
                     redis::ErrorKind::TypeError,
-                    format!("Failed to deserialize cached value: {}", e),
-                )
+                    "Failed to deserialize cached value",
+                    format!("{e}"),
+                ))
             })?;
             Ok(Some(value))
         }
@@ -52,13 +53,15 @@ pub async fn set<T: serde::Serialize>(
     ttl_secs: usize,
 ) -> redis::RedisResult<()> {
     let data = bincode::serialize(value).map_err(|e| {
-        redis::RedisError::new(
+        redis::RedisError::from((
             redis::ErrorKind::TypeError,
-            format!("Failed to serialize value for cache: {}", e),
-        )
+            "Failed to serialize value for cache",
+            format!("{e}"),
+        ))
     })?;
     redis.set::<_, _, ()>(key, data).await?;
-    redis.expire(key, ttl_secs as i64).await?;
+    // Evita el fallback del tipo `!` en Rust 2024.
+    redis.expire::<_, ()>(key, ttl_secs as i64).await?;
     Ok(())
 }
 
@@ -92,7 +95,7 @@ pub async fn get_or_fetch_user_public<F>(
     fetch_fn: F,
 ) -> Result<Option<crate::models::user::UserPublic>, crate::error::AppError>
 where
-    F: std::future::Future<Output = Result<crate::models::user::UserPublic, crate::error::AppError>>,
+    F: std::future::Future<Output = Result<Option<crate::models::user::UserPublic>, crate::error::AppError>>,
 {
     let cache_key = user_cache_key(user_id);
 
@@ -104,10 +107,8 @@ where
     }
 
     // Cache miss: fetch from source
-    let profile = match fetch_fn.await {
-        Ok(Some(profile)) => profile,
-        Ok(None) => return Ok(None), // Not found, don't cache
-        Err(e) => return Err(e),
+    let Some(profile) = fetch_fn.await? else {
+        return Ok(None);
     };
 
     // Cache the result (clone needed because profile is moved)
@@ -126,7 +127,7 @@ pub async fn get_or_fetch_user_me<F>(
     fetch_fn: F,
 ) -> Result<Option<crate::models::user::UserMe>, crate::error::AppError>
 where
-    F: std::future::Future<Output = Result<crate::models::user::UserMe, crate::error::AppError>>,
+    F: std::future::Future<Output = Result<Option<crate::models::user::UserMe>, crate::error::AppError>>,
 {
     let cache_key = user_cache_key(user_id);
 
@@ -136,10 +137,8 @@ where
         return Ok(Some(profile));
     }
 
-    let profile = match fetch_fn.await {
-        Ok(Some(profile)) => profile,
-        Ok(None) => return Ok(None),
-        Err(e) => return Err(e),
+    let Some(profile) = fetch_fn.await? else {
+        return Ok(None);
     };
 
     let profile_clone = profile.clone();
@@ -157,7 +156,7 @@ pub async fn get_or_fetch_server<F>(
     fetch_fn: F,
 ) -> Result<Option<crate::models::server::Server>, crate::error::AppError>
 where
-    F: std::future::Future<Output = Result<crate::models::server::Server, crate::error::AppError>>,
+    F: std::future::Future<Output = Result<Option<crate::models::server::Server>, crate::error::AppError>>,
 {
     let cache_key = server_cache_key(server_id);
 
@@ -169,10 +168,8 @@ where
     }
 
     // Cache miss: fetch
-    let server = match fetch_fn.await {
-        Ok(Some(server)) => server,
-        Ok(None) => return Ok(None),
-        Err(e) => return Err(e),
+    let Some(server) = fetch_fn.await? else {
+        return Ok(None);
     };
 
     let server_clone = server.clone();

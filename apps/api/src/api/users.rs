@@ -107,12 +107,19 @@ pub async fn update_me(
     State(state): State<AppState>,
     Json(body): Json<UpdateMeBody>,
 ) -> Result<Json<Value>> {
-    let current_user = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct CurrentUserRow {
+        username: String,
+        email: String,
+        password_hash: Option<String>,
+    }
+
+    let current_user = sqlx::query_as::<_, CurrentUserRow>(
         r#"SELECT username, email, password_hash
            FROM users
            WHERE id = $1"#,
-        user_id
     )
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
@@ -251,10 +258,10 @@ pub async fn update_me(
     )
     .await;
 
-    let guild_ids = sqlx::query_scalar!(
+    let guild_ids = sqlx::query_scalar::<_, Uuid>(
         "SELECT server_id FROM server_members WHERE user_id = $1",
-        user_id
     )
+    .bind(user_id)
     .fetch_all(&state.db)
     .await
     .unwrap_or_default();
@@ -492,20 +499,19 @@ pub async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let user_opt = cache::get_or_fetch_user_public(&mut state.redis.clone(), id, |db_state: &AppState| {
-        async move {
-            sqlx::query_as!(
-                crate::models::user::UserPublic,
-                r#"SELECT id, username, discriminator, avatar_url, banner_url,
-                          bio, status, custom_status, is_verified, badges, created_at
-                   FROM users WHERE id = $1"#,
-                id
-            )
-            .fetch_optional(&db_state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".into()))
-        }
-    }).await?;
+    let mut redis = state.redis.clone();
+    let user_opt = cache::get_or_fetch_user_public(&mut redis, id, async {
+        let user = sqlx::query_as::<_, crate::models::user::UserPublic>(
+            r#"SELECT id, username, discriminator, avatar_url, banner_url,
+                      bio, status, custom_status, is_verified, badges, created_at
+               FROM users WHERE id = $1"#,
+        )
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+        Ok(user)
+    })
+    .await?;
 
     let user = user_opt.ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
@@ -587,13 +593,11 @@ pub async fn upload_avatar(
 
     let avatar_url = format!("/uploads/avatars/{}", filename);
 
-    sqlx::query!(
-        "UPDATE users SET avatar_url = $1 WHERE id = $2",
-        avatar_url,
-        user_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE users SET avatar_url = $1 WHERE id = $2")
+        .bind(&avatar_url)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
 
     // Invalidate user cache after avatar update
     let mut redis = state.redis.clone();
@@ -660,13 +664,11 @@ pub async fn upload_banner(
 
     let banner_url = format!("/uploads/banners/{}", filename);
 
-    sqlx::query!(
-        "UPDATE users SET banner_url = $1 WHERE id = $2",
-        banner_url,
-        user_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE users SET banner_url = $1 WHERE id = $2")
+        .bind(&banner_url)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
 
     // Invalidate user cache after banner update
     let mut redis = state.redis.clone();

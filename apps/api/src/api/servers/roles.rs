@@ -48,13 +48,12 @@ pub async fn create_role(
         ));
     }
 
-    let position = sqlx::query_scalar!(
+    let position: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(position) + 1, 0) FROM roles WHERE server_id = $1 AND is_default = FALSE",
-        server_id
     )
+    .bind(server_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     if !actor.is_owner && position >= actor.highest_role_position {
         return Err(AppError::Forbidden(
@@ -62,25 +61,26 @@ pub async fn create_role(
         ));
     }
 
-    let role = sqlx::query!(
+    let role_id = Uuid::new_v4();
+    sqlx::query(
         r#"INSERT INTO roles (
                 id, server_id, name, color, permissions, position, is_hoisted, is_managed, is_mentionable, is_default
            )
            VALUES ($1, $2, $3, $4, COALESCE($5::BIGINT, 0), $6, COALESCE($7, FALSE), FALSE, COALESCE($8, FALSE), FALSE)
-           RETURNING id"#,
-        Uuid::new_v4(),
-        server_id,
-        name,
-        body.color,
-        body.permissions,
-        position,
-        body.is_hoisted,
-        body.is_mentionable,
+           "#,
     )
-    .fetch_one(&state.db)
+    .bind(role_id)
+    .bind(server_id)
+    .bind(name)
+    .bind(body.color)
+    .bind(body.permissions)
+    .bind(position)
+    .bind(body.is_hoisted)
+    .bind(body.is_mentionable)
+    .execute(&state.db)
     .await?;
 
-    let role = load_role(&state, role.id).await?;
+    let role = load_role(&state, role_id).await?;
     Ok(Json(json!({ "data": role_payload(&role) })))
 }
 
@@ -111,7 +111,7 @@ pub async fn update_role(
         }
     }
 
-    let updated = sqlx::query!(
+    sqlx::query(
         r#"UPDATE roles
            SET name = COALESCE($2, name),
                color = COALESCE($3, color),
@@ -120,19 +120,19 @@ pub async fn update_role(
                is_hoisted = COALESCE($6, is_hoisted),
                is_mentionable = COALESCE($7, is_mentionable)
            WHERE id = $1
-           RETURNING id"#,
-        role_id,
-        body.name,
-        body.color,
-        body.permissions,
-        body.position,
-        body.is_hoisted,
-        body.is_mentionable,
+           "#,
     )
-    .fetch_one(&state.db)
+    .bind(role_id)
+    .bind(body.name)
+    .bind(body.color)
+    .bind(body.permissions)
+    .bind(body.position)
+    .bind(body.is_hoisted)
+    .bind(body.is_mentionable)
+    .execute(&state.db)
     .await?;
 
-    let updated = load_role(&state, updated.id).await?;
+    let updated = load_role(&state, role_id).await?;
     Ok(Json(json!({ "data": role_payload(&updated) })))
 }
 
@@ -153,13 +153,12 @@ pub async fn delete_role(
     ensure_manageable_role_target(&actor, &role)?;
 
     let mut tx = state.db.begin().await?;
-    sqlx::query!(
-        "DELETE FROM permission_overwrites WHERE target_type = 'role' AND target_id = $1",
-        role_id
-    )
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query!("DELETE FROM roles WHERE id = $1", role_id)
+    sqlx::query("DELETE FROM permission_overwrites WHERE target_type = 'role' AND target_id = $1")
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM roles WHERE id = $1")
+        .bind(role_id)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

@@ -97,14 +97,13 @@ struct ChannelLocationRow {
 }
 
 pub(crate) async fn ensure_member(state: &AppState, user_id: Uuid, server_id: Uuid) -> Result<()> {
-    let exists = sqlx::query_scalar!(
+    let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2)",
-        server_id,
-        user_id
     )
+    .bind(server_id)
+    .bind(user_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
+    .await?;
 
     if !exists {
         return Err(AppError::Forbidden("Not a member of this server".into()));
@@ -123,7 +122,8 @@ pub(crate) async fn ensure_owner(state: &AppState, user_id: Uuid, server_id: Uui
 }
 
 pub(crate) async fn fetch_server_owner_id(state: &AppState, server_id: Uuid) -> Result<Uuid> {
-    sqlx::query_scalar!("SELECT owner_id FROM servers WHERE id = $1", server_id)
+    sqlx::query_scalar::<_, Uuid>("SELECT owner_id FROM servers WHERE id = $1")
+        .bind(server_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Server not found".into()))
@@ -194,14 +194,20 @@ pub(crate) async fn load_server_permissions_context(
     server_id: Uuid,
 ) -> Result<ServerPermissionsContext> {
     // Combined query: obtain owner_id and verify membership in a single DB roundtrip
-    let row = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct OwnerMembershipRow {
+        owner_id: Uuid,
+        is_member: bool,
+    }
+
+    let row = sqlx::query_as::<_, OwnerMembershipRow>(
         "SELECT s.owner_id, (sm.user_id IS NOT NULL) as \"is_member!\"
          FROM servers s
          LEFT JOIN server_members sm ON sm.server_id = s.id AND sm.user_id = $2
-         WHERE s.id = $1",
-        server_id,
-        user_id
+         WHERE s.id = $1"
     )
+    .bind(server_id)
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
@@ -295,15 +301,15 @@ pub(crate) async fn load_member_highest_role_position(
     user_id: Uuid,
 ) -> Result<i32> {
     let default_role = fetch_default_role(state, server_id).await?;
-    let highest = sqlx::query_scalar!(
-        r#"SELECT MAX(r.position) as "max_position?"
+    let highest = sqlx::query_scalar::<_, Option<i32>>(
+        r#"SELECT MAX(r.position)
            FROM member_roles mr
            JOIN roles r ON r.id = mr.role_id
            WHERE mr.server_id = $1
              AND mr.user_id = $2"#,
-        server_id,
-        user_id
     )
+    .bind(server_id)
+    .bind(user_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -403,14 +409,13 @@ pub(crate) async fn load_channel_access(
     .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     let Some(server_id) = location.server_id else {
-        let in_dm = sqlx::query_scalar!(
+        let in_dm: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2)",
-            channel_id,
-            user_id
         )
+        .bind(channel_id)
+        .bind(user_id)
         .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
+        .await?;
 
         if !in_dm {
             return Err(AppError::Forbidden("Not a participant of this DM".into()));

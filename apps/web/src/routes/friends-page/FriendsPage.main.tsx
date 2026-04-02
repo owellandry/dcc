@@ -1,70 +1,73 @@
 'use client'
 
 import { useState } from 'react'
-import { ServerSidebar } from '@/components/layout/ServerSidebar'
-import { DMSidebar } from '@/components/layout/DMSidebar'
-import { UserPanel } from '@/components/user/UserPanel'
+import { Menu, Users } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { Users } from 'lucide-react'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add'
 
 export default function FriendsPage() {
   const [tab, setTab] = useState<Tab>('online')
   const [addUsername, setAddUsername] = useState('')
+  const mobileSidebar = useMobileSidebar()
 
   return (
-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
-      <ServerSidebar />
-      <DMSidebar />
-      <UserPanel />
-
-      <main className="flex flex-1 flex-col overflow-hidden bg-[var(--s3)]">
-        {/* Header */}
-        <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[var(--b0)] px-4 surface-elevated">
-          <div className="flex items-center gap-2">
-            <Users size={20} className="text-[var(--t3)]" />
-            <span className="font-display font-700 text-[var(--t0)]">Friends</span>
-          </div>
-
-          <div className="h-4 w-px bg-[var(--b1)]" />
-
-          {/* Tabs */}
-          <nav className="flex gap-1">
-            {(['online', 'all', 'pending', 'blocked'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  'rounded-md px-3 py-1 text-sm font-500 capitalize transition-colors',
-                  tab === t
-                    ? 'bg-[var(--b2)] text-[var(--t0)]'
-                    : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </nav>
-
+    <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[var(--s3)]">
+      {/* Header */}
+      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[var(--b0)] px-4 surface-elevated">
+        {mobileSidebar && (
           <button
-            onClick={() => setTab('add')}
-            className="ml-1 rounded-md bg-[var(--online)]/15 px-3 py-1 text-sm font-600 text-[var(--online)] transition-colors hover:bg-[var(--online)]/25"
+            type="button"
+            aria-label="Abrir sidebar"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-[var(--s1)] text-[var(--t3)] transition-all hover:border-[var(--b1)] hover:text-[var(--t1)] md:hidden"
+            onClick={mobileSidebar.toggle}
           >
-            Add Friend
+            <Menu size={18} />
           </button>
-        </header>
-
-        {/* Content */}
-        <div className="scrollable flex-1 px-8 py-6">
-          {tab === 'add' ? (
-            <AddFriendSection value={addUsername} onChange={setAddUsername} />
-          ) : (
-            <FriendListSection tab={tab} />
-          )}
+        )}
+        <div className="flex items-center gap-2">
+          <Users size={20} className="text-[var(--t3)]" />
+          <span className="font-display font-700 text-[var(--t0)]">Friends</span>
         </div>
-      </main>
-    </div>
+
+        <div className="h-4 w-px bg-[var(--b1)]" />
+
+        {/* Tabs */}
+        <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+          {(['online', 'all', 'pending', 'blocked'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'whitespace-nowrap rounded-md px-3 py-1 text-sm font-500 capitalize transition-colors',
+                tab === t
+                  ? 'bg-[var(--b2)] text-[var(--t0)]'
+                  : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </nav>
+
+        <button
+          onClick={() => setTab('add')}
+          className="ml-1 shrink-0 rounded-md bg-[var(--online)]/15 px-2 py-1 text-xs font-700 text-[var(--online)] transition-colors hover:bg-[var(--online)]/25 sm:px-3 sm:text-sm sm:font-600"
+        >
+          Add Friend
+        </button>
+      </header>
+
+      {/* Content */}
+      <div className="scrollable flex-1 px-8 py-6">
+        {tab === 'add' ? (
+          <AddFriendSection value={addUsername} onChange={setAddUsername} />
+        ) : (
+          <FriendListSection tab={tab} />
+        )}
+      </div>
+    </main>
   )
 }
 

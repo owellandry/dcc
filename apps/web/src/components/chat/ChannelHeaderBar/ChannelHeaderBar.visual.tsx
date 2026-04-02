@@ -1,7 +1,8 @@
 'use client'
 
-import { Hash, Home, MessageSquare, Pin, Search, Shield, Users, Volume2 } from 'lucide-react'
+import { Hash, Home, Menu, MessageSquare, Pin, Search, Shield, Users, Volume2 } from 'lucide-react'
 import { interactiveMotion, motion } from '@/lib/motion'
+import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type { ChannelHeaderBarVisualProps, HeaderButtonProps } from './ChannelHeaderBar.shared'
 
 export function ChannelHeaderBarVisual({
@@ -13,6 +14,7 @@ export function ChannelHeaderBarVisual({
 }: ChannelHeaderBarVisualProps) {
   const ChannelIcon =
     channelKind === 'voice' ? Volume2 : channelKind === 'welcome' ? Home : channelKind === 'rules' ? Shield : Hash
+  const mobileSidebar = useMobileSidebar()
 
   return (
     <motion.header
@@ -21,8 +23,19 @@ export function ChannelHeaderBarVisual({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28 }}
     >
-      <div className="flex h-14 items-center gap-3 rounded-bl-2xl rounded-tl-none rounded-r-none border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-4">
+      <div className="flex h-14 items-center gap-3 rounded-bl-2xl rounded-tl-none rounded-r-none border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2.5">
+          {mobileSidebar && (
+            <motion.button
+              type="button"
+              aria-label="Abrir sidebar"
+              className="mr-0.5 flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-[var(--s1)] text-[var(--t3)] transition-all hover:border-[var(--b1)] hover:text-[var(--t1)] md:hidden"
+              onClick={mobileSidebar.toggle}
+              {...interactiveMotion}
+            >
+              <Menu size={18} />
+            </motion.button>
+          )}
           <motion.div
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--s1)] text-[var(--t2)]"
             animate={{ scale: [1, 1.04, 1] }}
@@ -51,7 +64,7 @@ export function ChannelHeaderBarVisual({
             {...(onToggleMemberList ? { onClick: onToggleMemberList } : {})}
           />
 
-          <div className="ml-1 flex h-8 w-44 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2.5 transition-colors focus-within:border-[var(--b2)]">
+          <div className="ml-1 hidden h-8 w-44 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2.5 transition-colors focus-within:border-[var(--b2)] sm:flex">
             <Search size={14} className="shrink-0 text-[var(--t3)]" />
             <input
               placeholder="Search"

@@ -51,23 +51,19 @@ pub async fn replace_member_roles(
     ensure_assignable_roles(&actor, &roles)?;
 
     let mut tx = state.db.begin().await?;
-    sqlx::query!(
-        "DELETE FROM member_roles WHERE server_id = $1 AND user_id = $2",
-        server_id,
-        target_user_id
-    )
-    .execute(&mut *tx)
-    .await?;
-
-    for role in &roles {
-        sqlx::query!(
-            "INSERT INTO member_roles (server_id, user_id, role_id) VALUES ($1, $2, $3)",
-            server_id,
-            target_user_id,
-            role.id
-        )
+    sqlx::query("DELETE FROM member_roles WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(target_user_id)
         .execute(&mut *tx)
         .await?;
+
+    for role in &roles {
+        sqlx::query("INSERT INTO member_roles (server_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(server_id)
+            .bind(target_user_id)
+            .bind(role.id)
+            .execute(&mut *tx)
+            .await?;
     }
     tx.commit().await?;
 
@@ -90,13 +86,11 @@ pub async fn kick_member(
     .await?;
     ensure_manageable_member_target(&state, &actor, target_user_id).await?;
 
-    sqlx::query!(
-        "DELETE FROM server_members WHERE server_id = $1 AND user_id = $2",
-        server_id,
-        target_user_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(target_user_id)
+        .execute(&state.db)
+        .await?;
 
     sync_member_count(&state, server_id).await?;
 
@@ -118,14 +112,13 @@ pub async fn ban_member(
     )
     .await?;
 
-    let is_member = sqlx::query_scalar!(
+    let is_member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2)",
-        server_id,
-        body.user_id
     )
+    .bind(server_id)
+    .bind(body.user_id)
     .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
+    .await?;
     if is_member {
         ensure_manageable_member_target(&state, &actor, body.user_id).await?;
     } else if actor.owner_id == body.user_id {
@@ -135,26 +128,24 @@ pub async fn ban_member(
     }
 
     let mut tx = state.db.begin().await?;
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO server_bans (server_id, user_id, banned_by, reason)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (server_id, user_id)
            DO UPDATE SET banned_by = EXCLUDED.banned_by, reason = EXCLUDED.reason, created_at = NOW()"#,
-        server_id,
-        body.user_id,
-        user_id,
-        body.reason,
     )
+    .bind(server_id)
+    .bind(body.user_id)
+    .bind(user_id)
+    .bind(body.reason)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
-        "DELETE FROM server_members WHERE server_id = $1 AND user_id = $2",
-        server_id,
-        body.user_id
-    )
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(body.user_id)
+        .execute(&mut *tx)
+        .await?;
     tx.commit().await?;
 
     sync_member_count(&state, server_id).await?;
@@ -176,13 +167,11 @@ pub async fn unban_member(
     )
     .await?;
 
-    sqlx::query!(
-        "DELETE FROM server_bans WHERE server_id = $1 AND user_id = $2",
-        server_id,
-        target_user_id
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query("DELETE FROM server_bans WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(target_user_id)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(json!({ "data": null })))
 }
@@ -227,10 +216,10 @@ async fn fetch_member_payload(state: &AppState, server_id: Uuid, user_id: Uuid) 
 }
 
 async fn sync_member_count(state: &AppState, server_id: Uuid) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "UPDATE servers SET member_count = (SELECT COUNT(*) FROM server_members WHERE server_id = $1) WHERE id = $1",
-        server_id
     )
+    .bind(server_id)
     .execute(&state.db)
     .await?;
 

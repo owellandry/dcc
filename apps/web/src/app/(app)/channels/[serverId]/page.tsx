@@ -1,22 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { ServerSidebar } from '@/components/layout/ServerSidebar'
-import { DMSidebar } from '@/components/layout/DMSidebar'
-import { ChannelSidebar } from '@/components/layout/ChannelSidebar'
+import { useRouter } from 'next/navigation'
 import { MemberSidebar } from '@/components/layout/MemberSidebar'
-import { UserPanel } from '@/components/user/UserPanel'
-import { DMHomeView } from '@/components/dm/DMHomeView'
 import { useServerChannels, useServersStore } from '@/stores/serversStore'
 import { serversApi } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
 
-export default function ServerEntryPage() {
+export default function ServerEntryPage({ params }: { params: { serverId: string } }) {
   const router = useRouter()
-  const pathname = usePathname()
-  const serverId = getServerIdFromPath(pathname)
-  const isDMHome = serverId === '@me'
+  const serverId = params.serverId
   const channels = useServerChannels(serverId)
   const setChannels = useServersStore((s) => s.setChannels)
   const setRoles = useServersStore((s) => s.setRoles)
@@ -28,7 +21,6 @@ export default function ServerEntryPage() {
 
   useEffect(() => {
     if (!serverId) return
-    if (isDMHome) return
     if (channels.length > 0) return
     if (isMockSession()) return
 
@@ -51,40 +43,26 @@ export default function ServerEntryPage() {
     return () => {
       cancelled = true
     }
-  }, [channels.length, isDMHome, serverId, setChannels, setRoles, upsertServer])
+  }, [channels.length, serverId, setChannels, setRoles, upsertServer])
 
   useEffect(() => {
     if (!serverId) return
-    if (!isDMHome && firstChannelId) {
+    if (firstChannelId) {
       router.replace(`/channels/${serverId}/${firstChannelId}`)
     }
-  }, [firstChannelId, isDMHome, router, serverId])
+  }, [firstChannelId, router, serverId])
 
   if (!serverId) {
     return (
-      <div className="app-shell-bg flex h-screen w-screen items-center justify-center text-sm text-[var(--t4)]">
+      <div className="flex h-full min-w-0 flex-1 items-center justify-center text-sm text-[var(--t4)]">
         Loading route...
       </div>
     )
   }
 
-  if (isDMHome) {
-    return (
-      <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
-        <ServerSidebar />
-        <DMSidebar />
-        <UserPanel />
-        <DMHomeView />
-      </div>
-    )
-  }
-
   return (
-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
-      <ServerSidebar />
-      <ChannelSidebar serverId={serverId} />
-      <UserPanel />
-      <div className="flex flex-1 items-center justify-center bg-[var(--s3)]">
+    <>
+      <div className="flex min-w-0 flex-1 items-center justify-center bg-[var(--s3)]">
         <div className="text-center">
           <p className="font-display text-lg font-600 text-[var(--t1)]">
             {firstChannelId ? 'Opening your first channel...' : isHydratingServer ? 'Loading server...' : 'No channels available'}
@@ -99,15 +77,6 @@ export default function ServerEntryPage() {
         </div>
       </div>
       <MemberSidebar serverId={serverId} />
-    </div>
+    </>
   )
-}
-
-function getServerIdFromPath(pathname: string | null): string | null {
-  if (!pathname) return null
-
-  const parts = pathname.split('/').filter(Boolean)
-  if (parts[0] !== 'channels') return null
-
-  return parts[1] ?? null
 }

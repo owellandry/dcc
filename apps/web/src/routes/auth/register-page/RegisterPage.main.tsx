@@ -85,7 +85,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#5865F2] p-4 font-sans selection:bg-[#5865F2] selection:text-white sm:p-0">
+    <div className="relative flex min-h-screen items-center justify-center p-4 font-sans selection:bg-[#5865F2] selection:text-white sm:p-0">
       {/* Background illustration */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://cdn.discordapp.com/assets/images/128b9d79c6b65313543b.svg')] bg-cover bg-center bg-no-repeat opacity-80 mix-blend-overlay" />

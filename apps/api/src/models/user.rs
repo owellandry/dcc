@@ -23,7 +23,7 @@ pub struct User {
 }
 
 /// Public view — never exposes email or password_hash
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserPublic {
     pub id: Uuid,
     pub username: String,
@@ -39,7 +39,7 @@ pub struct UserPublic {
 }
 
 /// Own view — includes email, no password
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserMe {
     pub id: Uuid,
     pub username: String,

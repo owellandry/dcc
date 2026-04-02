@@ -76,7 +76,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#5865F2] p-4 font-sans selection:bg-[#5865F2] selection:text-white sm:p-0">
+    <div className="relative flex min-h-screen items-center justify-center p-4 font-sans selection:bg-[#5865F2] selection:text-white sm:p-0">
       {/* Background illustration (Discord style) */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://cdn.discordapp.com/assets/images/128b9d79c6b65313543b.svg')] bg-cover bg-center bg-no-repeat opacity-80 mix-blend-overlay" />
@@ -120,7 +120,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <label className="text-xs font-700 uppercase text-[#B5BAC1]">
-              Correo electrónico o número de teléfono <span className="text-[#F23F42]">*</span>
+              Nombre de usuario o correo electrónico <span className="text-[#F23F42]">*</span>
             </label>
             <input
               type="text"

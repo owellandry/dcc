@@ -16,19 +16,35 @@ use crate::{
     state::AppState,
 };
 
+#[derive(sqlx::FromRow)]
+struct ChannelRow {
+    id: Uuid,
+    server_id: Option<Uuid>,
+    category_id: Option<Uuid>,
+    name: String,
+    topic: Option<String>,
+    icon_key: Option<String>,
+    channel_type: String,
+    position: i32,
+    is_nsfw: bool,
+    slowmode_seconds: i32,
+    last_message_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
 pub async fn get_channel(
     AuthUser(user_id): AuthUser,
     State(state): State<AppState>,
     Path(channel_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
     let access = ensure_channel_view_access(&state, user_id, channel_id).await?;
-    let c = sqlx::query!(
+    let c = sqlx::query_as::<_, ChannelRow>(
         r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type,
                   position, is_nsfw, slowmode_seconds, last_message_id, created_at
            FROM channels
            WHERE id = $1"#,
-        channel_id
     )
+    .bind(channel_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
@@ -86,10 +102,14 @@ pub async fn update_channel(
     Path(channel_id): Path<Uuid>,
     Json(body): Json<UpdateChannelBody>,
 ) -> Result<Json<Value>> {
-    let ch = sqlx::query!(
-        "SELECT id, server_id FROM channels WHERE id = $1",
-        channel_id
-    )
+    #[derive(sqlx::FromRow)]
+    struct ChannelServerRow {
+        id: Uuid,
+        server_id: Option<Uuid>,
+    }
+
+    let ch = sqlx::query_as::<_, ChannelServerRow>("SELECT id, server_id FROM channels WHERE id = $1")
+        .bind(channel_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
@@ -108,10 +128,8 @@ pub async fn update_channel(
     .await?;
 
     if let Some(category_id) = body.category_id {
-        let category_server_id = sqlx::query_scalar!(
-            "SELECT server_id FROM categories WHERE id = $1",
-            category_id
-        )
+        let category_server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+        .bind(category_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
@@ -123,7 +141,7 @@ pub async fn update_channel(
         }
     }
 
-    let c = sqlx::query!(
+    let c = sqlx::query_as::<_, ChannelRow>(
         r#"UPDATE channels
            SET name             = COALESCE($2, name),
                topic            = COALESCE($3, topic),
@@ -135,15 +153,15 @@ pub async fn update_channel(
            WHERE id = $1
            RETURNING id, server_id, category_id, name, topic, icon_key, channel_type,
                      position, is_nsfw, slowmode_seconds, last_message_id, created_at"#,
-        channel_id,
-        body.name,
-        body.topic,
-        body.icon_key,
-        body.is_nsfw,
-        body.slowmode_seconds,
-        body.position,
-        body.category_id,
     )
+    .bind(channel_id)
+    .bind(body.name)
+    .bind(body.topic)
+    .bind(body.icon_key)
+    .bind(body.is_nsfw)
+    .bind(body.slowmode_seconds)
+    .bind(body.position)
+    .bind(body.category_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -188,12 +206,13 @@ pub async fn delete_channel(
     State(state): State<AppState>,
     Path(channel_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let ch = sqlx::query!("SELECT server_id FROM channels WHERE id = $1", channel_id)
+    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+        .bind(channel_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
-    let Some(server_id) = ch.server_id else {
+    let Some(server_id) = server_id else {
         return Err(AppError::Forbidden(
             "Cannot delete DM channels this way".into(),
         ));
@@ -208,7 +227,8 @@ pub async fn delete_channel(
     )
     .await?;
 
-    sqlx::query!("DELETE FROM channels WHERE id = $1", channel_id)
+    sqlx::query("DELETE FROM channels WHERE id = $1")
+        .bind(channel_id)
         .execute(&state.db)
         .await?;
 
