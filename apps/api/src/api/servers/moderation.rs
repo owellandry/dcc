@@ -1,8 +1,8 @@
 use super::*;
 use crate::api::servers::common::{
-    ensure_assignable_roles, ensure_manageable_member_target, ensure_server_permission,
-    load_member_roles, load_role, role_payload, BAN_MEMBERS_PERMISSION, KICK_MEMBERS_PERMISSION,
-    MANAGE_ROLES_PERMISSION,
+    ensure_assignable_roles, ensure_manageable_member_target,
+    ensure_role_manageable_member_target, ensure_server_permission, load_member_roles, load_role,
+    role_payload, BAN_MEMBERS_PERMISSION, KICK_MEMBERS_PERMISSION, MANAGE_ROLES_PERMISSION,
 };
 use crate::middleware::AuthUser;
 use crate::models::server::ServerMemberRow;
@@ -36,7 +36,7 @@ pub async fn replace_member_roles(
         "You do not have permission to manage roles in this server",
     )
     .await?;
-    ensure_manageable_member_target(&state, &actor, target_user_id).await?;
+    ensure_role_manageable_member_target(&state, &actor, target_user_id).await?;
 
     let mut roles = Vec::new();
     for role_id in body.role_ids {

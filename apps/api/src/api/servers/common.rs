@@ -342,6 +342,41 @@ pub(crate) async fn ensure_manageable_member_target(
     Ok(())
 }
 
+pub(crate) async fn ensure_role_manageable_member_target(
+    state: &AppState,
+    actor: &ServerPermissionsContext,
+    target_user_id: Uuid,
+) -> Result<()> {
+    if actor.owner_id == target_user_id {
+        if actor.is_owner && actor.user_id == target_user_id {
+            return Ok(());
+        }
+
+        return Err(AppError::Forbidden(
+            "The server owner cannot be moderated or removed".into(),
+        ));
+    }
+
+    if actor.is_owner {
+        return Ok(());
+    }
+
+    let target_roles = load_member_roles(state, actor.server_id, target_user_id).await?;
+    let target_highest = target_roles
+        .iter()
+        .map(|role| role.position)
+        .max()
+        .unwrap_or(actor.default_role.position);
+
+    if target_highest >= actor.highest_role_position {
+        return Err(AppError::Forbidden(
+            "You can only manage members below your highest role".into(),
+        ));
+    }
+
+    Ok(())
+}
+
 pub(crate) fn ensure_manageable_role_target(
     actor: &ServerPermissionsContext,
     role: &RoleRecord,
