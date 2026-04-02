@@ -1,7 +1,14 @@
 use axum::{
     body::Body,
-    http::{Method, Request, Response, StatusCode},
+    http::{
+        header::{
+            ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS,
+            ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN, VARY,
+        },
+        HeaderMap, HeaderValue, Method, Request, Response, StatusCode,
+    },
     middleware::Next,
+    response::IntoResponse,
 };
 use redis::AsyncCommands;
 use tracing::warn;
@@ -17,8 +24,11 @@ pub async fn rate_limit_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Response<Body> {
+    let path = req.uri().path().to_string();
+    let method = req.method().clone();
+
     // Determine limits based on path
-    let config = match get_rate_limit_config(req.method(), req.uri().path()) {
+    let config = match get_rate_limit_config(&method, &path) {
         Some(cfg) => cfg,
         None => {
             // No rate limit for this path (e.g., WebSocket, health checks)
@@ -26,20 +36,19 @@ pub async fn rate_limit_middleware(
         }
     };
 
+    let request_origin = req.headers().get(ORIGIN).cloned();
+
     // Get identifier: user_id if authenticated, else IP
-    let identifier = {
-        if let Some(user_id) = req.extensions().get::<uuid::Uuid>() {
-            format!("user:{}", user_id)
-        } else {
-            // Use remote address (behind proxy, configure X-Forwarded-For in production)
-            // For now, we accept any connection (no IP extractor in extensions yet)
-            // We'll use a placeholder; in production, add IP extraction middleware
-            "anonymous".to_string()
-        }
+    let identifier = if let Some(user_id) = req.extensions().get::<uuid::Uuid>() {
+        format!("user:{user_id}")
+    } else {
+        // Use remote address (behind proxy, configure X-Forwarded-For in production)
+        // For now, we accept any connection (no IP extractor in extensions yet)
+        // We'll use a placeholder; in production, add IP extraction middleware
+        "anonymous".to_string()
     };
 
     let key = format!("ratelimit:{}:{}", config.scope, identifier);
-
     let mut redis = state.redis.clone();
 
     // Check current count
@@ -59,13 +68,12 @@ pub async fn rate_limit_middleware(
             "Rate limit exceeded: {} requests in {}s for {}",
             config.max_requests, config.window_secs, identifier
         );
-        return Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Body::from(format!(
-                "Rate limit exceeded. Maximum {} requests per {} seconds.",
-                config.max_requests, config.window_secs
-            )))
-            .unwrap();
+
+        let mut response = (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests").into_response();
+        let headers = response.headers_mut();
+        apply_rate_limit_headers(headers, &config, current);
+        apply_cors_headers(headers, request_origin.as_ref());
+        return response;
     }
 
     // Increment counter, set TTL if first request
@@ -81,19 +89,9 @@ pub async fn rate_limit_middleware(
     let response = next.run(req).await;
 
     // Add rate limit headers to response
-    let (parts, body) = response.into_parts();
-    let mut headers = parts.headers.clone();
-    headers.insert(
-        "X-RateLimit-Limit",
-        config.max_requests.to_string().parse().unwrap(),
-    );
-    headers.insert(
-        "X-RateLimit-Remaining",
-        (config.max_requests - current - 1)
-            .to_string()
-            .parse()
-            .unwrap(),
-    );
+    let (mut parts, body) = response.into_parts();
+    apply_rate_limit_headers(&mut parts.headers, &config, current);
+    apply_cors_headers(&mut parts.headers, request_origin.as_ref());
 
     Response::from_parts(parts, body)
 }
@@ -121,6 +119,15 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
     // Skip rate limiting for these paths
     if path.starts_with("/ws") || path.starts_with("/health") || path.starts_with("/ready") {
         return None;
+    }
+
+    // Refresh is called automatically by the client and needs a looser bucket
+    if path == "/v1/auth/refresh" {
+        return Some(RateLimitConfig {
+            max_requests: 60,
+            window_secs: 60,
+            scope: "refresh",
+        });
     }
 
     // Authentication endpoints: stricter
@@ -178,6 +185,38 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
         });
     }
 
-    // Unknown paths: no rate limit (or you could set a default)
+    // Unknown paths: no rate limit
     None
+}
+
+fn apply_rate_limit_headers(headers: &mut HeaderMap, config: &RateLimitConfig, current: u32) {
+    headers.insert(
+        "X-RateLimit-Limit",
+        config.max_requests.to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "X-RateLimit-Remaining",
+        config
+            .max_requests
+            .saturating_sub(current + 1)
+            .to_string()
+            .parse()
+            .unwrap(),
+    );
+}
+
+fn apply_cors_headers(headers: &mut HeaderMap, request_origin: Option<&HeaderValue>) {
+    if let Some(origin) = request_origin {
+        headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, origin.clone());
+        headers.insert(ACCESS_CONTROL_ALLOW_CREDENTIALS, HeaderValue::from_static("true"));
+        headers.insert(
+            ACCESS_CONTROL_ALLOW_METHODS,
+            HeaderValue::from_static("GET, POST, PUT, PATCH, DELETE, OPTIONS"),
+        );
+        headers.insert(
+            ACCESS_CONTROL_ALLOW_HEADERS,
+            HeaderValue::from_static("Authorization, Content-Type, Accept, Origin"),
+        );
+        headers.insert(VARY, HeaderValue::from_static("Origin"));
+    }
 }
