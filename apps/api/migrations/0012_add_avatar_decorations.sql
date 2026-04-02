@@ -1,6 +1,8 @@
 ALTER TABLE users
 ADD COLUMN avatar_decoration_url TEXT;
 
+DROP FUNCTION IF EXISTS search_users(TEXT, INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION search_users(
     search_query TEXT,
     limit_val INTEGER DEFAULT 20,
