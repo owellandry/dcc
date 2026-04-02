@@ -12,6 +12,7 @@ import {
 
 export function useUserStatusSwitcherModel({
   user,
+  decorationTone = null,
 }: UserStatusSwitcherProps): UserStatusSwitcherVisualProps {
   const setUser = useAuthStore((state) => state.setUser)
   const presence = usePresenceStore((state) => state.presence[user.id])
@@ -71,6 +72,7 @@ export function useUserStatusSwitcherModel({
 
   return {
     user,
+    decorationTone,
     status,
     customStatus,
     statusOptions: STATUS_OPTIONS,

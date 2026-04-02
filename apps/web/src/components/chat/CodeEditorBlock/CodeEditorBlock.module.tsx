@@ -69,16 +69,16 @@ export function CodeEditorBlock({
   compact?: boolean
 }) {
   return (
-    <div className={cn('my-1.5 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)]', compact && 'my-1')}>
-      <div className={cn('flex items-center border-b border-[var(--b1)] px-3 py-1.5', compact && 'py-1')}>
-        <span className="text-[10px] font-700 uppercase tracking-[0.12em] text-[var(--t4)]">
+    <div className={cn('my-1 overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)]', compact && 'my-0.5')}>
+      <div className={cn('flex items-center border-b border-[var(--b1)] px-2.5 py-1', compact && 'py-0.5')}>
+        <span className="text-[9px] font-700 uppercase tracking-[0.1em] text-[var(--t4)]">
           {language || 'code'}
         </span>
       </div>
       <pre
         className={cn(
-          'scrollable overflow-x-auto px-3 py-2.5 font-mono text-[12px] leading-6 text-[var(--t1)]',
-          compact && 'px-2.5 py-2 text-[11px] leading-5'
+          'scrollable overflow-x-auto px-2.5 py-2 font-mono text-[11px] leading-5 text-[var(--t1)]',
+          compact && 'px-2 py-1.5 text-[10px] leading-4'
         )}
       >
         <code>{code}</code>

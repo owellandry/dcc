@@ -3,10 +3,12 @@
 import { AnimatePresence, interactiveMotion, motion, overlayCardVariants } from '@/lib/motion'
 import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
+import { getUserDecorationToneColors } from '../UserDecorationBackdrop.module'
 import { type UserStatusSwitcherVisualProps } from './UserStatusSwitcher.shared'
 
 export function UserStatusSwitcherVisual({
   user,
+  decorationTone,
   status,
   customStatus,
   statusOptions,
@@ -19,17 +21,26 @@ export function UserStatusSwitcherVisual({
   onUpdateStatus,
 }: UserStatusSwitcherVisualProps) {
   const displayName = getUserDisplayName(user)
+  const decorationColors = decorationTone ? getUserDecorationToneColors(decorationTone) : null
   return (
     <div className="relative min-w-0 flex-1" ref={statusMenuRef}>
       <div className="flex min-w-0 items-center gap-2">
-        <p className="truncate text-[15px] font-700 leading-none text-[var(--t0)]">{displayName}</p>
-        {hasOfficialMemberBadge({ user }) && <OfficialMemberTag compact className="-translate-y-px" />}
+        <p
+          className="font-700 truncate text-[15px] leading-none text-[var(--t0)]"
+          style={decorationColors ? { color: decorationColors.title } : undefined}
+        >
+          {displayName}
+        </p>
+        {hasOfficialMemberBadge({ user }) && (
+          <OfficialMemberTag compact className="-translate-y-px" />
+        )}
       </div>
       <motion.button
         type="button"
         onClick={onToggleMenu}
-        className="mt-2 truncate text-[12px] capitalize leading-none text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
+        className="mt-2 truncate text-[12px] capitalize leading-none text-[var(--t3)] transition-opacity hover:opacity-90"
         disabled={isSavingStatus}
+        {...(decorationColors ? { style: { color: decorationColors.subtitleStrong } } : {})}
         {...interactiveMotion}
       >
         {customStatus ?? selectedStatusLabel}
@@ -63,7 +74,9 @@ export function UserStatusSwitcherVisual({
         )}
       </AnimatePresence>
 
-      {statusError && <p className="mt-1 truncate text-[11px] leading-none text-ember">{statusError}</p>}
+      {statusError && (
+        <p className="text-ember mt-1 truncate text-[11px] leading-none">{statusError}</p>
+      )}
     </div>
   )
 }

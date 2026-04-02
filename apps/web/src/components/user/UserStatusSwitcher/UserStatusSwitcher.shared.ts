@@ -1,7 +1,9 @@
 import type { User, UserStatus } from '@/lib/types'
+import type { UserDecorationTone } from '../UserDecorationBackdrop.module'
 
 export interface UserStatusSwitcherProps {
   user: User
+  decorationTone?: UserDecorationTone | null
 }
 
 export interface UserStatusOption {
@@ -11,6 +13,7 @@ export interface UserStatusOption {
 
 export interface UserStatusSwitcherVisualProps {
   user: User
+  decorationTone: UserDecorationTone | null
   status: UserStatus
   customStatus: string | null | undefined
   statusOptions: UserStatusOption[]

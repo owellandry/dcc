@@ -2,9 +2,13 @@
 
 import { useState } from 'react'
 import { ChevronDown, Headphones, Mic, MicOff, Settings, VolumeX } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { interactiveMotion, motion } from '@/lib/motion'
 import { UserAvatar } from '../UserAvatar'
-import { UserDecorationBackdrop } from '../UserDecorationBackdrop.module'
+import {
+  UserDecorationBackdrop,
+  useUserDecorationPresentation,
+} from '../UserDecorationBackdrop.module'
 import { UserSettingsModal } from '../UserSettingsModal'
 import { AppearanceThemeWorkspace } from '../UserSettingsModal/AppearanceThemeWorkspace.main'
 import { UserStatusSwitcher } from '../UserStatusSwitcher'
@@ -34,19 +38,32 @@ export function UserPanelVisual({
   const [selectedOutputDevice, setSelectedOutputDevice] = useState('Predeterminado')
   const [selectedInputProfile, setSelectedInputProfile] = useState('Personalizar')
   const [selectedOutputProfile, setSelectedOutputProfile] = useState('Balanceado')
+  const decorationPresentation = useUserDecorationPresentation(user.avatarDecorationUrl)
+  const hasDecoration = Boolean(decorationPresentation)
 
   return (
     <>
       <motion.div
-        className="fixed bottom-0 left-0 z-[70] h-[70px] w-[380px] max-w-[100vw] overflow-hidden rounded-tr-2xl border border-[var(--b1)] bg-[var(--s0)]"
+        className={cn(
+          'fixed bottom-0 left-0 z-[70] h-[70px] w-[380px] max-w-[100vw] overflow-hidden rounded-tr-2xl border border-[var(--b1)] bg-[var(--s0)]',
+          hasDecoration &&
+            decorationPresentation?.tone === 'dark' &&
+            'border-white/20 bg-[rgba(214,226,255,0.18)] shadow-[0_14px_32px_rgba(46,66,112,0.16)]',
+          hasDecoration &&
+            decorationPresentation?.tone === 'light' &&
+            'border-white/10 bg-[rgba(17,24,40,0.86)] shadow-[0_14px_32px_rgba(3,8,16,0.34)]'
+        )}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32 }}
       >
-        <UserDecorationBackdrop src={user.avatarDecorationUrl} />
+        <UserDecorationBackdrop
+          src={user.avatarDecorationUrl}
+          {...(decorationPresentation ? { presentation: decorationPresentation } : {})}
+        />
         <div className="relative z-10 flex h-full items-center gap-2 px-2.5">
           <UserAvatar user={user} size={36} showStatus />
-          <UserStatusSwitcher user={user} />
+          <UserStatusSwitcher user={user} decorationTone={decorationPresentation?.tone ?? null} />
 
           <div className="flex items-center gap-1.5">
             <AudioSplitButton
@@ -218,10 +235,10 @@ function PanelButton({ icon, title, active = false, onClick }: PanelButtonProps)
       data-tooltip-position="top"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+      className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
         active
-          ? 'bg-[var(--ember-dim)] text-[var(--ember)]'
-          : 'bg-[var(--s2)] text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
+          ? 'border-[var(--ember)]/35 bg-[var(--ember-dim)] text-[var(--ember)]'
+          : 'border-transparent bg-[var(--s2)] text-[var(--t2)] hover:border-[var(--b1)] hover:bg-[var(--s1)] hover:text-[var(--t0)]'
       }`}
       {...interactiveMotion}
     >

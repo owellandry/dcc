@@ -12,6 +12,7 @@ import {
 import { clearMockSession, isMockSession } from '@/lib/mock-init'
 import { useAuthStore } from '@/stores/authStore'
 import { useAppearanceStore } from '@/stores/appearanceStore'
+import { AppModalShell } from '@/components/ui/AppModalShell.main'
 import { MediaSourcePickerModal } from '../MediaSourcePickerModal'
 import { UserSettingsModalAccountSection } from './UserSettingsModalAccountSection.module'
 import { UserSettingsModalAppearanceSection } from './UserSettingsModalAppearanceSection.module'
@@ -218,15 +219,6 @@ export function UserSettingsModal({
     storedUiDensity,
     user,
   ])
-
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
 
   if (!open || !user) return null
 
@@ -696,13 +688,12 @@ export function UserSettingsModal({
   const contentModule = <div className="scrollable flex-1 p-4 sm:p-6">{currentModule}</div>
 
   return (
-    <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--modal-scrim)] p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
-        onClick={(event) => event.stopPropagation()}
+    <>
+      <AppModalShell
+        open={open}
+        onClose={onClose}
+        panelClassName="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
+        overlayClassName="z-[140]"
       >
         <UserSettingsModalSidebar
           user={user}
@@ -724,7 +715,7 @@ export function UserSettingsModal({
             onSave={handleSave}
           />
         </div>
-      </div>
+      </AppModalShell>
       <MediaSourcePickerModal
         open={mediaPickerTarget !== null}
         title={
@@ -751,6 +742,6 @@ export function UserSettingsModal({
           await uploadFromGiphy(mediaPickerTarget, url)
         }}
       />
-    </div>
+    </>
   )
 }

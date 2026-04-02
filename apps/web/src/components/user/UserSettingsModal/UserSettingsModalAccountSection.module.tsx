@@ -2,10 +2,15 @@
 
 import { type ChangeEvent, type RefObject } from 'react'
 import { Camera, ImagePlus, LoaderCircle, Mail, Sparkles, UserRound } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { resolveMediaUrl } from '@/lib/api'
 import type { User } from '@/lib/types'
 import { getUserHandle } from '@/lib/users/displayName.shared'
-import { UserDecorationBackdrop } from '../UserDecorationBackdrop.module'
+import {
+  getUserDecorationToneColors,
+  UserDecorationBackdrop,
+  useUserDecorationPresentation,
+} from '../UserDecorationBackdrop.module'
 import { UserAvatar } from '../UserAvatar'
 import { Field, ProfileRow, SettingBlock } from '../UserSettingsParts'
 
@@ -50,6 +55,10 @@ export function UserSettingsModalAccountSection({
 }: UserSettingsModalAccountSectionProps) {
   const effectiveDisplayName = displayName.trim() || user.displayName || user.username
   const effectiveUsername = username.trim() || user.username
+  const decorationPresentation = useUserDecorationPresentation(user.avatarDecorationUrl)
+  const decorationColors = decorationPresentation
+    ? getUserDecorationToneColors(decorationPresentation.tone)
+    : null
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -65,10 +74,6 @@ export function UserSettingsModalAccountSection({
             <div className="h-full w-full bg-[linear-gradient(135deg,rgba(122,149,255,0.5),rgba(129,83,255,0.35),rgba(23,25,31,0.95))]" />
           )}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(12,14,18,0.82))]" />
-          <UserDecorationBackdrop
-            src={user.avatarDecorationUrl}
-            className="inset-x-4 bottom-4 top-auto h-[76px] rounded-2xl"
-          />
           <div className="absolute bottom-4 left-4 flex items-end gap-3">
             <div className="relative">
               <UserAvatar
@@ -231,8 +236,20 @@ export function UserSettingsModalAccountSection({
             <p className="font-700 text-xs uppercase tracking-[0.16em] text-[var(--t4)]">
               Vista previa
             </p>
-            <div className="relative mt-4 overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s0)] p-4">
-              <UserDecorationBackdrop src={user.avatarDecorationUrl} className="rounded-2xl" />
+            <div
+              className={cn(
+                'relative mt-4 overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s0)] p-4',
+                decorationPresentation?.tone === 'dark' &&
+                  'border-white/20 bg-[rgba(214,226,255,0.16)] shadow-[0_12px_28px_rgba(46,66,112,0.14)]',
+                decorationPresentation?.tone === 'light' &&
+                  'border-white/10 bg-[rgba(17,24,40,0.84)] shadow-[0_12px_28px_rgba(3,8,16,0.32)]'
+              )}
+            >
+              <UserDecorationBackdrop
+                src={user.avatarDecorationUrl}
+                className="rounded-2xl"
+                {...(decorationPresentation ? { presentation: decorationPresentation } : {})}
+              />
               <div className="relative z-10 flex items-center gap-3">
                 <UserAvatar
                   user={{ ...user, username: effectiveUsername, displayName: effectiveDisplayName }}
@@ -240,10 +257,18 @@ export function UserSettingsModalAccountSection({
                   showStatus
                 />
                 <div className="min-w-0">
-                  <p className="font-display font-700 truncate text-lg text-[var(--t0)]">
+                  <p
+                    className="font-display font-700 truncate text-lg text-[var(--t0)]"
+                    style={decorationColors ? { color: decorationColors.title } : undefined}
+                  >
                     {effectiveDisplayName}
                   </p>
-                  <p className="truncate text-sm text-[var(--t3)]">
+                  <p
+                    className="truncate text-sm text-[var(--t3)]"
+                    style={
+                      decorationColors ? { color: decorationColors.subtitleStrong } : undefined
+                    }
+                  >
                     {getUserHandle({ username: effectiveUsername })}
                   </p>
                 </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Crown } from 'lucide-react'
+import { FaCrown } from 'react-icons/fa6'
 import { serversApi } from '@/lib/api'
 import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
@@ -9,7 +9,11 @@ import type { UserStatus } from '@/lib/types'
 import { useServerMembers, useServersStore } from '@/stores/serversStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { UserAvatar } from '@/components/user/UserAvatar'
-import { UserDecorationBackdrop } from '@/components/user/UserDecorationBackdrop.module'
+import {
+  UserDecorationBackdrop,
+  getUserDecorationToneColors,
+  useUserDecorationPresentation,
+} from '@/components/user/UserDecorationBackdrop.module'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { MemberPreviewCard } from '@/components/user/MemberPreviewCard'
 import type { ServerMember } from '@/lib/types'
@@ -178,7 +182,11 @@ function MemberRow({
 }) {
   const displayName = getMemberDisplayName(member)
   const isOfficialMember = hasOfficialMemberBadge({ user: member.user })
-  const hasDecoration = Boolean(member.user.avatarDecorationUrl)
+  const decorationPresentation = useUserDecorationPresentation(member.user.avatarDecorationUrl)
+  const hasDecoration = Boolean(decorationPresentation)
+  const decorationColors = decorationPresentation
+    ? getUserDecorationToneColors(decorationPresentation.tone)
+    : null
 
   return (
     <button
@@ -187,28 +195,55 @@ function MemberRow({
       className={cn(
         'group relative flex w-full items-center gap-2.5 overflow-hidden rounded-md border border-transparent px-2 py-1.5 transition-colors hover:bg-[var(--surface-soft)]',
         hasDecoration &&
-          'bg-[rgba(190,208,255,0.12)] shadow-[0_10px_24px_rgba(38,54,92,0.16)] hover:bg-[rgba(202,218,255,0.18)]',
+          decorationPresentation?.tone === 'dark' &&
+          'bg-[rgba(208,221,255,0.18)] shadow-[0_10px_24px_rgba(48,66,112,0.14)] hover:bg-[rgba(220,231,255,0.24)]',
+        hasDecoration &&
+          decorationPresentation?.tone === 'light' &&
+          'bg-[rgba(28,38,62,0.42)] shadow-[0_10px_24px_rgba(10,16,28,0.28)] hover:bg-[rgba(36,49,80,0.52)]',
         faded && 'opacity-40 hover:opacity-100'
       )}
     >
-      <UserDecorationBackdrop src={member.user.avatarDecorationUrl} />
+      <UserDecorationBackdrop
+        src={member.user.avatarDecorationUrl}
+        presentation={decorationPresentation ?? undefined}
+      />
       <div className="relative z-10">
         <UserAvatar user={member.user} size={32} showStatus />
       </div>
 
       <div className="relative z-10 min-w-0 flex-1 text-left">
         <div className="flex items-center gap-1.5">
-          <p className="font-500 truncate text-[13px] text-[var(--t1)] group-hover:text-[var(--t0)]">
+          <p
+            className="font-500 truncate text-[13px] transition-colors"
+            style={
+              decorationColors
+                ? {
+                    color: decorationColors.title,
+                  }
+                : undefined
+            }
+          >
             {displayName}
           </p>
           {isOfficialMember && <OfficialMemberTag compact className="translate-y-[1px]" />}
           {isOwner && (
-            <Crown size={11} className="shrink-0 text-[#f5a623]" aria-label="Server owner" />
+            <FaCrown size={11} className="shrink-0 text-[#f5a623]" aria-label="Server owner" />
           )}
         </div>
 
         {member.user.customStatus && (
-          <p className="truncate text-[11px] text-[var(--t3)]">{member.user.customStatus}</p>
+          <p
+            className="truncate text-[11px]"
+            style={
+              decorationColors
+                ? {
+                    color: decorationColors.subtitle,
+                  }
+                : undefined
+            }
+          >
+            {member.user.customStatus}
+          </p>
         )}
       </div>
     </button>

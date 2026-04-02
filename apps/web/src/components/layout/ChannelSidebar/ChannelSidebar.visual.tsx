@@ -2,19 +2,33 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Hash, Home, Plus, Settings2, Shield, UserPlus, Volume2, X } from 'lucide-react'
+import {
+  ChevronDown,
+  Hash,
+  Home,
+  Plus,
+  Settings2,
+  Shield,
+  UserPlus,
+  Volume2,
+  X,
+} from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
 import { getChannelNameTextStyle } from '@/lib/channel-appearance/channelAppearance.shared'
 import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared'
 import { cn } from '@/lib/cn'
-import { AnimatePresence, interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
+import {
+  AnimatePresence,
+  interactiveMotion,
+  itemVariants,
+  listVariants,
+  motion,
+} from '@/lib/motion'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import { InviteLinkModal } from '@/components/layout/InviteLinkModal'
 import { ServerSettingsModal } from '@/components/layout/ServerSettingsModal'
-import {
-  type ChannelSidebarItem,
-  type ChannelSidebarVisualProps,
-} from './ChannelSidebar.shared'
+import { AppModalShell } from '@/components/ui/AppModalShell.main'
+import { type ChannelSidebarItem, type ChannelSidebarVisualProps } from './ChannelSidebar.shared'
 
 export function ChannelSidebarVisual({
   resolvedServerId,
@@ -46,8 +60,9 @@ export function ChannelSidebarVisual({
   onCreateChannelTypeChange,
   onSubmitCreateChannel,
 }: ChannelSidebarVisualProps) {
-  const hasVoiceActivity = uncategorizedChannels.some((channel) => (channel.voiceParticipants?.length ?? 0) > 0)
-    || categorizedChannels.some((group) =>
+  const hasVoiceActivity =
+    uncategorizedChannels.some((channel) => (channel.voiceParticipants?.length ?? 0) > 0) ||
+    categorizedChannels.some((group) =>
       group.channels.some((channel) => (channel.voiceParticipants?.length ?? 0) > 0)
     )
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -81,7 +96,7 @@ export function ChannelSidebarVisual({
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.34 }}
     >
-      <div className="group relative flex h-28 w-full items-end overflow-hidden border-b border-[var(--b0)] px-4 pb-3 transition-colors surface-elevated">
+      <div className="surface-elevated group relative flex h-28 w-full items-end overflow-hidden border-b border-[var(--b0)] px-4 pb-3 transition-colors">
         <span
           className="absolute inset-0 bg-cover bg-center opacity-70 transition-opacity duration-200 group-hover:opacity-85"
           style={{ backgroundImage: bannerBackground }}
@@ -93,14 +108,18 @@ export function ChannelSidebarVisual({
             onClick={onOpenServerSettings}
             className="relative flex min-w-0 items-center gap-1.5"
           >
-            <span className="truncate font-display text-[16px] font-700 text-white">{serverName}</span>
+            <span className="font-display font-700 truncate text-[16px] text-white">
+              {serverName}
+            </span>
             <ChevronDown
               size={18}
               className="shrink-0 text-white/80 transition-colors group-hover:text-white"
             />
           </button>
         ) : (
-          <span className="relative truncate font-display text-[16px] font-700 text-white">{serverName}</span>
+          <span className="font-display font-700 relative truncate text-[16px] text-white">
+            {serverName}
+          </span>
         )}
         <div className="relative ml-auto flex items-center gap-1.5">
           {canCreateChannels ? (
@@ -170,22 +189,23 @@ export function ChannelSidebarVisual({
             </div>
 
             <AnimatePresence initial={false}>
-              {!group.collapsed && group.channels.map((channel) => (
-                <motion.div
-                  key={channel.id}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ChannelItem
-                    item={channel}
-                    nowMs={nowMs}
-                    canManageChannels={canManageChannels}
-                    onOpenChannelSettings={onOpenChannelSettings}
-                  />
-                </motion.div>
-              ))}
+              {!group.collapsed &&
+                group.channels.map((channel) => (
+                  <motion.div
+                    key={channel.id}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <ChannelItem
+                      item={channel}
+                      nowMs={nowMs}
+                      canManageChannels={canManageChannels}
+                      onOpenChannelSettings={onOpenChannelSettings}
+                    />
+                  </motion.div>
+                ))}
             </AnimatePresence>
           </motion.div>
         ))}
@@ -200,88 +220,94 @@ export function ChannelSidebarVisual({
         <ServerSettingsModal
           open={isServerSettingsOpen}
           serverId={resolvedServerId}
-          {...(serverSettingsInitialSection !== undefined ? { initialSection: serverSettingsInitialSection } : {})}
-          {...(serverSettingsInitialSelection !== undefined ? { initialSelection: serverSettingsInitialSelection } : {})}
+          {...(serverSettingsInitialSection !== undefined
+            ? { initialSection: serverSettingsInitialSection }
+            : {})}
+          {...(serverSettingsInitialSelection !== undefined
+            ? { initialSelection: serverSettingsInitialSelection }
+            : {})}
           onClose={onCloseServerSettings}
         />
       ) : null}
 
-      {isCreateChannelModalOpen ? (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-[var(--b1)] bg-[var(--s2)] shadow-xl">
-            <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4">
-              <h2 className="font-display text-lg font-700 text-[var(--t0)]">Crear canal</h2>
-              <button
-                type="button"
-                onClick={onCloseCreateChannelModal}
-                className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
-              >
-                <X size={15} />
-              </button>
-            </div>
+      <AppModalShell
+        open={isCreateChannelModalOpen}
+        onClose={onCloseCreateChannelModal}
+        panelClassName="w-full max-w-sm rounded-2xl border border-[var(--b1)] bg-[var(--s2)] shadow-xl"
+        overlayClassName="z-[85]"
+        closeDisabled={isCreatingChannel}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4">
+          <h2 className="font-display font-700 text-lg text-[var(--t0)]">Crear canal</h2>
+          <button
+            type="button"
+            onClick={onCloseCreateChannelModal}
+            className="rounded-md p-1 text-[var(--t4)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]"
+          >
+            <X size={15} />
+          </button>
+        </div>
 
-            <div className="space-y-4 px-5 py-4">
-              <div>
-                <label className="mb-1.5 block text-[10px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">
-                  Nombre del canal
-                </label>
-                <input
-                  value={createChannelName}
-                  onChange={(event) => onCreateChannelNameChange(event.target.value)}
-                  placeholder={createChannelType === 'voice' ? 'voz-general' : 'nuevo-canal'}
-                  className="h-9 w-full rounded-md border border-[var(--b1)] bg-[var(--s4)] px-3 text-sm text-[var(--t1)] outline-none placeholder:text-[var(--t4)] transition-colors focus:border-[var(--b3)]"
-                  autoFocus
-                  maxLength={100}
-                />
-                {createChannelError ? (
-                  <p className="mt-1.5 text-[12px] text-ember">{createChannelError}</p>
-                ) : null}
-              </div>
+        <div className="space-y-4 px-5 py-4">
+          <div>
+            <label className="font-700 mb-1.5 block text-[10px] uppercase tracking-[0.16em] text-[var(--t4)]">
+              Nombre del canal
+            </label>
+            <input
+              value={createChannelName}
+              onChange={(event) => onCreateChannelNameChange(event.target.value)}
+              placeholder={createChannelType === 'voice' ? 'voz-general' : 'nuevo-canal'}
+              className="h-9 w-full rounded-md border border-[var(--b1)] bg-[var(--s4)] px-3 text-sm text-[var(--t1)] outline-none transition-colors placeholder:text-[var(--t4)] focus:border-[var(--b3)]"
+              autoFocus
+              maxLength={100}
+            />
+            {createChannelError ? (
+              <p className="text-ember mt-1.5 text-[12px]">{createChannelError}</p>
+            ) : null}
+          </div>
 
-              <div>
-                <p className="mb-2 text-[10px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">
-                  Tipo de canal
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <ChannelTypeButton
-                    active={createChannelType === 'text'}
-                    icon={<Hash size={16} />}
-                    title="Texto"
-                    description="Mensajes y archivos"
-                    onClick={() => onCreateChannelTypeChange('text')}
-                  />
-                  <ChannelTypeButton
-                    active={createChannelType === 'voice'}
-                    icon={<Volume2 size={16} />}
-                    title="Voz"
-                    description="Sala para unirse"
-                    onClick={() => onCreateChannelTypeChange('voice')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-[var(--b1)] px-5 py-3">
-              <button
-                type="button"
-                onClick={onCloseCreateChannelModal}
-                className="rounded-md px-3 py-1.5 text-[13px] font-600 text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
-                disabled={isCreatingChannel}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={onSubmitCreateChannel}
-                className="rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] font-700 text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
-                disabled={isCreatingChannel}
-              >
-                {isCreatingChannel ? 'Creando...' : 'Crear canal'}
-              </button>
+          <div>
+            <p className="font-700 mb-2 text-[10px] uppercase tracking-[0.16em] text-[var(--t4)]">
+              Tipo de canal
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <ChannelTypeButton
+                active={createChannelType === 'text'}
+                icon={<Hash size={16} />}
+                title="Texto"
+                description="Mensajes y archivos"
+                onClick={() => onCreateChannelTypeChange('text')}
+              />
+              <ChannelTypeButton
+                active={createChannelType === 'voice'}
+                icon={<Volume2 size={16} />}
+                title="Voz"
+                description="Sala para unirse"
+                onClick={() => onCreateChannelTypeChange('voice')}
+              />
             </div>
           </div>
         </div>
-      ) : null}
+
+        <div className="flex justify-end gap-2 border-t border-[var(--b1)] px-5 py-3">
+          <button
+            type="button"
+            onClick={onCloseCreateChannelModal}
+            className="font-600 rounded-md px-3 py-1.5 text-[13px] text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
+            disabled={isCreatingChannel}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onSubmitCreateChannel}
+            className="font-700 rounded-md bg-[var(--ember)] px-4 py-1.5 text-[13px] text-[var(--ember-contrast)] transition-opacity hover:opacity-90 disabled:opacity-60"
+            disabled={isCreatingChannel}
+          >
+            {isCreatingChannel ? 'Creando...' : 'Crear canal'}
+          </button>
+        </div>
+      </AppModalShell>
     </motion.aside>
   )
 }
@@ -313,11 +339,16 @@ function ChannelItem({
         : isRulesChannel
           ? Shield
           : getChannelIconComponent(item.iconKey ?? null, item.type)
-  const voiceParticipants = item.type === 'voice' ? item.voiceParticipants ?? [] : []
+  const voiceParticipants = item.type === 'voice' ? (item.voiceParticipants ?? []) : []
   const hasVoiceParticipants = voiceParticipants.length > 0
-  const channelNameStyle = getChannelNameTextStyle({ fontKey: item.fontKey, fontWeight: item.fontWeight })
+  const channelNameStyle = getChannelNameTextStyle({
+    fontKey: item.fontKey,
+    fontWeight: item.fontWeight,
+  })
 
-  const voiceElapsedLabel = hasVoiceParticipants ? formatChannelElapsed(voiceParticipants, nowMs) : null
+  const voiceElapsedLabel = hasVoiceParticipants
+    ? formatChannelElapsed(voiceParticipants, nowMs)
+    : null
 
   return (
     <motion.div {...interactiveMotion}>
@@ -338,16 +369,18 @@ function ChannelItem({
               item.active ? 'text-ember' : 'text-[var(--t4)] group-hover:text-[var(--t3)]'
             )}
           />
-          <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>{item.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>
+            {item.name}
+          </span>
 
           {item.mentionCount ? (
             <span className="badge">{item.mentionCount > 99 ? '99+' : item.mentionCount}</span>
           ) : voiceElapsedLabel ? (
-            <span className="tabular-nums rounded-md bg-[var(--online)]/18 px-1.5 py-0.5 text-[10px] font-700 text-[var(--online)]">
+            <span className="bg-[var(--online)]/18 font-700 rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--online)]">
               {voiceElapsedLabel}
             </span>
           ) : item.isConnected ? (
-            <span className="rounded-full bg-[var(--online)]/20 px-2 py-0.5 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--online)]">
+            <span className="bg-[var(--online)]/20 font-700 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--online)]">
               LIVE
             </span>
           ) : item.hasUnread ? (
@@ -390,13 +423,13 @@ function ChannelItem({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[9px] font-700 text-[var(--t2)]">
+                  <div className="font-700 flex h-full w-full items-center justify-center text-[9px] text-[var(--t2)]">
                     {participant.displayName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
               </div>
               <span className="min-w-0 flex-1 truncate">{participant.displayName}</span>
-              <span className="tabular-nums text-[10px] text-[var(--online)]">
+              <span className="text-[10px] tabular-nums text-[var(--online)]">
                 {formatElapsedSince(participant.joinedAt, nowMs)}
               </span>
             </div>
@@ -407,7 +440,10 @@ function ChannelItem({
   )
 }
 
-function formatChannelElapsed(participants: NonNullable<ChannelSidebarItem['voiceParticipants']>, nowMs: number) {
+function formatChannelElapsed(
+  participants: NonNullable<ChannelSidebarItem['voiceParticipants']>,
+  nowMs: number
+) {
   if (participants.length === 0) return null
   const earliestJoinedAtMs = participants.reduce((earliest, participant) => {
     const joinedAtMs = new Date(participant.joinedAt).getTime()
@@ -476,7 +512,7 @@ function ChannelTypeButton({
       <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--s1)] text-[var(--t1)]">
         {icon}
       </div>
-      <p className="text-sm font-700 text-[var(--t0)]">{title}</p>
+      <p className="font-700 text-sm text-[var(--t0)]">{title}</p>
       <p className="mt-1 text-xs text-[var(--t3)]">{description}</p>
     </button>
   )
