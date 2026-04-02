@@ -29,6 +29,7 @@ pub async fn list_friends(
         display_name: Option<String>,
         discriminator: String,
         avatar_url: Option<String>,
+        avatar_decoration_url: Option<String>,
         banner_url: Option<String>,
         bio: Option<String>,
         user_status: Option<String>,
@@ -41,7 +42,7 @@ pub async fn list_friends(
     let rows = sqlx::query_as::<_, FriendRow>(
         r#"SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at,
                   u.id as user_id, u.username, u.display_name, u.discriminator,
-                  u.avatar_url, u.banner_url, u.bio,
+                  u.avatar_url, u.avatar_decoration_url, u.banner_url, u.bio,
                   u.status as user_status, u.custom_status, u.is_verified, u.badges,
                   u.created_at as user_created_at
            FROM friendships f
@@ -72,6 +73,7 @@ pub async fn list_friends(
                     "displayName": r.display_name,
                     "discriminator": r.discriminator,
                     "avatarUrl": r.avatar_url,
+                    "avatarDecorationUrl": r.avatar_decoration_url,
                     "bannerUrl": r.banner_url,
                     "bio": r.bio,
                     "status": r.user_status,
@@ -99,7 +101,7 @@ pub async fn send_request(
     }
 
     let target = sqlx::query_as::<_, crate::models::user::UserPublic>(
-        r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url, bio,
+        r#"SELECT id, username, display_name, discriminator, avatar_url, avatar_decoration_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
     )
@@ -148,7 +150,7 @@ pub async fn send_request(
 
     // Notify target user
     let requester = sqlx::query_as::<_, crate::models::user::UserPublic>(
-        r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url, bio,
+        r#"SELECT id, username, display_name, discriminator, avatar_url, avatar_decoration_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
     )
@@ -169,6 +171,7 @@ pub async fn send_request(
                 "displayName": requester.display_name,
                 "discriminator": requester.discriminator,
                 "avatarUrl": requester.avatar_url,
+                "avatarDecorationUrl": requester.avatar_decoration_url,
                 "bannerUrl": requester.banner_url,
                 "bio": requester.bio,
                 "status": requester.status,
@@ -199,6 +202,7 @@ pub async fn send_request(
                 "displayName": target.display_name,
                 "discriminator": target.discriminator,
                 "avatarUrl": target.avatar_url,
+                "avatarDecorationUrl": target.avatar_decoration_url,
                 "bannerUrl": target.banner_url,
                 "bio": target.bio,
                 "status": target.status,

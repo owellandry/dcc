@@ -22,7 +22,7 @@ use crate::{
 
 pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> Result<Json<Value>> {
     let user = sqlx::query(
-        r#"SELECT id, username, display_name, discriminator, email, avatar_url, banner_url,
+        r#"SELECT id, username, display_name, discriminator, email, avatar_url, avatar_decoration_url, banner_url,
                   bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at
            FROM users WHERE id = $1"#
     )
@@ -36,6 +36,7 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
     let discriminator = user.try_get::<String, _>("discriminator")?;
     let email = user.try_get::<String, _>("email")?;
     let avatar_url = user.try_get::<Option<String>, _>("avatar_url")?;
+    let avatar_decoration_url = user.try_get::<Option<String>, _>("avatar_decoration_url")?;
     let banner_url = user.try_get::<Option<String>, _>("banner_url")?;
     let bio = user.try_get::<Option<String>, _>("bio")?;
     let status = user.try_get::<String, _>("status")?;
@@ -55,6 +56,7 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
             "discriminator": discriminator,
             "email": email,
             "avatarUrl": avatar_url,
+            "avatarDecorationUrl": avatar_decoration_url,
             "bannerUrl": banner_url,
             "bio": bio,
             "status": status,
@@ -238,7 +240,7 @@ pub async fn update_me(
                voice_mic_muted = COALESCE($10, voice_mic_muted),
                voice_headphones_muted = COALESCE($11, voice_headphones_muted)
            WHERE id = $1
-           RETURNING id, username, display_name, discriminator, email, avatar_url, banner_url,
+           RETURNING id, username, display_name, discriminator, email, avatar_url, avatar_decoration_url, banner_url,
                      bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at"#
     )
     .bind(user_id)
@@ -264,6 +266,7 @@ pub async fn update_me(
     let discriminator = user.try_get::<String, _>("discriminator")?;
     let email = user.try_get::<String, _>("email")?;
     let avatar_url = user.try_get::<Option<String>, _>("avatar_url")?;
+    let avatar_decoration_url = user.try_get::<Option<String>, _>("avatar_decoration_url")?;
     let banner_url = user.try_get::<Option<String>, _>("banner_url")?;
     let bio = user.try_get::<Option<String>, _>("bio")?;
     let status = user.try_get::<String, _>("status")?;
@@ -315,6 +318,7 @@ pub async fn update_me(
             "discriminator": discriminator,
             "email": email,
             "avatarUrl": avatar_url,
+            "avatarDecorationUrl": avatar_decoration_url,
             "bannerUrl": banner_url,
             "bio": bio,
             "status": status,
@@ -534,7 +538,7 @@ pub async fn get_user(
     let mut redis = state.redis.clone();
     let user_opt = cache::get_or_fetch_user_public(&mut redis, id, async {
         let user = sqlx::query_as::<_, crate::models::user::UserPublic>(
-            r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url,
+            r#"SELECT id, username, display_name, discriminator, avatar_url, avatar_decoration_url, banner_url,
                       bio, status, custom_status, is_verified, badges, created_at
                FROM users WHERE id = $1"#,
         )
@@ -554,6 +558,7 @@ pub async fn get_user(
             "displayName": user.display_name,
             "discriminator": user.discriminator,
             "avatarUrl": user.avatar_url,
+            "avatarDecorationUrl": user.avatar_decoration_url,
             "bannerUrl": user.banner_url,
             "bio": user.bio,
             "status": user.status,
@@ -637,6 +642,80 @@ pub async fn upload_avatar(
     cache::invalidate_user(&mut redis, user_id).await;
 
     Ok(Json(json!({ "data": { "avatarUrl": avatar_url } })))
+}
+
+pub async fn upload_avatar_decoration(
+    AuthUser(user_id): AuthUser,
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Result<Json<Value>> {
+    let mut file_data: Option<(Vec<u8>, String)> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "decoration" {
+            let content_type = field
+                .content_type()
+                .map(|ct| ct.to_string())
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+            let allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+            if !allowed.contains(&content_type.as_str()) {
+                return Err(AppError::BadRequest(
+                    "Only JPEG, PNG, GIF, and WebP images are allowed".into(),
+                ));
+            }
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
+            if bytes.len() > 12 * 1024 * 1024 {
+                return Err(AppError::BadRequest(
+                    "Avatar decoration must be under 12MB".into(),
+                ));
+            }
+            file_data = Some((bytes.to_vec(), content_type));
+        }
+    }
+
+    let (bytes, content_type) =
+        file_data.ok_or_else(|| AppError::BadRequest("Missing decoration field".into()))?;
+
+    let ext = match content_type.as_str() {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => "bin",
+    };
+    let filename = format!("{}.{}", Uuid::new_v4(), ext);
+
+    let uploads_dir = std::path::Path::new("uploads/avatar-decorations");
+    tokio::fs::create_dir_all(uploads_dir)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create uploads dir: {e}")))?;
+    let path = uploads_dir.join(&filename);
+    tokio::fs::write(&path, &bytes).await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Failed to write avatar decoration: {e}"))
+    })?;
+
+    let avatar_decoration_url = format!("/uploads/avatar-decorations/{}", filename);
+
+    sqlx::query("UPDATE users SET avatar_decoration_url = $1 WHERE id = $2")
+        .bind(&avatar_decoration_url)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+    let mut redis = state.redis.clone();
+    cache::invalidate_user(&mut redis, user_id).await;
+
+    Ok(Json(
+        json!({ "data": { "avatarDecorationUrl": avatar_decoration_url } }),
+    ))
 }
 
 pub async fn upload_banner(

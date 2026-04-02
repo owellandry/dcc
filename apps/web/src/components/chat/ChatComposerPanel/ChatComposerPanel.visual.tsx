@@ -10,7 +10,7 @@ export function ChatComposerPanelVisual({
   canSendMessages,
 }: ChatComposerPanelProps) {
   return (
-    <div className="shrink-0 px-4 pb-6 pt-0">
+    <div className="shrink-0 px-2 pb-2 pt-0">
       <TypingIndicator channelId={channelId} />
       <MessageInput
         channelId={channelId}

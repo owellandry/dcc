@@ -40,7 +40,7 @@ pub async fn list_dms(
     for r in &rows {
         // Get other participants
         let participants = sqlx::query_as::<_, crate::models::user::UserPublic>(
-            r#"SELECT u.id, u.username, u.display_name, u.discriminator, u.avatar_url, u.banner_url,
+            r#"SELECT u.id, u.username, u.display_name, u.discriminator, u.avatar_url, u.avatar_decoration_url, u.banner_url,
                       u.bio, u.status, u.custom_status, u.is_verified, u.badges, u.created_at
                FROM dm_participants dp
                JOIN users u ON u.id = dp.user_id
@@ -60,6 +60,7 @@ pub async fn list_dms(
                     "displayName": u.display_name,
                     "discriminator": u.discriminator,
                     "avatarUrl": u.avatar_url,
+                    "avatarDecorationUrl": u.avatar_decoration_url,
                     "bannerUrl": u.banner_url,
                     "bio": u.bio,
                     "status": u.status,
@@ -159,7 +160,7 @@ pub async fn open_dm(
     .await?;
 
     let other = sqlx::query_as::<_, crate::models::user::UserPublic>(
-        r#"SELECT u.id, u.username, u.display_name, u.discriminator, u.avatar_url, u.banner_url,
+        r#"SELECT u.id, u.username, u.display_name, u.discriminator, u.avatar_url, u.avatar_decoration_url, u.banner_url,
                   u.bio, u.status, u.custom_status, u.is_verified, u.badges, u.created_at
            FROM users u WHERE u.id = $1"#,
     )
@@ -189,6 +190,7 @@ pub async fn open_dm(
                 "displayName": other.display_name,
                 "discriminator": other.discriminator,
                 "avatarUrl": other.avatar_url,
+                "avatarDecorationUrl": other.avatar_decoration_url,
                 "bannerUrl": other.banner_url,
                 "bio": other.bio,
                 "status": other.status,

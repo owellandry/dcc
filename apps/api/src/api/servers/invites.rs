@@ -259,6 +259,7 @@ pub async fn join_server(
                 display_name: Option<String>,
                 discriminator: String,
                 avatar_url: Option<String>,
+                avatar_decoration_url: Option<String>,
                 banner_url: Option<String>,
                 bio: Option<String>,
                 status: Option<String>,
@@ -268,7 +269,7 @@ pub async fn join_server(
             }
 
             let joined_user = sqlx::query_as::<_, JoinedUserRow>(
-                r#"SELECT username, display_name, discriminator, avatar_url, banner_url, bio, status,
+                r#"SELECT username, display_name, discriminator, avatar_url, avatar_decoration_url, banner_url, bio, status,
                           custom_status, is_verified, created_at
                    FROM users
                    WHERE id = $1"#,
@@ -314,6 +315,7 @@ pub async fn join_server(
                             "displayName": joined_user.display_name,
                             "discriminator": joined_user.discriminator,
                             "avatarUrl": joined_user.avatar_url,
+                            "avatarDecorationUrl": joined_user.avatar_decoration_url,
                             "bannerUrl": joined_user.banner_url,
                             "bio": joined_user.bio,
                             "status": joined_user.status,

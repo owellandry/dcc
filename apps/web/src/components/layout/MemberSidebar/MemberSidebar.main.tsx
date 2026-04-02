@@ -9,6 +9,7 @@ import type { UserStatus } from '@/lib/types'
 import { useServerMembers, useServersStore } from '@/stores/serversStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { UserAvatar } from '@/components/user/UserAvatar'
+import { UserDecorationBackdrop } from '@/components/user/UserDecorationBackdrop.module'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { MemberPreviewCard } from '@/components/user/MemberPreviewCard'
 import type { ServerMember } from '@/lib/types'
@@ -24,7 +25,10 @@ export function MemberSidebar({ serverId }: Props) {
   const server = useServersStore((s) => s.servers[serverId])
   const setMembers = useServersStore((s) => s.setMembers)
   const presence = usePresenceStore((state) => state.presence)
-  const [preview, setPreview] = useState<{ member: ServerMember; anchorRect: FloatingAnchorRect } | null>(null)
+  const [preview, setPreview] = useState<{
+    member: ServerMember
+    anchorRect: FloatingAnchorRect
+  } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
   const resolveMemberStatus = (member: ServerMember): UserStatus =>
@@ -146,9 +150,7 @@ function MemberGroup({
 }) {
   return (
     <div className="mb-4">
-      <p className={cn('sidebar-section-label mb-1', faded && 'opacity-40')}>
-        {label}
-      </p>
+      <p className={cn('sidebar-section-label mb-1', faded && 'opacity-40')}>{label}</p>
 
       {members.map((member) => (
         <MemberRow
@@ -176,30 +178,32 @@ function MemberRow({
 }) {
   const displayName = getMemberDisplayName(member)
   const isOfficialMember = hasOfficialMemberBadge({ user: member.user })
+  const hasDecoration = Boolean(member.user.avatarDecorationUrl)
 
   return (
     <button
       onClick={(event) => onContextMenu(event, member)}
       onContextMenu={(event) => onContextMenu(event, member)}
       className={cn(
-        'group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--surface-soft)]',
+        'group relative flex w-full items-center gap-2.5 overflow-hidden rounded-md border border-transparent px-2 py-1.5 transition-colors hover:bg-[var(--surface-soft)]',
+        hasDecoration &&
+          'bg-[rgba(190,208,255,0.12)] shadow-[0_10px_24px_rgba(38,54,92,0.16)] hover:bg-[rgba(202,218,255,0.18)]',
         faded && 'opacity-40 hover:opacity-100'
       )}
     >
-      <UserAvatar user={member.user} size={32} showStatus />
+      <UserDecorationBackdrop src={member.user.avatarDecorationUrl} />
+      <div className="relative z-10">
+        <UserAvatar user={member.user} size={32} showStatus />
+      </div>
 
-      <div className="min-w-0 flex-1 text-left">
+      <div className="relative z-10 min-w-0 flex-1 text-left">
         <div className="flex items-center gap-1.5">
-          <p className="truncate text-[13px] font-500 text-[var(--t1)] group-hover:text-[var(--t0)]">
+          <p className="font-500 truncate text-[13px] text-[var(--t1)] group-hover:text-[var(--t0)]">
             {displayName}
           </p>
           {isOfficialMember && <OfficialMemberTag compact className="translate-y-[1px]" />}
           {isOwner && (
-            <Crown
-              size={11}
-              className="shrink-0 text-[#f5a623]"
-              aria-label="Server owner"
-            />
+            <Crown size={11} className="shrink-0 text-[#f5a623]" aria-label="Server owner" />
           )}
         </div>
 

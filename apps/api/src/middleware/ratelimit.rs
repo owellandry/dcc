@@ -143,7 +143,10 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
 
     // Upload endpoints: 10 per minute
     if method == Method::POST
-        && (path.ends_with("/avatar") || path.ends_with("/banner") || path.ends_with("/icon"))
+        && (path.ends_with("/avatar")
+            || path.ends_with("/avatar-decoration")
+            || path.ends_with("/banner")
+            || path.ends_with("/icon"))
     {
         return Some(RateLimitConfig {
             max_requests: 10,

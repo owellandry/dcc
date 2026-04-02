@@ -174,11 +174,8 @@ class ApiClient {
       throw new ApiRequestError(
         res.status,
         errBody.error?.code ?? `HTTP_${res.status}`,
-        (
-          errBody.error?.details?.[0]?.message
-          ?? errBody.error?.message
-          ?? textMessage.trim()
-        ) || defaultMessage,
+        (errBody.error?.details?.[0]?.message ?? errBody.error?.message ?? textMessage.trim()) ||
+          defaultMessage,
         errBody.error?.details
       )
     }
@@ -294,22 +291,31 @@ export const authApi = {
   login: (body: { login: string; password: string; twoFactorCode?: string }) =>
     api.post<{ accessToken?: string; requiresTwoFactor?: boolean }>('/auth/login', body),
   logout: () => api.post('/auth/logout'),
-  refresh: () => api.postWithOptions<{ accessToken: string }>('/auth/refresh', undefined, { skipAuthRefresh: true }),
+  refresh: () =>
+    api.postWithOptions<{ accessToken: string }>('/auth/refresh', undefined, {
+      skipAuthRefresh: true,
+    }),
   verifyEmail: (token: string) => api.post('/auth/verify-email', { token }),
-  resendVerification: () => api.post<{ message: string; verificationUrl?: string | null }>('/auth/resend-verification'),
-  oauthUrl: (provider: 'google' | 'github') =>
-    `${API_URL}/v1/auth/oauth/${provider}`,
+  resendVerification: () =>
+    api.post<{ message: string; verificationUrl?: string | null }>('/auth/resend-verification'),
+  oauthUrl: (provider: 'google' | 'github') => `${API_URL}/v1/auth/oauth/${provider}`,
 }
 
 export const usersApi = {
   me: () => api.get<import('../types').User>('/users/@me'),
-  update: (body: Partial<Pick<import('../types').User, 'displayName' | 'username' | 'email' | 'bio' | 'status' | 'customStatus'>> & {
-    voiceMicMuted?: boolean
-    voiceHeadphonesMuted?: boolean
-    currentPassword?: string
-    newPassword?: string
-  }) =>
-    api.patch<import('../types').User>('/users/@me', body),
+  update: (
+    body: Partial<
+      Pick<
+        import('../types').User,
+        'displayName' | 'username' | 'email' | 'bio' | 'status' | 'customStatus'
+      >
+    > & {
+      voiceMicMuted?: boolean
+      voiceHeadphonesMuted?: boolean
+      currentPassword?: string
+      newPassword?: string
+    }
+  ) => api.patch<import('../types').User>('/users/@me', body),
   prepareTwoFactor: (body: { currentPassword?: string }) =>
     api.post<{
       secret: string
@@ -322,8 +328,12 @@ export const usersApi = {
     api.post<{ backupCodes: string[] }>('/users/@me/two-factor/enable', body),
   disableTwoFactor: (body: { code: string; currentPassword?: string }) =>
     api.post<{ message: string }>('/users/@me/two-factor/disable', body),
-  uploadAvatar: (formData: FormData) => api.upload<{ avatarUrl: string }>('/uploads/avatar', formData),
-  uploadBanner: (formData: FormData) => api.upload<{ bannerUrl: string }>('/uploads/banner', formData),
+  uploadAvatar: (formData: FormData) =>
+    api.upload<{ avatarUrl: string }>('/uploads/avatar', formData),
+  uploadAvatarDecoration: (formData: FormData) =>
+    api.upload<{ avatarDecorationUrl: string }>('/uploads/avatar-decoration', formData),
+  uploadBanner: (formData: FormData) =>
+    api.upload<{ bannerUrl: string }>('/uploads/banner', formData),
   getUser: (id: string) => api.get<import('../types').User>(`/users/${id}`),
 }
 
@@ -338,12 +348,22 @@ export const serversApi = {
       roles: import('../types').Role[]
     }>(`/servers/${id}`),
   create: (body: { name: string; description?: string }) =>
-    api.post<import('../types').Server & {
-      channels: import('../types').Channel[]
-      categories: import('../types').Category[]
-      roles: import('../types').Role[]
-    }>('/servers', body),
-  update: (id: string, body: Partial<Pick<import('../types').Server, 'name' | 'description' | 'isPublic' | 'iconUrl' | 'bannerUrl' | 'inviteCode'>>) =>
+    api.post<
+      import('../types').Server & {
+        channels: import('../types').Channel[]
+        categories: import('../types').Category[]
+        roles: import('../types').Role[]
+      }
+    >('/servers', body),
+  update: (
+    id: string,
+    body: Partial<
+      Pick<
+        import('../types').Server,
+        'name' | 'description' | 'isPublic' | 'iconUrl' | 'bannerUrl' | 'inviteCode'
+      >
+    >
+  ) =>
     api.patch<import('../types').Server>(`/servers/${id}`, {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
@@ -357,16 +377,21 @@ export const serversApi = {
   uploadBanner: (serverId: string, formData: FormData) =>
     api.upload<{ bannerUrl: string }>(`/servers/${serverId}/banner`, formData),
   delete: (id: string) => api.delete(`/servers/${id}`),
-  getInvite: (code: string) => api.get<{ server: import('../types').Server; inviteCode: string }>(`/invites/${code}`),
+  getInvite: (code: string) =>
+    api.get<{ server: import('../types').Server; inviteCode: string }>(`/invites/${code}`),
   join: (code: string) => api.post<import('../types').Server>(`/invites/${code}/join`),
-  createInvite: (serverId: string, body?: { expiresInSeconds?: number | null; maxUses?: number | null }) =>
-    api.post<{ code: string }>(`/servers/${serverId}/invites`, body),
+  createInvite: (
+    serverId: string,
+    body?: { expiresInSeconds?: number | null; maxUses?: number | null }
+  ) => api.post<{ code: string }>(`/servers/${serverId}/invites`, body),
   getMembers: (serverId: string, params?: { limit?: number; after?: string }) =>
     api.getPaginated<import('../types').ServerMember>(`/servers/${serverId}/members`, params),
   createCategory: (serverId: string, body: { name: string }) =>
     api.post<import('../types').Category>(`/servers/${serverId}/categories`, body),
-  updateCategory: (categoryId: string, body: Partial<Pick<import('../types').Category, 'name' | 'position'>>) =>
-    api.patch<import('../types').Category>(`/categories/${categoryId}`, body),
+  updateCategory: (
+    categoryId: string,
+    body: Partial<Pick<import('../types').Category, 'name' | 'position'>>
+  ) => api.patch<import('../types').Category>(`/categories/${categoryId}`, body),
   deleteCategory: (categoryId: string) => api.delete(`/categories/${categoryId}`),
   reorderStructure: (
     serverId: string,
@@ -388,12 +413,17 @@ export const serversApi = {
   updateRole: (
     roleId: string,
     body: Partial<
-      Pick<import('../types').Role, 'name' | 'color' | 'permissions' | 'position' | 'isHoisted' | 'isMentionable'>
+      Pick<
+        import('../types').Role,
+        'name' | 'color' | 'permissions' | 'position' | 'isHoisted' | 'isMentionable'
+      >
     >
   ) => api.patch<import('../types').Role>(`/roles/${roleId}`, body),
   deleteRole: (roleId: string) => api.delete(`/roles/${roleId}`),
   replaceMemberRoles: (serverId: string, userId: string, roleIds: string[]) =>
-    api.put<import('../types').ServerMember>(`/servers/${serverId}/members/${userId}/roles`, { roleIds }),
+    api.put<import('../types').ServerMember>(`/servers/${serverId}/members/${userId}/roles`, {
+      roleIds,
+    }),
   kickMember: (serverId: string, userId: string) =>
     api.post<void>(`/servers/${serverId}/members/${userId}/kick`),
   banMember: (serverId: string, body: { userId: string; reason?: string | null }) =>
@@ -408,7 +438,10 @@ export const serversApi = {
       allowBits: number
       denyBits: number
     }>
-  ) => api.put<import('../types').PermissionOverwrite[]>(`/categories/${categoryId}/overwrites`, { overwrites }),
+  ) =>
+    api.put<import('../types').PermissionOverwrite[]>(`/categories/${categoryId}/overwrites`, {
+      overwrites,
+    }),
   replaceChannelOverwrites: (
     channelId: string,
     overwrites: Array<{
@@ -417,7 +450,10 @@ export const serversApi = {
       allowBits: number
       denyBits: number
     }>
-  ) => api.put<import('../types').PermissionOverwrite[]>(`/channels/${channelId}/overwrites`, { overwrites }),
+  ) =>
+    api.put<import('../types').PermissionOverwrite[]>(`/channels/${channelId}/overwrites`, {
+      overwrites,
+    }),
 }
 
 export const channelsApi = {
@@ -445,14 +481,21 @@ export const channelsApi = {
       isNsfw?: boolean
       slowmodeSeconds?: number
     }
-  ) =>
-    api.post<import('../types').Channel>(`/servers/${serverId}/channels`, body),
+  ) => api.post<import('../types').Channel>(`/servers/${serverId}/channels`, body),
   update: (
     channelId: string,
     body: Partial<
       Pick<
         import('../types').Channel,
-        'name' | 'topic' | 'iconKey' | 'fontKey' | 'fontWeight' | 'position' | 'categoryId' | 'isNsfw' | 'slowmodeSeconds'
+        | 'name'
+        | 'topic'
+        | 'iconKey'
+        | 'fontKey'
+        | 'fontWeight'
+        | 'position'
+        | 'categoryId'
+        | 'isNsfw'
+        | 'slowmodeSeconds'
       >
     >
   ) => api.patch<import('../types').Channel>(`/channels/${channelId}`, body),

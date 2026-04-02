@@ -17,3 +17,4 @@ package-lock.json
 .sqlx
 Cargo.lock
 target-wsl
+s3

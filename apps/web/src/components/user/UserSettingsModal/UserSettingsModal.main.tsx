@@ -15,7 +15,10 @@ import { useAppearanceStore } from '@/stores/appearanceStore'
 import { MediaSourcePickerModal } from '../MediaSourcePickerModal'
 import { UserSettingsModalAccountSection } from './UserSettingsModalAccountSection.module'
 import { UserSettingsModalAppearanceSection } from './UserSettingsModalAppearanceSection.module'
-import { UserSettingsModalDevicesModule, type DeviceSession } from './UserSettingsModalDevices.module'
+import {
+  UserSettingsModalDevicesModule,
+  type DeviceSession,
+} from './UserSettingsModalDevices.module'
 import {
   UserSettingsModalFooter,
   UserSettingsModalHeader,
@@ -23,8 +26,14 @@ import {
   UserSettingsModalTabs,
   type SettingsView,
 } from './UserSettingsModalFrameParts.module'
-import { userSettingsPlaceholderModules, type UserSettingsPlaceholderView } from './UserSettingsModalPlaceholderSections.module'
-import { UserSettingsModalPrivacySection, type TwoFactorSetupState } from './UserSettingsModalPrivacySection.module'
+import {
+  userSettingsPlaceholderModules,
+  type UserSettingsPlaceholderView,
+} from './UserSettingsModalPlaceholderSections.module'
+import {
+  UserSettingsModalPrivacySection,
+  type TwoFactorSetupState,
+} from './UserSettingsModalPrivacySection.module'
 
 interface Props {
   open: boolean
@@ -33,7 +42,7 @@ interface Props {
   onOpenThemeWorkspace?: () => void
 }
 
-type MediaTarget = 'avatar' | 'banner'
+type MediaTarget = 'avatar' | 'avatarDecoration' | 'banner'
 
 interface AppearanceDraft {
   theme: AppearanceTheme
@@ -45,7 +54,12 @@ interface AppearanceDraft {
   uiDensity: AppearanceDensity
 }
 
-export function UserSettingsModal({ open, onClose, initialView = 'account', onOpenThemeWorkspace }: Props) {
+export function UserSettingsModal({
+  open,
+  onClose,
+  initialView = 'account',
+  onOpenThemeWorkspace,
+}: Props) {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const setUser = useAuthStore((s) => s.setUser)
@@ -65,6 +79,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
   const setStoredCompactMode = useAppearanceStore((s) => s.setCompactMode)
   const setStoredUiDensity = useAppearanceStore((s) => s.setUiDensity)
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const decorationInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
   const [displayName, setDisplayName] = useState('')
@@ -82,6 +97,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
   const [success, setSuccess] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [isUploadingAvatarDecoration, setIsUploadingAvatarDecoration] = useState(false)
   const [isUploadingBanner, setIsUploadingBanner] = useState(false)
   const [isPreparingTwoFactor, setIsPreparingTwoFactor] = useState(false)
   const [isEnablingTwoFactor, setIsEnablingTwoFactor] = useState(false)
@@ -103,9 +119,10 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
 
   const buildDeviceSessions = (): DeviceSession[] => {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : ''
-    const timezone = typeof Intl !== 'undefined'
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')
-      : 'Ubicacion no disponible'
+    const timezone =
+      typeof Intl !== 'undefined'
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')
+        : 'Ubicacion no disponible'
 
     const isMobile = /(android|iphone|ipad|ipod)/.test(ua)
     const currentDevice = ua.includes('android')
@@ -189,7 +206,18 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       compactMode: storedCompactMode,
       uiDensity: storedUiDensity,
     })
-  }, [initialView, open, storedCompactMode, storedCustomColorScheme, storedCustomIntensity, storedCustomPrimary, storedCustomSecondary, storedTheme, storedUiDensity, user])
+  }, [
+    initialView,
+    open,
+    storedCompactMode,
+    storedCustomColorScheme,
+    storedCustomIntensity,
+    storedCustomPrimary,
+    storedCustomSecondary,
+    storedTheme,
+    storedUiDensity,
+    user,
+  ])
 
   useEffect(() => {
     if (!open) return
@@ -207,7 +235,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     setUser({ ...currentUser, ...patch })
   }
 
-  const isMediaPickerBusy = isUploadingAvatar || isUploadingBanner
+  const isMediaPickerBusy = isUploadingAvatar || isUploadingAvatarDecoration || isUploadingBanner
 
   const uploadAvatar = async (formData: FormData) => {
     const res = await usersApi.uploadAvatar(formData)
@@ -219,6 +247,12 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     const res = await usersApi.uploadBanner(formData)
     mergeUser({ bannerUrl: res.data.bannerUrl })
     setSuccess('Banner actualizado.')
+  }
+
+  const uploadAvatarDecoration = async (formData: FormData) => {
+    const res = await usersApi.uploadAvatarDecoration(formData)
+    mergeUser({ avatarDecorationUrl: res.data.avatarDecorationUrl })
+    setSuccess('Decoracion actualizada.')
   }
 
   const resolveGiphyUrl = (raw: string) => {
@@ -235,8 +269,13 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
   const uploadFromGiphy = async (target: MediaTarget, rawUrl: string) => {
     const finalUrl = resolveGiphyUrl(rawUrl)
     const isAvatar = target === 'avatar'
-    const setLoading = isAvatar ? setIsUploadingAvatar : setIsUploadingBanner
-    const fieldName = isAvatar ? 'avatar' : 'banner'
+    const isDecoration = target === 'avatarDecoration'
+    const setLoading = isAvatar
+      ? setIsUploadingAvatar
+      : isDecoration
+        ? setIsUploadingAvatarDecoration
+        : setIsUploadingBanner
+    const fieldName = isAvatar ? 'avatar' : isDecoration ? 'decoration' : 'banner'
 
     setLoading(true)
     setError(null)
@@ -258,14 +297,15 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
 
       if (isAvatar) {
         await uploadAvatar(formData)
+      } else if (isDecoration) {
+        await uploadAvatarDecoration(formData)
       } else {
         await uploadBanner(formData)
       }
       setMediaPickerTarget(null)
     } catch (err) {
-      const message = err instanceof ApiRequestError
-        ? err.message
-        : 'No se pudo descargar la imagen desde Giphy.'
+      const message =
+        err instanceof ApiRequestError ? err.message : 'No se pudo descargar la imagen desde Giphy.'
       setError(message)
       throw err
     } finally {
@@ -313,18 +353,38 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     }
   }
 
+  const handleDecorationFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingAvatarDecoration(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('decoration', file)
+      await uploadAvatarDecoration(formData)
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'No se pudo subir la decoracion.')
+    } finally {
+      event.target.value = ''
+      setIsUploadingAvatarDecoration(false)
+    }
+  }
+
   const handleSave = async () => {
     if (activeView === 'appearance') {
       const normalizedPrimary = normalizeHexColor(appearanceDraft.customPrimary)
       const normalizedSecondary = normalizeHexColor(appearanceDraft.customSecondary)
       const hasAppearanceChanges =
-        appearanceDraft.theme !== storedTheme
-        || normalizedPrimary !== normalizeHexColor(storedCustomPrimary)
-        || normalizedSecondary !== normalizeHexColor(storedCustomSecondary)
-        || appearanceDraft.customIntensity !== storedCustomIntensity
-        || appearanceDraft.customColorScheme !== storedCustomColorScheme
-        || appearanceDraft.compactMode !== storedCompactMode
-        || appearanceDraft.uiDensity !== storedUiDensity
+        appearanceDraft.theme !== storedTheme ||
+        normalizedPrimary !== normalizeHexColor(storedCustomPrimary) ||
+        normalizedSecondary !== normalizeHexColor(storedCustomSecondary) ||
+        appearanceDraft.customIntensity !== storedCustomIntensity ||
+        appearanceDraft.customColorScheme !== storedCustomColorScheme ||
+        appearanceDraft.compactMode !== storedCompactMode ||
+        appearanceDraft.uiDensity !== storedUiDensity
 
       if (!hasAppearanceChanges) {
         setSuccess('No hay cambios pendientes.')
@@ -420,7 +480,11 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       setTwoFactorSetup(res.data)
       setSuccess('Escanea el QR y confirma con el codigo de tu app autenticadora.')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'No se pudo preparar la autenticacion de dos factores.')
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'No se pudo preparar la autenticacion de dos factores.'
+      )
     } finally {
       setIsPreparingTwoFactor(false)
     }
@@ -447,7 +511,11 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       setDisableTwoFactorCode('')
       setSuccess('La autenticacion en dos pasos ya esta activa.')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'No se pudo activar la autenticacion en dos factores.')
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'No se pudo activar la autenticacion en dos factores.'
+      )
     } finally {
       setIsEnablingTwoFactor(false)
     }
@@ -470,7 +538,11 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       setDidCopyBackupCodes(false)
       setSuccess('La autenticacion en dos pasos fue desactivada.')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'No se pudo desactivar la autenticacion en dos factores.')
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'No se pudo desactivar la autenticacion en dos factores.'
+      )
     } finally {
       setIsDisablingTwoFactor(false)
     }
@@ -552,11 +624,14 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       username={username}
       email={email}
       isUploadingAvatar={isUploadingAvatar}
+      isUploadingDecoration={isUploadingAvatarDecoration}
       isUploadingBanner={isUploadingBanner}
       avatarInputRef={avatarInputRef}
+      decorationInputRef={decorationInputRef}
       bannerInputRef={bannerInputRef}
       onOpenMediaPicker={setMediaPickerTarget}
       onAvatarFileChange={(event) => void handleAvatarFile(event)}
+      onDecorationFileChange={(event) => void handleDecorationFile(event)}
       onBannerFileChange={(event) => void handleBannerFile(event)}
       onDisplayNameChange={setDisplayName}
       onUsernameChange={setUsername}
@@ -587,9 +662,15 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       compactMode={appearanceDraft.compactMode}
       uiDensity={appearanceDraft.uiDensity}
       onThemeChange={(value) => setAppearanceDraft((current) => ({ ...current, theme: value }))}
-      onCustomColorSchemeChange={(value) => setAppearanceDraft((current) => ({ ...current, customColorScheme: value }))}
-      onCompactModeChange={(value) => setAppearanceDraft((current) => ({ ...current, compactMode: value }))}
-      onUiDensityChange={(value) => setAppearanceDraft((current) => ({ ...current, uiDensity: value }))}
+      onCustomColorSchemeChange={(value) =>
+        setAppearanceDraft((current) => ({ ...current, customColorScheme: value }))
+      }
+      onCompactModeChange={(value) =>
+        setAppearanceDraft((current) => ({ ...current, compactMode: value }))
+      }
+      onUiDensityChange={(value) =>
+        setAppearanceDraft((current) => ({ ...current, uiDensity: value }))
+      }
       onOpenThemeWorkspace={() => {
         onClose()
         onOpenThemeWorkspace?.()
@@ -599,20 +680,26 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
 
   const placeholderModules = userSettingsPlaceholderModules
 
-  const currentModule = activeView === 'account'
-    ? accountModule
-    : activeView === 'appearance'
-      ? appearanceModule
-    : activeView === 'privacy'
-      ? <div className="mx-auto max-w-4xl">{securityBlock}</div>
-      : activeView === 'devices'
-        ? devicesModule
-        : placeholderModules[activeView as UserSettingsPlaceholderView]
+  const currentModule =
+    activeView === 'account' ? (
+      accountModule
+    ) : activeView === 'appearance' ? (
+      appearanceModule
+    ) : activeView === 'privacy' ? (
+      <div className="mx-auto max-w-4xl">{securityBlock}</div>
+    ) : activeView === 'devices' ? (
+      devicesModule
+    ) : (
+      placeholderModules[activeView as UserSettingsPlaceholderView]
+    )
 
   const contentModule = <div className="scrollable flex-1 p-4 sm:p-6">{currentModule}</div>
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--modal-scrim)] p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--modal-scrim)] p-4"
+      onClick={onClose}
+    >
       <div
         className="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
         onClick={(event) => event.stopPropagation()}
@@ -640,11 +727,22 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
       </div>
       <MediaSourcePickerModal
         open={mediaPickerTarget !== null}
-        title={mediaPickerTarget === 'avatar' ? 'Cambiar foto de perfil' : 'Cambiar banner'}
+        title={
+          mediaPickerTarget === 'avatar'
+            ? 'Cambiar foto de perfil'
+            : mediaPickerTarget === 'avatarDecoration'
+              ? 'Cambiar decoracion'
+              : 'Cambiar banner'
+        }
         isBusy={isMediaPickerBusy}
         onClose={() => setMediaPickerTarget(null)}
         onPickLocal={() => {
-          const ref = mediaPickerTarget === 'avatar' ? avatarInputRef.current : bannerInputRef.current
+          const ref =
+            mediaPickerTarget === 'avatar'
+              ? avatarInputRef.current
+              : mediaPickerTarget === 'avatarDecoration'
+                ? decorationInputRef.current
+                : bannerInputRef.current
           ref?.click()
           setMediaPickerTarget(null)
         }}

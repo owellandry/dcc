@@ -50,6 +50,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/users/:id", get(users::get_user))
         .route("/uploads/avatar", post(users::upload_avatar))
+        .route(
+            "/uploads/avatar-decoration",
+            post(users::upload_avatar_decoration),
+        )
         .route("/uploads/banner", post(users::upload_banner))
         // ── Servers ──────────────────────────────────────────────────────────
         .route("/servers/@me", get(servers::list_my_servers))

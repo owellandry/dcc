@@ -523,7 +523,7 @@ async fn get_user_dm_channels(state: &AppState, user_id: Uuid) -> Vec<Uuid> {
 
 async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
     let user = sqlx::query_as::<_, User>(
-        "SELECT id, username, display_name, discriminator, email, password_hash, avatar_url, banner_url,
+        "SELECT id, username, display_name, discriminator, email, password_hash, avatar_url, avatar_decoration_url, banner_url,
                 bio, status, custom_status, is_verified, badges, created_at
          FROM users WHERE id = $1",
     )
@@ -542,6 +542,7 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
                 "discriminator": u.discriminator,
                 "email": u.email,
                 "avatarUrl": u.avatar_url,
+                "avatarDecorationUrl": u.avatar_decoration_url,
                 "bannerUrl": u.banner_url,
                 "bio": u.bio,
                 "status": u.status,

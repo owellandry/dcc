@@ -9,6 +9,7 @@ export interface User {
   discriminator: number
   email: string
   avatarUrl: string | null
+  avatarDecorationUrl: string | null
   bannerUrl: string | null
   bio: string | null
   status: UserStatus
@@ -209,10 +210,19 @@ export type GatewayEvent =
   | { op: 'MESSAGE_CREATE'; d: Message }
   | { op: 'MESSAGE_UPDATE'; d: Partial<Message> & { id: string; channelId: string } }
   | { op: 'MESSAGE_DELETE'; d: { messageId: string; channelId: string } }
-  | { op: 'REACTION_ADD'; d: { messageId: string; channelId: string; userId: string; emoji: string } }
-  | { op: 'REACTION_REMOVE'; d: { messageId: string; channelId: string; userId: string; emoji: string } }
+  | {
+      op: 'REACTION_ADD'
+      d: { messageId: string; channelId: string; userId: string; emoji: string }
+    }
+  | {
+      op: 'REACTION_REMOVE'
+      d: { messageId: string; channelId: string; userId: string; emoji: string }
+    }
   | { op: 'TYPING_START'; d: { channelId: string; userId: string; timestamp: number } }
-  | { op: 'PRESENCE_UPDATE'; d: { userId: string; status: UserStatus; customStatus: string | null } }
+  | {
+      op: 'PRESENCE_UPDATE'
+      d: { userId: string; status: UserStatus; customStatus: string | null }
+    }
   | { op: 'GUILD_CREATE'; d: Server }
   | { op: 'GUILD_UPDATE'; d: Partial<Server> & { id: string } }
   | { op: 'GUILD_DELETE'; d: { guildId: string } }
@@ -223,10 +233,22 @@ export type GatewayEvent =
   | { op: 'CHANNEL_DELETE'; d: { channelId: string; guildId?: string } }
   | { op: 'FRIEND_REQUEST'; d: Friendship }
   | { op: 'FRIEND_UPDATE'; d: Friendship }
-  | { op: 'VOICE_STATE_SNAPSHOT'; d: { serverId: string; channelId: string; participants: VoiceParticipant[] } }
+  | {
+      op: 'VOICE_STATE_SNAPSHOT'
+      d: { serverId: string; channelId: string; participants: VoiceParticipant[] }
+    }
   | { op: 'VOICE_USER_JOINED'; d: VoiceParticipant }
   | { op: 'VOICE_USER_LEFT'; d: { serverId: string; channelId: string; userId: string } }
-  | { op: 'VOICE_SIGNAL'; d: { serverId: string; channelId: string; fromUserId: string; signalType: VoiceSignalType; payload: unknown } }
+  | {
+      op: 'VOICE_SIGNAL'
+      d: {
+        serverId: string
+        channelId: string
+        fromUserId: string
+        signalType: VoiceSignalType
+        payload: unknown
+      }
+    }
 
 // ── API response wrappers ────────────────────────────────────────────────────
 
