@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { useAuthStore } from '@/stores/authStore'
 import { usePresenceStore } from '@/stores/presenceStore'
@@ -34,15 +33,6 @@ export function useMessageListModel({ channelId }: MessageListProps): MessageLis
       }
     : null
 
-  const virtualizer = useVirtualizer({
-    count: groupedMessages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (groupedMessages[index]?.grouped ? 28 : 64),
-    overscan: 10,
-  })
-
-  const virtualItems = virtualizer.getVirtualItems()
-
   useEffect(() => {
     if (!channelId) return
     isAtBottomRef.current = true
@@ -67,12 +57,12 @@ export function useMessageListModel({ channelId }: MessageListProps): MessageLis
 
     if (!isAtBottomRef.current || groupedMessages.length === 0) return
 
-    virtualizer.scrollToIndex(groupedMessages.length - 1, {
-      align: 'end',
+    element.scrollTo({
+      top: element.scrollHeight,
       behavior: hasAutoScrolledRef.current ? 'smooth' : 'auto',
     })
     hasAutoScrolledRef.current = true
-  }, [groupedMessages.length, messages.length, virtualizer])
+  }, [groupedMessages.length, messages.length])
 
   const handleScroll = useCallback(() => {
     const element = parentRef.current
@@ -91,9 +81,6 @@ export function useMessageListModel({ channelId }: MessageListProps): MessageLis
     hasMoreBefore,
     groupedMessages,
     parentRef,
-    virtualizer,
-    totalSize: virtualizer.getTotalSize(),
-    virtualItems,
     dmIntro,
     onScroll: handleScroll,
   }

@@ -13,9 +13,6 @@ export function MessageListVisual({
   hasMoreBefore,
   groupedMessages,
   parentRef,
-  virtualizer,
-  totalSize,
-  virtualItems,
   dmIntro,
   onScroll,
 }: MessageListVisualProps) {
@@ -30,62 +27,49 @@ export function MessageListVisual({
       className="scrollable flex-1 overflow-y-auto"
       style={{ contain: 'strict' }}
     >
-      {dmIntro && (
-        <div className="px-4 pb-6 pt-8">
-          <DMIntroCard intro={dmIntro} />
-        </div>
-      )}
+      {dmIntro && groupedMessages.length > 0 && <DMConversationStart intro={dmIntro} />}
 
-      <div style={{ height: totalSize, position: 'relative' }}>
+      <div className="relative pb-3">
         {isLoading && hasMoreBefore && (
-          <div className="absolute left-0 right-0 top-0 flex justify-center py-3">
+          <div className="sticky top-0 z-10 flex justify-center py-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-ember/20 border-t-ember" />
           </div>
         )}
 
-        {virtualItems.map((item) => {
-          const group = groupedMessages[item.index]
-          if (!group) return null
-
-          return (
-            <div
-              key={item.key}
-              data-index={item.index}
-              ref={virtualizer.measureElement}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${item.start}px)`,
-              }}
-            >
-              <MessageItem message={group.message} grouped={group.grouped} />
-            </div>
-          )
-        })}
+        {groupedMessages.map((group) => (
+          <MessageItem key={group.message.id} message={group.message} grouped={group.grouped} />
+        ))}
       </div>
     </div>
   )
 }
 
-function DMIntroCard({ intro }: { intro: DMIntroCardData }) {
+function DMConversationStart({ intro }: { intro: DMIntroCardData }) {
   return (
     <motion.div
-      className="rounded-[28px] border border-[var(--b1)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-6 shadow-[0_24px_56px_rgba(0,0,0,0.28)]"
-      initial={{ opacity: 0, y: 18 }}
+      className="px-4 pb-3 pt-5"
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28 }}
+      transition={{ duration: 0.24 }}
     >
-      <UserAvatar user={intro.user} size={72} showStatus />
-      <h2 className="mt-4 font-display text-4xl font-800 tracking-tight text-[var(--t0)]">
-        {getUserDisplayName(intro.user)}
-      </h2>
-      <p className="mt-1 text-[15px] font-500 text-[var(--t2)]">{intro.discriminatorLabel}</p>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--t3)]">{intro.subtitle}</p>
-      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s4)] px-3 py-1.5 text-xs font-600 text-[var(--t2)]">
-        <span className="h-2 w-2 rounded-full bg-[var(--online)]" />
-        Mensaje directo activo
+      <div className="rounded-2xl border border-[var(--b1)]/80 bg-[var(--s2)]/70 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <UserAvatar user={intro.user} size={40} showStatus />
+          <div className="min-w-0">
+            <p className="truncate font-display text-[15px] font-700 text-[var(--t1)]">
+              {getUserDisplayName(intro.user)}
+            </p>
+            <p className="truncate text-xs text-[var(--t3)]">{intro.discriminatorLabel}</p>
+          </div>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-[var(--t3)]">{intro.subtitle}</p>
+      </div>
+      <div className="mt-3 flex items-center gap-3 px-1">
+        <div className="h-px flex-1 bg-[var(--b1)]/70" />
+        <span className="text-[11px] font-600 uppercase tracking-[0.18em] text-[var(--t4)]">
+          Inicio de la conversación
+        </span>
+        <div className="h-px flex-1 bg-[var(--b1)]/70" />
       </div>
     </motion.div>
   )

@@ -1,5 +1,4 @@
 import type { RefObject } from 'react'
-import type { Virtualizer } from '@tanstack/react-virtual'
 import type { Message, User, UserStatus } from '@/lib/types'
 
 export interface MessageListProps {
@@ -17,9 +16,6 @@ export interface MessageListVisualProps {
   hasMoreBefore: boolean
   groupedMessages: MessageGroup[]
   parentRef: RefObject<HTMLDivElement | null>
-  virtualizer: Virtualizer<HTMLDivElement, Element>
-  totalSize: number
-  virtualItems: ReturnType<Virtualizer<HTMLDivElement, Element>['getVirtualItems']>
   dmIntro: DMIntroCardData | null
   onScroll: () => void
 }
