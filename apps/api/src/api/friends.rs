@@ -26,6 +26,7 @@ pub async fn list_friends(
         created_at: chrono::DateTime<chrono::Utc>,
         user_id: Uuid,
         username: String,
+        display_name: Option<String>,
         discriminator: String,
         avatar_url: Option<String>,
         banner_url: Option<String>,
@@ -39,7 +40,7 @@ pub async fn list_friends(
 
     let rows = sqlx::query_as::<_, FriendRow>(
         r#"SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at,
-                  u.id as user_id, u.username, u.discriminator,
+                  u.id as user_id, u.username, u.display_name, u.discriminator,
                   u.avatar_url, u.banner_url, u.bio,
                   u.status as user_status, u.custom_status, u.is_verified, u.badges,
                   u.created_at as user_created_at
@@ -68,6 +69,7 @@ pub async fn list_friends(
                 "user": {
                     "id": r.user_id,
                     "username": r.username,
+                    "displayName": r.display_name,
                     "discriminator": r.discriminator,
                     "avatarUrl": r.avatar_url,
                     "bannerUrl": r.banner_url,
@@ -97,7 +99,7 @@ pub async fn send_request(
     }
 
     let target = sqlx::query_as::<_, crate::models::user::UserPublic>(
-        r#"SELECT id, username, discriminator, avatar_url, banner_url, bio,
+        r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
     )
@@ -146,7 +148,7 @@ pub async fn send_request(
 
     // Notify target user
     let requester = sqlx::query_as::<_, crate::models::user::UserPublic>(
-        r#"SELECT id, username, discriminator, avatar_url, banner_url, bio,
+        r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url, bio,
                   status, custom_status, is_verified, badges, created_at
            FROM users WHERE id = $1"#,
     )
@@ -164,6 +166,7 @@ pub async fn send_request(
             "user": {
                 "id": requester.id,
                 "username": requester.username,
+                "displayName": requester.display_name,
                 "discriminator": requester.discriminator,
                 "avatarUrl": requester.avatar_url,
                 "bannerUrl": requester.banner_url,
@@ -193,6 +196,7 @@ pub async fn send_request(
             "user": {
                 "id": target.id,
                 "username": target.username,
+                "displayName": target.display_name,
                 "discriminator": target.discriminator,
                 "avatarUrl": target.avatar_url,
                 "bannerUrl": target.banner_url,

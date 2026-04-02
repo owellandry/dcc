@@ -1,7 +1,7 @@
 import type { User, UserStatus } from '@/lib/types'
 
 export interface UserAvatarProps {
-  user: Pick<User, 'id' | 'username' | 'avatarUrl'> & { status?: UserStatus }
+  user: Pick<User, 'id' | 'username' | 'displayName' | 'avatarUrl'> & { status?: UserStatus }
   size?: number
   showStatus?: boolean
   className?: string

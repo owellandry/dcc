@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { MdOutlineDevices, MdPalette } from 'react-icons/md'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { UserAvatar } from '../UserAvatar'
 import { SettingsNavItem } from '../UserSettingsParts'
 
@@ -56,13 +57,14 @@ export function UserSettingsModalSidebar({
   onViewChange,
   onLogout,
 }: UserSettingsModalSidebarProps) {
+  const displayName = getUserDisplayName(user)
   return (
     <aside className="hidden w-[260px] shrink-0 border-r border-[var(--b1)] bg-[var(--s1)] p-4 lg:block">
       <div className="flex items-center gap-3 rounded-xl bg-[var(--s1)] px-3 py-2.5">
         <UserAvatar user={user} size={40} showStatus />
         <div className="min-w-0">
-          <p className="truncate text-sm font-700 text-[var(--t0)]">{user.username}</p>
-          <p className="text-xs text-[var(--t3)]">Editar perfiles</p>
+          <p className="truncate text-sm font-700 text-[var(--t0)]">{displayName}</p>
+          <p className="truncate text-[11px] text-[var(--t4)]">@{user.username}</p>
         </div>
       </div>
 

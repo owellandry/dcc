@@ -2,6 +2,7 @@
 
 import { Menu, MessageSquare, Pin, Search, UserRound } from 'lucide-react'
 import { interactiveMotion, motion } from '@/lib/motion'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { ChannelHeaderBar } from '@/components/chat/ChannelHeaderBar'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { UserAvatar } from '@/components/user/UserAvatar'
@@ -23,6 +24,7 @@ export function ChatHeaderVisual({
 }: ChatHeaderVisualProps) {
   const mobileSidebar = useMobileSidebar()
   if (kind === 'dm' && dmUser) {
+    const dmDisplayName = getUserDisplayName(dmUser)
     return (
       <motion.header
         className="relative z-20 shrink-0 bg-[var(--s3)] pl-[5px] pr-0"
@@ -46,7 +48,7 @@ export function ChatHeaderVisual({
             <UserAvatar user={dmUser} size={20} showStatus />
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
-                <p className="truncate font-display text-[16px] font-700 text-[var(--t0)]">{dmUser.username}</p>
+                <p className="truncate font-display text-[16px] font-700 text-[var(--t0)]">{dmDisplayName}</p>
                 {hasOfficialMemberBadge({ user: dmUser }) && <OfficialMemberTag compact className="translate-y-[1px]" />}
               </div>
             </div>

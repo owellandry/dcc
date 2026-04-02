@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { channelsApi, serversApi } from '@/lib/api'
 import { hasPermission } from '@/lib/permissions'
 import type { PermissionOverwrite } from '@/lib/types'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { useAuthStore } from '@/stores/authStore'
 import {
   useServerCategories,
@@ -106,7 +107,7 @@ export function ServerSettingsModal({
     [roles],
   )
   const sortedMembers = useMemo(
-    () => [...members].sort((a, b) => (a.nickname ?? a.user.username).localeCompare(b.nickname ?? b.user.username)),
+    () => [...members].sort((a, b) => getMemberDisplayName(a).localeCompare(getMemberDisplayName(b))),
     [members],
   )
 

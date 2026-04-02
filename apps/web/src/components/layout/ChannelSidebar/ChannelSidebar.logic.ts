@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { channelsApi, resolveMediaUrl, serversApi } from '@/lib/api'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { hasPermission } from '@/lib/permissions'
 import type { Channel, ServerMember, VoiceParticipant } from '@/lib/types'
@@ -38,7 +39,9 @@ function toChannelSidebarItem(
       .sort((left, right) => new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime())
       .map((participant) => ({
         userId: participant.userId,
-        displayName: membersById[participant.userId]?.nickname ?? membersById[participant.userId]?.user.username ?? 'Usuario',
+        displayName: membersById[participant.userId]
+          ? getMemberDisplayName(membersById[participant.userId]!)
+          : 'Usuario',
         avatarUrl: membersById[participant.userId]?.user.avatarUrl ?? null,
         joinedAt: participant.joinedAt,
       }))

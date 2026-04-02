@@ -44,7 +44,7 @@ pub async fn list_messages(
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
                       m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
-                      u.username as author_username, u.discriminator as author_discriminator,
+                      u.username as author_username, u.display_name as author_display_name, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
                       u.custom_status as author_custom_status,
@@ -66,7 +66,7 @@ pub async fn list_messages(
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
                       m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
-                      u.username as author_username, u.discriminator as author_discriminator,
+                      u.username as author_username, u.display_name as author_display_name, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
                       u.custom_status as author_custom_status,
@@ -88,7 +88,7 @@ pub async fn list_messages(
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
                       m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
-                      u.username as author_username, u.discriminator as author_discriminator,
+                      u.username as author_username, u.display_name as author_display_name, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
                       u.custom_status as author_custom_status,
@@ -213,7 +213,7 @@ pub async fn send_message(
            )
            SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
                   m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
-                  u.username as author_username, u.discriminator as author_discriminator,
+                  u.username as author_username, u.display_name as author_display_name, u.discriminator as author_discriminator,
                   u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                   u.bio as author_bio, u.status as author_status,
                   u.custom_status as author_custom_status,
@@ -285,7 +285,7 @@ pub async fn edit_message(
     let row = sqlx::query_as::<_, MessageRow>(
         r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
                   m.reply_to_id, m.is_edited, m.created_at, m.edited_at,
-                  u.username as author_username, u.discriminator as author_discriminator,
+                  u.username as author_username, u.display_name as author_display_name, u.discriminator as author_discriminator,
                   u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                   u.bio as author_bio, u.status as author_status,
                   u.custom_status as author_custom_status,
@@ -482,6 +482,7 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
         content: String,
         author_id: Uuid,
         author_username: String,
+        author_display_name: Option<String>,
         author_discriminator: String,
         author_avatar_url: Option<String>,
         author_banner_url: Option<String>,
@@ -497,6 +498,7 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
         r#"SELECT m.id, m.content,
                   u.id as author_id,
                   u.username as author_username,
+                  u.display_name as author_display_name,
                   u.discriminator as author_discriminator,
                   u.avatar_url as author_avatar_url,
                   u.banner_url as author_banner_url,
@@ -520,6 +522,7 @@ async fn fetch_reply_preview(state: &AppState, reply_to_id: Option<Uuid>) -> Res
             "author": {
                 "id": row.author_id,
                 "username": row.author_username,
+                "displayName": row.author_display_name,
                 "discriminator": row.author_discriminator,
                 "avatarUrl": row.author_avatar_url,
                 "bannerUrl": row.author_banner_url,
@@ -546,6 +549,7 @@ async fn build_message_payload(state: &AppState, row: &MessageRow, user_id: Uuid
         "author": {
             "id": row.author_id,
             "username": row.author_username,
+            "displayName": row.author_display_name,
             "discriminator": row.author_discriminator,
             "avatarUrl": row.author_avatar_url,
             "bannerUrl": row.author_banner_url,

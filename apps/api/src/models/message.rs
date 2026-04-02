@@ -65,6 +65,7 @@ pub struct MessageRow {
     pub edited_at: Option<DateTime<Utc>>,
     // author join
     pub author_username: String,
+    pub author_display_name: Option<String>,
     pub author_discriminator: String,
     pub author_avatar_url: Option<String>,
     pub author_banner_url: Option<String>,
@@ -89,6 +90,7 @@ impl MessageRow {
             author: UserPublic {
                 id: self.author_id,
                 username: self.author_username,
+                display_name: self.author_display_name,
                 discriminator: self.author_discriminator,
                 avatar_url: self.author_avatar_url,
                 banner_url: self.author_banner_url,

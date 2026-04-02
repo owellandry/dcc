@@ -1,5 +1,6 @@
 'use client'
 
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { useAuthStore } from '@/stores/authStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { useServersStore } from '@/stores/serversStore'
@@ -20,7 +21,7 @@ export function useChatHeaderModel({
   )
 
   if (channel?.type === 'dm' || channel?.type === 'group_dm') {
-    const dmTitle = dmUser?.username ?? channel?.name ?? 'direct-message'
+    const dmTitle = (dmUser ? getUserDisplayName(dmUser) : null) ?? channel?.name ?? 'direct-message'
     const dmDiscriminator = dmUser?.discriminator != null ? `#${String(dmUser.discriminator).padStart(4, '0')}` : ''
 
     return {

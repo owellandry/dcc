@@ -256,6 +256,7 @@ pub async fn join_server(
             #[derive(sqlx::FromRow)]
             struct JoinedUserRow {
                 username: String,
+                display_name: Option<String>,
                 discriminator: String,
                 avatar_url: Option<String>,
                 banner_url: Option<String>,
@@ -267,7 +268,7 @@ pub async fn join_server(
             }
 
             let joined_user = sqlx::query_as::<_, JoinedUserRow>(
-                r#"SELECT username, discriminator, avatar_url, banner_url, bio, status,
+                r#"SELECT username, display_name, discriminator, avatar_url, banner_url, bio, status,
                           custom_status, is_verified, created_at
                    FROM users
                    WHERE id = $1"#,
@@ -278,8 +279,11 @@ pub async fn join_server(
 
             if let Some(joined_user) = joined_user {
                 let message_id = Uuid::new_v4();
-                let welcome_content =
-                    format!("{} joined the server. Welcome!", joined_user.username);
+                let welcome_name = joined_user
+                    .display_name
+                    .as_deref()
+                    .unwrap_or(joined_user.username.as_str());
+                let welcome_content = format!("{} joined the server. Welcome!", welcome_name);
 
                 let created_at = sqlx::query_scalar::<_, chrono::DateTime<Utc>>(
                     r#"INSERT INTO messages (id, channel_id, author_id, content, message_type)
@@ -307,6 +311,7 @@ pub async fn join_server(
                         "author": {
                             "id": user_id,
                             "username": joined_user.username,
+                            "displayName": joined_user.display_name,
                             "discriminator": joined_user.discriminator,
                             "avatarUrl": joined_user.avatar_url,
                             "bannerUrl": joined_user.banner_url,

@@ -4,6 +4,7 @@ import { type ChangeEvent, type RefObject } from 'react'
 import { Camera, ImagePlus, LoaderCircle, Mail, UserRound } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
 import type { User } from '@/lib/types'
+import { getUserHandle } from '@/lib/users/displayName.shared'
 import { UserAvatar } from '../UserAvatar'
 import { Field, ProfileRow, SettingBlock } from '../UserSettingsParts'
 
@@ -40,6 +41,9 @@ export function UserSettingsModalAccountSection({
   onUsernameChange,
   onEmailChange,
 }: UserSettingsModalAccountSectionProps) {
+  const effectiveDisplayName = displayName.trim() || user.displayName || user.username
+  const effectiveUsername = username.trim() || user.username
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s3)]">
@@ -52,7 +56,7 @@ export function UserSettingsModalAccountSection({
           <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(12,14,18,0.82))]" />
           <div className="absolute bottom-4 left-4 flex items-end gap-3">
             <div className="relative">
-              <UserAvatar user={user} size={82} showStatus className="border-4 border-[var(--s3)]" />
+              <UserAvatar user={{ ...user, displayName: effectiveDisplayName }} size={82} showStatus className="border-4 border-[var(--s3)]" />
               <button
                 type="button"
                 onClick={() => onOpenMediaPicker('avatar')}
@@ -63,8 +67,8 @@ export function UserSettingsModalAccountSection({
               </button>
             </div>
             <div className="pb-1">
-              <p className="font-display text-xl font-800 text-white">{user.username}</p>
-              <p className="text-sm text-white/75">{user.email}</p>
+              <p className="font-display text-xl font-800 text-white">{effectiveDisplayName}</p>
+              <p className="text-sm text-white/75">{getUserHandle({ username: effectiveUsername })}</p>
             </div>
           </div>
           <button
@@ -93,16 +97,15 @@ export function UserSettingsModalAccountSection({
         </div>
 
         <div className="space-y-3 p-4">
-          <ProfileRow label="Nombre para mostrar" value={displayName || user.username}>
+          <ProfileRow label="Nombre para mostrar" value={effectiveDisplayName}>
             <button
               type="button"
               className="rounded-lg bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-700 text-[var(--t1)] transition-colors hover:bg-[var(--surface-soft-hover)]"
-              disabled
             >
               Editar
             </button>
           </ProfileRow>
-          <ProfileRow label="Nombre de usuario" value={username || user.username}>
+          <ProfileRow label="Nombre de usuario" value={effectiveUsername}>
             <button
               type="button"
               className="rounded-lg bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-700 text-[var(--t1)] transition-colors hover:bg-[var(--surface-soft-hover)]"
@@ -133,11 +136,11 @@ export function UserSettingsModalAccountSection({
                 <input
                   value={displayName}
                   onChange={(event) => onDisplayNameChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t2)] outline-none"
-                  disabled
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] text-sm"
+                  maxLength={48}
                 />
                 <p className="mt-1 text-[11px] text-[var(--t4)]">
-                  El nombre separado del username todavia no existe en el modelo de usuario.
+                  Este es el nombre que se muestra en perfiles, mensajes y vistas generales.
                 </p>
               </Field>
 
@@ -145,9 +148,12 @@ export function UserSettingsModalAccountSection({
                 <input
                   value={username}
                   onChange={(event) => onUsernameChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] text-sm"
                   maxLength={32}
                 />
+                <p className="mt-1 text-[11px] text-[var(--t4)]">
+                  Se usa para menciones, handle y busqueda interna.
+                </p>
               </Field>
             </div>
 
@@ -157,7 +163,7 @@ export function UserSettingsModalAccountSection({
                 <input
                   value={email}
                   onChange={(event) => onEmailChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] pl-10 pr-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] pl-10 pr-3 text-sm"
                   type="email"
                 />
               </div>
@@ -170,10 +176,10 @@ export function UserSettingsModalAccountSection({
             <p className="text-xs font-700 uppercase tracking-[0.16em] text-[var(--t4)]">Vista previa</p>
             <div className="mt-4 rounded-2xl border border-[var(--b1)] bg-[var(--s0)] p-4">
               <div className="flex items-center gap-3">
-                <UserAvatar user={{ ...user, username }} size={56} showStatus />
+                <UserAvatar user={{ ...user, username: effectiveUsername, displayName: effectiveDisplayName }} size={56} showStatus />
                 <div className="min-w-0">
-                  <p className="truncate font-display text-lg font-700 text-[var(--t0)]">{username || user.username}</p>
-                  <p className="truncate text-sm text-[var(--t3)]">{email || user.email}</p>
+                  <p className="truncate font-display text-lg font-700 text-[var(--t0)]">{effectiveDisplayName}</p>
+                  <p className="truncate text-sm text-[var(--t3)]">{getUserHandle({ username: effectiveUsername })}</p>
                 </div>
               </div>
             </div>

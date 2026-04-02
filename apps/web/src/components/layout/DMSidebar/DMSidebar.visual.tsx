@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Plus, Search, Users } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { getUserDisplayName, getUserHandle } from '@/lib/users/displayName.shared'
 import { interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
@@ -91,6 +92,7 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
 
 function DMItem({ item, onClick }: { item: DMSidebarItem; onClick: () => void }) {
   const mobileSidebar = useMobileSidebar()
+  const displayName = getUserDisplayName(item.user)
   return (
     <motion.button
       type="button"
@@ -110,9 +112,9 @@ function DMItem({ item, onClick }: { item: DMSidebarItem; onClick: () => void })
     >
       <UserAvatar user={item.user} size={28} showStatus />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-500 leading-tight">{item.user.username}</p>
+        <p className="truncate text-[13px] font-500 leading-tight">{displayName}</p>
         <p className="truncate text-[11px] leading-tight text-[var(--t4)]">
-          {item.isLoading ? 'Abriendo...' : item.user.customStatus ?? item.user.status ?? 'En linea'}
+          {item.isLoading ? 'Abriendo...' : item.user.customStatus ?? getUserHandle(item.user)}
         </p>
       </div>
     </motion.button>

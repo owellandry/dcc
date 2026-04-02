@@ -163,7 +163,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
 
   useEffect(() => {
     if (!open || !user) return
-    setDisplayName(user.username)
+    setDisplayName(user.displayName ?? '')
     setUsername(user.username)
     setEmail(user.email)
     setCurrentPassword('')
@@ -358,14 +358,19 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     }
 
     const trimmedUsername = username.trim()
+    const trimmedDisplayName = displayName.trim()
     const trimmedEmail = email.trim()
     const payload: {
+      displayName?: string
       username?: string
       email?: string
       currentPassword?: string
       newPassword?: string
     } = {}
 
+    if (trimmedDisplayName !== (user.displayName ?? '')) {
+      payload.displayName = trimmedDisplayName
+    }
     if (trimmedUsername && trimmedUsername !== user.username) {
       payload.username = trimmedUsername
     }
@@ -390,6 +395,7 @@ export function UserSettingsModal({ open, onClose, initialView = 'account', onOp
     try {
       const res = await usersApi.update(payload)
       setUser(res.data)
+      setDisplayName(res.data.displayName ?? '')
       setCurrentPassword('')
       setNewPassword('')
       setSuccess('Ajustes guardados correctamente.')

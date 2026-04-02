@@ -2,6 +2,7 @@
 
 import { Ban, Save, Users } from 'lucide-react'
 import type { Role, Server, ServerMember } from '@/lib/types'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { Field, SettingBlock } from '@/components/user/UserSettingsParts'
 import { EmptyState, ServerSettingsContentShell } from './ServerSettingsModal.shared'
 
@@ -54,7 +55,7 @@ export function ServerSettingsModalMembersSection({
                 onClick={() => onSelectedMemberChange(member.userId)}
                 className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 py-3 text-left"
               >
-                <p className="text-sm font-700 text-[var(--t0)]">{member.nickname ?? member.user.username}</p>
+                <p className="text-sm font-700 text-[var(--t0)]">{getMemberDisplayName(member)}</p>
                 <p className="text-xs text-[var(--t4)]">@{member.user.username}</p>
               </button>
             ))}
@@ -75,6 +76,7 @@ export function ServerSettingsModalMembersSection({
                         : memberRoleIdsDraft.filter((entry) => entry !== role.id),
                     )}
                     disabled={!canManageRoles}
+                    className="ui-check"
                   />
                   {role.name}
                 </label>
@@ -106,7 +108,7 @@ export function ServerSettingsModalMembersSection({
                 value={banReasonDraft}
                 onChange={(event) => onBanReasonDraftChange(event.target.value)}
                 rows={3}
-                className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none"
+                className="input-base min-h-[96px] resize-y rounded-xl bg-[var(--s2)] px-3 py-2.5 text-sm"
               />
             </Field>
 

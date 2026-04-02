@@ -22,7 +22,7 @@ use crate::{
 
 pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> Result<Json<Value>> {
     let user = sqlx::query(
-        r#"SELECT id, username, discriminator, email, avatar_url, banner_url,
+        r#"SELECT id, username, display_name, discriminator, email, avatar_url, banner_url,
                   bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at
            FROM users WHERE id = $1"#
     )
@@ -32,6 +32,7 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
     let user_id = user.try_get::<Uuid, _>("id")?;
     let username = user.try_get::<String, _>("username")?;
+    let display_name = user.try_get::<Option<String>, _>("display_name")?;
     let discriminator = user.try_get::<String, _>("discriminator")?;
     let email = user.try_get::<String, _>("email")?;
     let avatar_url = user.try_get::<Option<String>, _>("avatar_url")?;
@@ -50,6 +51,7 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
         "data": {
             "id": user_id,
             "username": username,
+            "displayName": display_name,
             "discriminator": discriminator,
             "email": email,
             "avatarUrl": avatar_url,
@@ -70,6 +72,7 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateMeBody {
+    pub display_name: Option<String>,
     pub username: Option<String>,
     pub email: Option<String>,
     pub bio: Option<String>,
@@ -109,13 +112,14 @@ pub async fn update_me(
 ) -> Result<Json<Value>> {
     #[derive(sqlx::FromRow)]
     struct CurrentUserRow {
+        display_name: Option<String>,
         username: String,
         email: String,
         password_hash: Option<String>,
     }
 
     let current_user = sqlx::query_as::<_, CurrentUserRow>(
-        r#"SELECT username, email, password_hash
+        r#"SELECT display_name, username, email, password_hash
            FROM users
            WHERE id = $1"#,
     )
@@ -149,6 +153,30 @@ pub async fn update_me(
         }
     } else {
         None
+    };
+
+    let should_update_display_name = body.display_name.is_some();
+    let next_display_name = if let Some(display_name) = body.display_name.as_ref() {
+        let trimmed = display_name.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            if trimmed.len() > 48 {
+                return Err(AppError::validation(
+                    "displayName",
+                    "Display name must be 1-48 characters",
+                ));
+            }
+
+            let next_value = trimmed.to_string();
+            if current_user.display_name.as_deref() == Some(next_value.as_str()) {
+                current_user.display_name.clone()
+            } else {
+                Some(next_value)
+            }
+        }
+    } else {
+        current_user.display_name.clone()
     };
 
     let next_email = if let Some(email) = body.email.as_ref() {
@@ -201,19 +229,22 @@ pub async fn update_me(
     let user = sqlx::query(
         r#"UPDATE users
            SET username      = COALESCE($2, username),
-               email         = COALESCE($3, email),
-               bio           = COALESCE($4, bio),
-               status        = COALESCE($5, status),
-               custom_status = COALESCE($6, custom_status),
-               password_hash = COALESCE($7, password_hash),
-               voice_mic_muted = COALESCE($8, voice_mic_muted),
-               voice_headphones_muted = COALESCE($9, voice_headphones_muted)
+               display_name  = CASE WHEN $3 THEN $4 ELSE display_name END,
+               email         = COALESCE($5, email),
+               bio           = COALESCE($6, bio),
+               status        = COALESCE($7, status),
+               custom_status = COALESCE($8, custom_status),
+               password_hash = COALESCE($9, password_hash),
+               voice_mic_muted = COALESCE($10, voice_mic_muted),
+               voice_headphones_muted = COALESCE($11, voice_headphones_muted)
            WHERE id = $1
-           RETURNING id, username, discriminator, email, avatar_url, banner_url,
+           RETURNING id, username, display_name, discriminator, email, avatar_url, banner_url,
                      bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at"#
     )
     .bind(user_id)
     .bind(next_username)
+    .bind(should_update_display_name)
+    .bind(next_display_name)
     .bind(next_email)
     .bind(body.bio)
     .bind(body.status)
@@ -229,6 +260,7 @@ pub async fn update_me(
     let mut redis = state.redis.clone();
     cache::invalidate_user(&mut redis, user_id).await;
     let username = user.try_get::<String, _>("username")?;
+    let display_name = user.try_get::<Option<String>, _>("display_name")?;
     let discriminator = user.try_get::<String, _>("discriminator")?;
     let email = user.try_get::<String, _>("email")?;
     let avatar_url = user.try_get::<Option<String>, _>("avatar_url")?;
@@ -279,6 +311,7 @@ pub async fn update_me(
         "data": {
             "id": user_id,
             "username": username,
+            "displayName": display_name,
             "discriminator": discriminator,
             "email": email,
             "avatarUrl": avatar_url,
@@ -501,7 +534,7 @@ pub async fn get_user(
     let mut redis = state.redis.clone();
     let user_opt = cache::get_or_fetch_user_public(&mut redis, id, async {
         let user = sqlx::query_as::<_, crate::models::user::UserPublic>(
-            r#"SELECT id, username, discriminator, avatar_url, banner_url,
+            r#"SELECT id, username, display_name, discriminator, avatar_url, banner_url,
                       bio, status, custom_status, is_verified, badges, created_at
                FROM users WHERE id = $1"#,
         )
@@ -518,6 +551,7 @@ pub async fn get_user(
         "data": {
             "id": user.id,
             "username": user.username,
+            "displayName": user.display_name,
             "discriminator": user.discriminator,
             "avatarUrl": user.avatar_url,
             "bannerUrl": user.banner_url,

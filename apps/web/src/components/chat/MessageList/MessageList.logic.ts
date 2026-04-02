@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { useAuthStore } from '@/stores/authStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { useServersStore } from '@/stores/serversStore'
@@ -29,7 +30,7 @@ export function useMessageListModel({ channelId }: MessageListProps): MessageLis
         user: dmUser,
         status: dmStatus,
         discriminatorLabel: `${dmUser.username}#${String(dmUser.discriminator).padStart(4, '0')}`,
-        subtitle: `Este es el inicio del historial de mensajes directos con ${dmUser.username}.`,
+        subtitle: `Este es el inicio del historial de mensajes directos con ${getUserDisplayName(dmUser)}.`,
       }
     : null
 

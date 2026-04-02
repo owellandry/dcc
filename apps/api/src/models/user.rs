@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub struct User {
     pub id: Uuid,
     pub username: String,
+    pub display_name: Option<String>,
     pub discriminator: String,
     pub email: String,
     #[serde(skip_serializing)]
@@ -27,6 +28,7 @@ pub struct User {
 pub struct UserPublic {
     pub id: Uuid,
     pub username: String,
+    pub display_name: Option<String>,
     pub discriminator: String,
     pub avatar_url: Option<String>,
     pub banner_url: Option<String>,
@@ -43,6 +45,7 @@ pub struct UserPublic {
 pub struct UserMe {
     pub id: Uuid,
     pub username: String,
+    pub display_name: Option<String>,
     pub discriminator: String,
     pub email: String,
     pub avatar_url: Option<String>,
@@ -60,6 +63,7 @@ impl From<User> for UserPublic {
         UserPublic {
             id: u.id,
             username: u.username,
+            display_name: u.display_name,
             discriminator: u.discriminator,
             avatar_url: u.avatar_url,
             banner_url: u.banner_url,
@@ -78,6 +82,7 @@ impl From<User> for UserMe {
         UserMe {
             id: u.id,
             username: u.username,
+            display_name: u.display_name,
             discriminator: u.discriminator,
             email: u.email,
             avatar_url: u.avatar_url,

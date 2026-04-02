@@ -62,6 +62,7 @@ pub struct ServerMemberRow {
     pub joined_at: DateTime<Utc>,
     // user fields
     pub username: String,
+    pub display_name: Option<String>,
     pub discriminator: String,
     pub avatar_url: Option<String>,
     pub banner_url: Option<String>,
@@ -84,6 +85,7 @@ impl ServerMemberRow {
             user: UserPublic {
                 id: self.user_id,
                 username: self.username,
+                display_name: self.display_name,
                 discriminator: self.discriminator,
                 avatar_url: self.avatar_url,
                 banner_url: self.banner_url,

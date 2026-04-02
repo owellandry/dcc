@@ -9,17 +9,29 @@ export function formatTimestamp(dateStr: string): string {
   return format(date, 'dd/MM/yyyy HH:mm')
 }
 
-export function containsMentionForUser(content: string | null, username: string | null): boolean {
-  if (!content || !username) return false
+export function containsMentionForUser(
+  content: string | null,
+  userId: string | null,
+  username: string | null,
+): boolean {
+  if (!content || (!userId && !username)) return false
   const normalizedContent = content.toLowerCase()
-  const plainMention = new RegExp(`(^|[^\\w])@${escapeRegExp(username)}(?=$|[^\\w])`, 'i')
-  return normalizedContent.includes(`@{${username.toLowerCase()}}`) || plainMention.test(content)
+  const plainMention = username
+    ? new RegExp(`(^|[^\\w])@${escapeRegExp(username)}(?=$|[^\\w])`, 'i')
+    : null
+  return (
+    (userId ? normalizedContent.includes(`@{${userId.toLowerCase()}}`) : false)
+    || (username ? normalizedContent.includes(`@{${username.toLowerCase()}}`) : false)
+    || (plainMention?.test(content) ?? false)
+  )
 }
 
 export function renderMessageContent(
   content: string | null,
-  username: string | null,
-  resolveChannelHref?: (channelName: string) => string | null
+  currentUserId: string | null,
+  currentUsername: string | null,
+  resolveChannelHref?: (channelName: string) => string | null,
+  resolveUserMention?: (token: string) => { display: string; username?: string | null; id?: string | null } | null,
 ): React.ReactNode {
   if (!content) return null
 
@@ -41,7 +53,15 @@ export function renderMessageContent(
 
     if (mentionedName && !mentionedName.startsWith('#')) {
       const normalizedMentionedName = mentionedName.replace(/^@+/, '')
-      const isMentioningMe = username != null && normalizedMentionedName.toLowerCase() === username.toLowerCase()
+      const resolvedUser = resolveUserMention?.(normalizedMentionedName) ?? null
+      const mentionLabel = resolvedUser?.display ?? normalizedMentionedName
+      const mentionUserId = resolvedUser?.id ?? null
+      const mentionUsername = resolvedUser?.username ?? null
+      const isMentioningMe = (
+        (mentionUserId != null && currentUserId != null && mentionUserId === currentUserId)
+        || (mentionUsername != null && currentUsername != null && mentionUsername.toLowerCase() === currentUsername.toLowerCase())
+        || (mentionUsername == null && mentionUserId == null && currentUsername != null && normalizedMentionedName.toLowerCase() === currentUsername.toLowerCase())
+      )
       nodes.push(
         <span
           key={`${matchedText}-${start}`}
@@ -52,7 +72,7 @@ export function renderMessageContent(
               : 'bg-[var(--surface-soft-hover)] text-[var(--t1)]'
           )}
         >
-          @{normalizedMentionedName}
+          @{mentionLabel}
         </span>
       )
     } else {

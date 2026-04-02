@@ -22,6 +22,12 @@ export function UserAvatarVisual({
       style={{
         width: size,
         height: size,
+        ...(showStatus
+          ? {
+              border: `${Math.max(2, Math.round(size * 0.08))}px solid ${STATUS_BG[status]}`,
+              boxShadow: `0 0 0 1px color-mix(in srgb, ${STATUS_BG[status]} 18%, transparent)`,
+            }
+          : {}),
         ...(boxShadow === 'none' ? {} : { boxShadow }),
       }}
     >
@@ -43,19 +49,6 @@ export function UserAvatarVisual({
         )}
       </div>
 
-      {showStatus ? (
-        <span
-          className="absolute bottom-0 right-0 rounded-full"
-          aria-hidden="true"
-          style={{
-            width: Math.max(10, Math.round(size * 0.3)),
-            height: Math.max(10, Math.round(size * 0.3)),
-            background: STATUS_BG[status],
-            border: `${Math.max(2, Math.round(size * 0.08))}px solid var(--s1)`,
-            boxShadow: '0 0 0 1px rgba(0,0,0,0.12)',
-          }}
-        />
-      ) : null}
     </div>
   )
 }

@@ -77,7 +77,7 @@ export function UserSettingsModalPrivacySection({
               <input
                 value={currentPassword}
                 onChange={(event) => onCurrentPasswordChange(event.target.value)}
-                className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 type="password"
                 autoComplete="current-password"
               />
@@ -86,7 +86,7 @@ export function UserSettingsModalPrivacySection({
               <input
                 value={newPassword}
                 onChange={(event) => onNewPasswordChange(event.target.value)}
-                className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 type="password"
                 autoComplete="new-password"
               />
@@ -136,7 +136,7 @@ export function UserSettingsModalPrivacySection({
                   <input
                     value={twoFactorPassword}
                     onChange={(event) => onTwoFactorPasswordChange(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] pl-10 pr-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                    className="input-base h-11 rounded-xl bg-[var(--s2)] pl-10 pr-3 text-sm"
                     type="password"
                     autoComplete="current-password"
                     placeholder="Necesaria para cuentas con password"
@@ -166,7 +166,7 @@ export function UserSettingsModalPrivacySection({
                     <input
                       value={disableTwoFactorCode}
                       onChange={(event) => onDisableTwoFactorCodeChange(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                      className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                       placeholder="123456 o XXXX-XXXX"
                       autoComplete="one-time-code"
                     />
@@ -209,7 +209,7 @@ export function UserSettingsModalPrivacySection({
                       <input
                         value={twoFactorCode}
                         onChange={(event) => onTwoFactorCodeChange(event.target.value)}
-                        className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--b2)]"
+                        className="input-base h-11 rounded-xl bg-[var(--s0)] px-3 text-sm"
                         placeholder="123456"
                         autoComplete="one-time-code"
                         inputMode="numeric"

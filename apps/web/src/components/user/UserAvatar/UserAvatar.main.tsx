@@ -18,6 +18,7 @@ function areEqualAvatarProps(previousProps: UserAvatarProps, nextProps: UserAvat
     previousProps.className === nextProps.className &&
     previousProps.user.id === nextProps.user.id &&
     previousProps.user.username === nextProps.user.username &&
+    previousProps.user.displayName === nextProps.user.displayName &&
     previousProps.user.avatarUrl === nextProps.user.avatarUrl &&
     previousProps.user.status === nextProps.user.status
   )

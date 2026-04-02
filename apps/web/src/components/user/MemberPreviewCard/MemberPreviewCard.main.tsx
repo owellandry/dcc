@@ -1,18 +1,19 @@
 'use client'
 
-import { useLayoutEffect, useMemo, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { MessageSquare, AtSign, UserRound } from 'lucide-react'
 import { dmsApi, resolveMediaUrl } from '@/lib/api'
-import type { Channel, ServerMember, UserStatus } from '@/lib/types'
+import { getFloatingCardPosition, type FloatingAnchorRect, type FloatingPlacement } from '@/lib/layout/floatingCard.shared'
 import { isMockSession } from '@/lib/mock-init'
+import type { Channel, ServerMember, UserStatus } from '@/lib/types'
+import { getMemberDisplayName, getUserHandle } from '@/lib/users/displayName.shared'
 import { useAuthStore } from '@/stores/authStore'
 import { useServersStore } from '@/stores/serversStore'
+import { Badge, OfficialMemberTag, buildMemberBadges, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { avatarColor } from '@/components/user/UserAvatar/UserAvatar.shared'
-import { Badge, OfficialMemberTag, buildMemberBadges, hasOfficialMemberBadge } from '@/components/user/Badge'
-import { MessageSquare, AtSign, UserRound } from 'lucide-react'
-import { getFloatingCardPosition, type FloatingAnchorRect, type FloatingPlacement } from '@/lib/layout/floatingCard.shared'
 
 interface Props {
   previewRef: RefObject<HTMLDivElement | null>
@@ -25,29 +26,100 @@ interface Props {
 
 export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorRect, preferredPlacement }: Props) {
   if (typeof window === 'undefined') return null
+
   const router = useRouter()
   const myUserId = useAuthStore((state) => state.user?.id ?? null)
   const channels = useServersStore((state) => state.channels)
   const upsertChannel = useServersStore((state) => state.upsertChannel)
   const [isOpeningDm, setIsOpeningDm] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const [bannerAccentColor, setBannerAccentColor] = useState<string | null>(null)
   const isMock = isMockSession()
+
   const dmChannels = useMemo(
     () =>
       Object.values(channels).filter(
-        (channel) => channel.serverId == null && (channel.type === 'dm' || channel.type === 'group_dm')
+        (channel) => channel.serverId == null && (channel.type === 'dm' || channel.type === 'group_dm'),
       ),
-    [channels]
+    [channels],
   )
-  const displayName = member.nickname ?? member.user.username
+
+  const displayName = getMemberDisplayName(member)
   const badgeItems = buildMemberBadges({ isOwner, user: member.user, roles: member.roles })
   const hasOfficialBadge = hasOfficialMemberBadge({ user: member.user, roles: member.roles })
-
   const sortedRoles = [...member.roles].sort((a, b) => b.position - a.position)
   const primaryRoleColor = sortedRoles.find((role) => role.color !== null)?.color
-  const accentColor = primaryRoleColor !== undefined && primaryRoleColor !== null
+  const baseAccentColor = primaryRoleColor !== undefined && primaryRoleColor !== null
     ? `#${primaryRoleColor.toString(16).padStart(6, '0')}`
     : avatarColor(member.user.username)
+  const accentColor = bannerAccentColor ?? baseAccentColor
+  const isCurrentUser = myUserId === member.user.id
+
+  useEffect(() => {
+    const bannerUrl = resolveMediaUrl(member.user.bannerUrl)
+    if (!bannerUrl) {
+      setBannerAccentColor(null)
+      return
+    }
+
+    let cancelled = false
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.decoding = 'async'
+    image.onload = () => {
+      if (cancelled) return
+      try {
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d', { willReadFrequently: true })
+        if (!context) {
+          setBannerAccentColor(null)
+          return
+        }
+
+        canvas.width = 28
+        canvas.height = 28
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+        let red = 0
+        let green = 0
+        let blue = 0
+        let samples = 0
+
+        for (let index = 0; index < data.length; index += 16) {
+          const alpha = data[index + 3] ?? 0
+          if (alpha < 120) continue
+          red += data[index] ?? 0
+          green += data[index + 1] ?? 0
+          blue += data[index + 2] ?? 0
+          samples += 1
+        }
+
+        if (samples === 0) {
+          setBannerAccentColor(null)
+          return
+        }
+
+        setBannerAccentColor(
+          toAccentHex(
+            Math.round(red / samples),
+            Math.round(green / samples),
+            Math.round(blue / samples),
+          ),
+        )
+      } catch {
+        setBannerAccentColor(null)
+      }
+    }
+    image.onerror = () => {
+      if (!cancelled) setBannerAccentColor(null)
+    }
+    image.src = bannerUrl
+
+    return () => {
+      cancelled = true
+    }
+  }, [member.user.bannerUrl])
+
   const bannerStyle = member.user.bannerUrl
     ? {
         backgroundImage: `url(${resolveMediaUrl(member.user.bannerUrl)})`,
@@ -57,15 +129,16 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
     : {
         background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} 78%, white 22%), color-mix(in srgb, ${accentColor} 44%, #0b1020 56%))`,
       }
+
   const cardSurfaceStyle = {
-    background: `linear-gradient(180deg, color-mix(in srgb, var(--s1) 84%, ${accentColor} 16%), color-mix(in srgb, var(--s0) 88%, ${accentColor} 12%))`,
-    borderColor: `color-mix(in srgb, ${accentColor} 18%, var(--b1) 82%)`,
+    background: `linear-gradient(180deg, color-mix(in srgb, var(--s1) 80%, ${accentColor} 20%), color-mix(in srgb, var(--s0) 86%, ${accentColor} 14%))`,
+    borderColor: `color-mix(in srgb, ${accentColor} 22%, var(--b1) 78%)`,
   }
+
   const sectionSurfaceStyle = {
-    background: `color-mix(in srgb, var(--s2) 88%, ${accentColor} 12%)`,
-    borderColor: `color-mix(in srgb, ${accentColor} 14%, var(--b1) 86%)`,
+    background: `linear-gradient(180deg, color-mix(in srgb, var(--s2) 90%, ${accentColor} 10%), color-mix(in srgb, var(--s1) 92%, ${accentColor} 8%))`,
+    borderColor: `color-mix(in srgb, ${accentColor} 16%, var(--b1) 84%)`,
   }
-  const isCurrentUser = myUserId === member.user.id
 
   useLayoutEffect(() => {
     const updatePosition = () => {
@@ -106,7 +179,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
     }
 
     const existingChannel = dmChannels.find((channel) =>
-      channel.participants?.some((participant) => participant.id === member.user.id)
+      channel.participants?.some((participant) => participant.id === member.user.id),
     )
 
     if (existingChannel) {
@@ -120,8 +193,6 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
       const channel = withDerivedDmName(response.data, member.user.username)
       upsertChannel(channel)
       router.push(`/channels/@me/${channel.id}`)
-    } catch {
-      return
     } finally {
       setIsOpeningDm(false)
     }
@@ -164,7 +235,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
             <p className="truncate font-display text-[18px] font-700 text-[var(--t0)]">{displayName}</p>
             {hasOfficialBadge && <OfficialMemberTag className="translate-y-[1px]" />}
           </div>
-          <p className="truncate text-xs text-[var(--t3)]">@{member.user.username} · {status}</p>
+          <p className="truncate text-xs text-[var(--t3)]">{getUserHandle(member.user)} · {status}</p>
         </div>
 
         {badgeItems.length > 0 && (
@@ -177,7 +248,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
 
         <div className="mb-3 rounded-2xl border p-3" style={sectionSurfaceStyle}>
           <p className="mb-1 text-[11px] font-700 uppercase tracking-wide text-[var(--t3)]">Sobre mi</p>
-          <p className="text-[12px] leading-snug text-[var(--t1)]">{member.user.bio ?? 'Sin descripción todavía.'}</p>
+          <p className="text-[12px] leading-snug text-[var(--t1)]">{member.user.bio ?? 'Sin descripcion todavia.'}</p>
         </div>
 
         <div className="mb-3 rounded-2xl border p-3" style={sectionSurfaceStyle}>
@@ -230,9 +301,8 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
           </button>
         </div>
       </div>
-    </div>
-    ,
-    document.body
+    </div>,
+    document.body,
   )
 }
 
@@ -240,6 +310,11 @@ function withDerivedDmName(channel: Channel, fallbackUsername: string): Channel 
   const primaryParticipant = channel.participants?.[0]
   return {
     ...channel,
-    name: channel.name ?? primaryParticipant?.username ?? fallbackUsername,
+    name: channel.name ?? primaryParticipant?.displayName ?? primaryParticipant?.username ?? fallbackUsername,
   }
+}
+
+function toAccentHex(red: number, green: number, blue: number) {
+  const clamp = (value: number) => Math.max(36, Math.min(224, value))
+  return `#${[clamp(red), clamp(green), clamp(blue)].map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ArrowRight, Check, Menu, MessageCircle, Users, X, Zap } from 'lucide-react'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type {
@@ -125,7 +126,7 @@ function QuickAccessSection({
             <div className="relative flex flex-col items-center text-center">
               <UserAvatar user={item.user} size={40} showStatus />
               <p className="mt-2 truncate text-[13px] font-600 text-[var(--t1)]">
-                {item.user.username}
+                {getUserDisplayName(item.user)}
               </p>
             </div>
           </Link>
@@ -171,7 +172,7 @@ function FriendsSection({ cards }: { cards: DMFriendCard[] }) {
               <UserAvatar user={card.user} size={44} showStatus />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-600 text-[var(--t0)] transition-colors group-hover:text-[var(--ember)]">
-                  {card.user.username}
+                  {getUserDisplayName(card.user)}
                 </p>
                 <p className="mt-1 truncate text-xs text-[var(--t3)]">{card.subtitle}</p>
                 <div className="mt-3 flex items-center justify-between">
@@ -218,7 +219,8 @@ function PendingRequestsSection({ cards }: { cards: DMPendingFriendCard[] }) {
             <div className="flex min-w-0 items-center gap-4">
               <UserAvatar user={card.user} size={40} showStatus />
               <div className="min-w-0">
-                <p className="truncate font-600 text-[var(--t0)]">{card.user.username}</p>
+                <p className="truncate font-600 text-[var(--t0)]">{getUserDisplayName(card.user)}</p>
+                <p className="truncate text-[11px] text-[var(--t4)]">@{card.user.username}</p>
                 <p className="text-xs text-[var(--t3)]">{card.subtitle}</p>
               </div>
             </div>

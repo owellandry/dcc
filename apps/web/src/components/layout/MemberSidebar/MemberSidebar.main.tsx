@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Crown } from 'lucide-react'
 import { serversApi } from '@/lib/api'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import type { UserStatus } from '@/lib/types'
 import { useServerMembers, useServersStore } from '@/stores/serversStore'
@@ -173,7 +174,7 @@ function MemberRow({
   isOwner: boolean
   onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>, member: ServerMember) => void
 }) {
-  const displayName = member.nickname ?? member.user.username
+  const displayName = getMemberDisplayName(member)
   const isOfficialMember = hasOfficialMemberBadge({ user: member.user })
 
   return (

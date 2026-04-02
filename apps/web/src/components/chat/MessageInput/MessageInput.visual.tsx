@@ -2,6 +2,7 @@
 
 import { PlusCircle, Send, Smile } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import {
   AttachmentPreview,
   SuggestionPrefix,
@@ -50,7 +51,7 @@ export function MessageInputVisual({
         <div className="flex items-center justify-between border-b border-[var(--b0)] px-3 py-2 text-xs text-[var(--t2)]">
           <div className="flex min-w-0 items-center gap-1">
             <span className="shrink-0 text-[var(--t3)]">Respondiendo a</span>
-            <span className="shrink-0 font-600 text-[var(--t1)]">{replyTarget.author.username}</span>
+            <span className="shrink-0 font-600 text-[var(--t1)]">{getUserDisplayName(replyTarget.author)}</span>
             <span className="min-w-0 truncate text-[var(--t3)]">
               {replyTarget.content ?? 'Adjunto'}
             </span>
@@ -91,7 +92,12 @@ export function MessageInputVisual({
                   active ? 'bg-[var(--ember-dim)] text-[var(--t0)]' : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
                 )}
               >
-                <SuggestionPrefix type={suggestion.type}>{suggestion.label}</SuggestionPrefix>
+                <div className="min-w-0">
+                  <SuggestionPrefix type={suggestion.type}>{suggestion.label}</SuggestionPrefix>
+                  {suggestion.description && (
+                    <p className="truncate text-[11px] text-[var(--t3)]">{suggestion.description}</p>
+                  )}
+                </div>
                 <SuggestionTypeLabel type={suggestion.type} />
               </button>
             )

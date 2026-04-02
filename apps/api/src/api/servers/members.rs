@@ -22,7 +22,7 @@ pub async fn list_members(
     use crate::models::server::ServerMemberRow;
     let rows = sqlx::query_as::<_, ServerMemberRow>(
         r#"SELECT sm.server_id, sm.user_id, sm.nickname, sm.joined_at,
-                  u.username, u.discriminator, u.avatar_url, u.banner_url,
+                  u.username, u.display_name, u.discriminator, u.avatar_url, u.banner_url,
                   u.bio, u.status, u.custom_status, u.is_verified, u.badges, u.created_at as user_created_at
            FROM server_members sm
            JOIN users u ON u.id = sm.user_id
@@ -65,6 +65,7 @@ pub async fn list_members(
                 "user": {
                     "id": r.user_id,
                     "username": r.username,
+                    "displayName": r.display_name,
                     "discriminator": r.discriminator,
                     "avatarUrl": r.avatar_url,
                     "bannerUrl": r.banner_url,

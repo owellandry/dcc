@@ -179,7 +179,7 @@ pub async fn unban_member(
 async fn fetch_member_payload(state: &AppState, server_id: Uuid, user_id: Uuid) -> Result<Value> {
     let row = sqlx::query_as::<_, ServerMemberRow>(
         r#"SELECT sm.server_id, sm.user_id, sm.nickname, sm.joined_at,
-                  u.username, u.discriminator, u.avatar_url, u.banner_url,
+                  u.username, u.display_name, u.discriminator, u.avatar_url, u.banner_url,
                   u.bio, u.status, u.custom_status, u.is_verified, u.badges, u.created_at as user_created_at
            FROM server_members sm
            JOIN users u ON u.id = sm.user_id
@@ -202,6 +202,7 @@ async fn fetch_member_payload(state: &AppState, server_id: Uuid, user_id: Uuid) 
         "user": {
             "id": row.user_id,
             "username": row.username,
+            "displayName": row.display_name,
             "discriminator": row.discriminator,
             "avatarUrl": row.avatar_url,
             "bannerUrl": row.banner_url,

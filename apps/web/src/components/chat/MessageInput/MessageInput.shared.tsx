@@ -34,6 +34,8 @@ export interface MentionSuggestion {
   type: SuggestionType
   value: string
   label: string
+  description?: string
+  token: string
 }
 
 export interface MessageInputVisualProps {
@@ -73,9 +75,7 @@ export function normalizeMentionTerm(value: string): string {
 
 export function normalizeOutgoingContent(value: string): string {
   return value
-    .replace(/@\{#([^}]+)\}/g, '#$1')
     .replace(/#\{([^}]+)\}/g, '#$1')
-    .replace(/@\{([^}]+)\}/g, '@$1')
 }
 
 export function AttachmentPreview({

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { PhoneOff, Volume2 } from 'lucide-react'
 import { motion } from '@/lib/motion'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { type VoiceChannelRoomVisualProps } from './VoiceChannelRoom.shared'
@@ -46,7 +47,7 @@ export function VoiceChannelRoomVisual({
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
                             <p className="truncate font-display text-lg font-700 text-white">
-                              {member.user.username}
+                              {getUserDisplayName(member.user, member.nickname)}
                             </p>
                             {hasOfficialMemberBadge({ user: member.user, roles: member.roles }) && (
                               <OfficialMemberTag compact className="translate-y-[1px]" />
@@ -129,7 +130,7 @@ export function VoiceChannelRoomVisual({
                 ))}
                 <span className="ml-1 text-[var(--t3)]">
                   {availableMembers.length === 1
-                    ? `${availableMembers[0]?.user.username ?? '1 persona'} esta disponible para entrar`
+                    ? `${(availableMembers[0] ? getUserDisplayName(availableMembers[0].user, availableMembers[0].nickname) : '1 persona')} esta disponible para entrar`
                     : `${availableMembers.length} personas disponibles para entrar`}
                 </span>
               </div>

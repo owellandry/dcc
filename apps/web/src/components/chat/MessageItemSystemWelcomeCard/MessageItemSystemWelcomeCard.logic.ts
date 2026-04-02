@@ -3,13 +3,14 @@
 import { format } from 'date-fns'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveMediaUrl } from '@/lib/api'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { useServersStore } from '@/stores/serversStore'
 import { type SystemWelcomeCardProps, type SystemWelcomeCardVisualProps } from './MessageItemSystemWelcomeCard.shared'
 
 export function useSystemWelcomeCardModel({
   message,
 }: SystemWelcomeCardProps): SystemWelcomeCardVisualProps {
-  const title = message.content ?? `${message.author.username} se unió al servidor. ¡Bienvenido!`
+  const title = message.content ?? `${getUserDisplayName(message.author)} se unio al servidor. Bienvenido.`
   const joinedAt = format(new Date(message.createdAt), 'HH:mm')
   const { serverId, serverName, serverIconUrl, rulesChannelId, welcomeChannelId } = useServersStore(
     useShallow((state) => {
@@ -42,7 +43,7 @@ export function useSystemWelcomeCardModel({
         rulesChannelId: resolvedRulesChannelId,
         welcomeChannelId: resolvedWelcomeChannelId,
       }
-    })
+    }),
   )
 
   const serverInitials = (serverName ?? 'Server')

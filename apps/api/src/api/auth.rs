@@ -112,8 +112,8 @@ pub async fn register(
 
     sqlx::query(
         r#"
-        INSERT INTO users (id, username, discriminator, email, password_hash)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users (id, username, display_name, discriminator, email, password_hash)
+        VALUES ($1, $2, $2, $3, $4, $5)
         "#,
     )
     .bind(user_id)
@@ -600,17 +600,18 @@ async fn upsert_oauth_user(
 
     sqlx::query(
         r#"
-        INSERT INTO users (id, username, discriminator, email, avatar_url, is_verified)
-        VALUES ($1, $2, $3, $4, $5, TRUE)
+        INSERT INTO users (id, username, display_name, discriminator, email, avatar_url, is_verified)
+        VALUES ($1, $2, $3, $4, $5, $6, TRUE)
         "#,
     )
     .bind(user_id)
     .bind(username)
+    .bind(name.trim())
     .bind(&discriminator)
     .bind(email)
     .bind(avatar_url)
-    .execute(&state.db)
-    .await?;
+        .execute(&state.db)
+        .await?;
 
     Ok((user_id, true))
 }

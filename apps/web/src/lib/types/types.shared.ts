@@ -5,6 +5,7 @@ export type UserStatus = 'online' | 'idle' | 'dnd' | 'offline'
 export interface User {
   id: string
   username: string
+  displayName: string | null
   discriminator: number
   email: string
   avatarUrl: string | null

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { useMessagesStore, useTypingUsers } from '@/stores/messagesStore'
 import { useServersStore } from '@/stores/serversStore'
 import { type TypingIndicatorProps, type TypingIndicatorVisualProps } from './TypingIndicator.shared'
@@ -21,7 +22,7 @@ export function useTypingIndicatorModel({
     return typingUserIds.slice(0, 3).map((userId) => {
       for (const serverMembers of Object.values(members)) {
         const member = serverMembers[userId]
-        if (member) return member.nickname ?? member.user.username
+        if (member) return getMemberDisplayName(member)
       }
       return 'Someone'
     })

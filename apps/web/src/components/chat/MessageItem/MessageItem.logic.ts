@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { useServersStore } from '@/stores/serversStore'
 import type { ServerMember } from '@/lib/types'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { containsMentionForUser, formatTimestamp, renderMessageContent } from '../messageItemUtils'
 import { normalizeMentionTerm, type MessageItemProps, type MessageItemVisualProps } from './MessageItem.shared'
 import type { FloatingAnchorRect } from '@/lib/layout/floatingCard.shared'
@@ -60,8 +61,8 @@ export function useMessageItemController({
 
   const isOwn = message.author.id === myUserId
   const isMentioningMe = useMemo(
-    () => containsMentionForUser(message.content, myUsername),
-    [message.content, myUsername]
+    () => containsMentionForUser(message.content, myUserId ?? null, myUsername),
+    [message.content, myUserId, myUsername]
   )
 
   const resolveChannelHref = useCallback((channelName: string): string | null => {
@@ -81,8 +82,38 @@ export function useMessageItemController({
   }, [message.channelId])
 
   const renderedContent = useMemo(
-    () => renderMessageContent(message.content, myUsername, resolveChannelHref),
-    [message.content, myUsername, resolveChannelHref]
+    () => renderMessageContent(message.content, myUserId ?? null, myUsername, resolveChannelHref, (token) => {
+      const state = useServersStore.getState()
+      const currentChannel = state.channels[message.channelId]
+      const serverId = currentChannel?.serverId
+
+      if (serverId) {
+        const serverMembers = Object.values(state.members[serverId] ?? {})
+        const member = serverMembers.find((candidate) =>
+          candidate.userId === token || candidate.user.username.toLowerCase() === token.toLowerCase()
+        )
+
+        if (member) {
+          return {
+            id: member.userId,
+            username: member.user.username,
+            display: getMemberDisplayName(member),
+          }
+        }
+      }
+
+      const currentUser = useAuthStore.getState().user
+      if (currentUser && (currentUser.id === token || currentUser.username.toLowerCase() === token.toLowerCase())) {
+        return {
+          id: currentUser.id,
+          username: currentUser.username,
+          display: currentUser.displayName?.trim() || currentUser.username,
+        }
+      }
+
+      return null
+    }),
+    [message.channelId, message.content, myUserId, myUsername, resolveChannelHref]
   )
 
   const previewMember = useMemo<ServerMember>(() => {

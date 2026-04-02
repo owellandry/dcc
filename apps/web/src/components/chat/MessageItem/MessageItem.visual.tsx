@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react'
 import { CornerUpLeft, Pencil, Smile, Trash2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/cn'
+import { getMemberDisplayName, getUserDisplayName } from '@/lib/users/displayName.shared'
 import { interactiveMotion, motion, overlayCardVariants } from '@/lib/motion'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
@@ -55,6 +56,7 @@ export function MessageItemVisual({
   }
 
   const isOfficialAuthor = hasOfficialMemberBadge({ user: message.author })
+  const authorDisplayName = getMemberDisplayName(previewMember)
   const [externalTargetUrl, setExternalTargetUrl] = useState<string | null>(null)
 
   const handleOpenExternalModal = useCallback((url: string) => {
@@ -127,7 +129,7 @@ export function MessageItemVisual({
                 onClick={onOpenPreview}
                 className="truncate cursor-pointer text-[15px] font-700 text-[var(--t0)] transition-colors hover:text-[var(--t0)] hover:underline"
               >
-                {message.author.username}
+                {authorDisplayName}
               </button>
               {isOfficialAuthor && <OfficialMemberTag compact className="translate-y-[1px]" />}
             </div>
@@ -270,7 +272,7 @@ function ReplyContext({
       <UserAvatar user={replyTo.author} size={16} className="rounded-full" />
 
       <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[var(--t2)] transition-colors group-hover:text-[var(--t1)]">
-        <span className="truncate">{replyTo.author.username}</span>
+        <span className="truncate">{getUserDisplayName(replyTo.author)}</span>
         {isOfficialAuthor && <OfficialMemberTag compact className="translate-y-[1px]" />}
       </span>
 

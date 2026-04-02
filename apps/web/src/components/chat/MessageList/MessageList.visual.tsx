@@ -1,6 +1,7 @@
 'use client'
 
 import { MessageSquare } from 'lucide-react'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { itemVariants, motion } from '@/lib/motion'
 import { UserAvatar } from '@/components/user/UserAvatar'
 import { MessageItem } from '../MessageItem'
@@ -78,7 +79,7 @@ function DMIntroCard({ intro }: { intro: DMIntroCardData }) {
     >
       <UserAvatar user={intro.user} size={72} showStatus />
       <h2 className="mt-4 font-display text-4xl font-800 tracking-tight text-[var(--t0)]">
-        {intro.user.username}
+        {getUserDisplayName(intro.user)}
       </h2>
       <p className="mt-1 text-[15px] font-500 text-[var(--t2)]">{intro.discriminatorLabel}</p>
       <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--t3)]">{intro.subtitle}</p>

@@ -303,7 +303,7 @@ export const authApi = {
 
 export const usersApi = {
   me: () => api.get<import('../types').User>('/users/@me'),
-  update: (body: Partial<Pick<import('../types').User, 'username' | 'email' | 'bio' | 'status' | 'customStatus'>> & {
+  update: (body: Partial<Pick<import('../types').User, 'displayName' | 'username' | 'email' | 'bio' | 'status' | 'customStatus'>> & {
     voiceMicMuted?: boolean
     voiceHeadphonesMuted?: boolean
     currentPassword?: string

@@ -5,6 +5,7 @@ import type { User, Server, Channel, Category, ServerMember, Message, Friendship
 export const MOCK_ME: User = {
   id: 'user-me',
   username: 'devuser',
+  displayName: 'Dev User',
   discriminator: 1337,
   email: 'dev@dcc.app',
   avatarUrl: null,
@@ -21,6 +22,7 @@ export const MOCK_USERS: User[] = [
   {
     id: 'user-2',
     username: 'rustacean',
+    displayName: 'Ferris Main',
     discriminator: 42,
     email: 'rust@dcc.app',
     avatarUrl: null,
@@ -34,6 +36,7 @@ export const MOCK_USERS: User[] = [
   {
     id: 'user-3',
     username: 'cloudflare_fan',
+    displayName: 'Edge Fan',
     discriminator: 99,
     email: 'edge@dcc.app',
     avatarUrl: null,
@@ -47,6 +50,7 @@ export const MOCK_USERS: User[] = [
   {
     id: 'user-4',
     username: 'tailwind_wizard',
+    displayName: 'Tailwind Wizard',
     discriminator: 7,
     email: 'css@dcc.app',
     avatarUrl: null,
@@ -60,6 +64,7 @@ export const MOCK_USERS: User[] = [
   {
     id: 'user-5',
     username: 'night_owl',
+    displayName: 'Night Owl',
     discriminator: 404,
     email: 'night@dcc.app',
     avatarUrl: null,

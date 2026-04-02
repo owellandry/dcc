@@ -85,7 +85,7 @@ export function ServerSettingsModalRolesSection({
                 <input
                   value={roleNameDraft}
                   onChange={(event) => onRoleNameDraftChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 />
               </Field>
               <Field label="Color">
@@ -93,7 +93,7 @@ export function ServerSettingsModalRolesSection({
                   type="color"
                   value={roleColorDraft}
                   onChange={(event) => onRoleColorDraftChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-2"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] px-2"
                 />
               </Field>
             </div>
@@ -103,6 +103,7 @@ export function ServerSettingsModalRolesSection({
                 <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)]">
                   <input
                     type="checkbox"
+                    className="ui-check"
                     checked={rolePermissionsDraft.includes(option.key)}
                     onChange={(event) => onRolePermissionsDraftChange(
                       event.target.checked

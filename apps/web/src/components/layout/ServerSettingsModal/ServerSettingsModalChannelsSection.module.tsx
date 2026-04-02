@@ -108,7 +108,7 @@ export function ServerSettingsModalChannelsSection({
               <input
                 value={createCategoryName}
                 onChange={(event) => onCreateCategoryNameChange(event.target.value)}
-                className="h-10 flex-1 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                className="input-base h-10 flex-1 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 placeholder="Nueva categoria"
               />
               <button
@@ -125,13 +125,13 @@ export function ServerSettingsModalChannelsSection({
               <input
                 value={createChannelName}
                 onChange={(event) => onCreateChannelNameChange(event.target.value)}
-                className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                className="input-base h-10 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 placeholder="nuevo-canal"
               />
               <select
                 value={createChannelType}
                 onChange={(event) => onCreateChannelTypeChange(event.target.value as 'text' | 'voice' | 'announcement')}
-                className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                className="input-base h-10 rounded-xl bg-[var(--s2)] px-3 text-sm"
               >
                 <option value="text">Texto</option>
                 <option value="voice">Voz</option>
@@ -140,7 +140,7 @@ export function ServerSettingsModalChannelsSection({
               <select
                 value={createChannelCategoryId ?? ''}
                 onChange={(event) => onCreateChannelCategoryIdChange(event.target.value || null)}
-                className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                className="input-base h-10 rounded-xl bg-[var(--s2)] px-3 text-sm"
               >
                 <option value="">Sin categoria</option>
                 {sortedCategories.map((category) => (
@@ -195,7 +195,7 @@ export function ServerSettingsModalChannelsSection({
                 <input
                   value={categoryNameDraft}
                   onChange={(event) => onCategoryNameDraftChange(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                 />
               </Field>
               <div className="flex flex-wrap items-center gap-3">
@@ -227,14 +227,14 @@ export function ServerSettingsModalChannelsSection({
                   <input
                     value={channelNameDraft}
                     onChange={(event) => onChannelNameDraftChange(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                    className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                   />
                 </Field>
                 <Field label="Categoria">
                   <select
                     value={channelCategoryDraft ?? ''}
                     onChange={(event) => onChannelCategoryDraftChange(event.target.value || null)}
-                    className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                    className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                   >
                     <option value="">Sin categoria</option>
                     {sortedCategories.map((category) => (
@@ -248,7 +248,7 @@ export function ServerSettingsModalChannelsSection({
                   value={channelTopicDraft}
                   onChange={(event) => onChannelTopicDraftChange(event.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 py-2.5 text-sm text-[var(--t1)] outline-none"
+                  className="input-base min-h-[112px] resize-y rounded-xl bg-[var(--s2)] px-3 py-2.5 text-sm"
                 />
               </Field>
               <Field label="Icono">
@@ -291,7 +291,7 @@ export function ServerSettingsModalChannelsSection({
                   <select
                     value={channelFontKeyDraft}
                     onChange={(event) => onChannelFontKeyDraftChange(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                    className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                   >
                     {CHANNEL_FONT_OPTIONS.map((option) => (
                       <option key={option.key} value={option.key}>{option.label}</option>
@@ -302,7 +302,7 @@ export function ServerSettingsModalChannelsSection({
                   <select
                     value={String(channelFontWeightDraft)}
                     onChange={(event) => onChannelFontWeightDraftChange(Number(event.target.value))}
-                    className="h-11 w-full rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+                    className="input-base h-11 rounded-xl bg-[var(--s2)] px-3 text-sm"
                   >
                     {CHANNEL_FONT_WEIGHT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>

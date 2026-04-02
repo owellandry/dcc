@@ -13,6 +13,7 @@ import {
 } from 'react'
 import toast from 'react-hot-toast'
 import { ApiRequestError, channelsApi } from '@/lib/api'
+import { getMemberDisplayName, getUserHandle } from '@/lib/users/displayName.shared'
 import { useMessagesStore } from '@/stores/messagesStore'
 import { useServerChannels, useServerMembers, useServersStore } from '@/stores/serversStore'
 import {
@@ -91,13 +92,16 @@ export function useMessageInputController({
           id: member.userId,
           type: 'user' as const,
           value: member.user.username,
-          label: member.nickname ? `${member.user.username} (${member.nickname})` : member.user.username,
+          label: getUserHandle(member.user),
+          description: getMemberDisplayName(member),
+          token: `@{${member.userId}}`,
         }))
         .filter((item) => {
           if (!query) return true
           const normalizedLabel = normalizeMentionTerm(item.label)
           const normalizedValue = normalizeMentionTerm(item.value)
-          return normalizedLabel.includes(query) || normalizedValue.includes(query)
+          const normalizedDescription = normalizeMentionTerm(item.description ?? '')
+          return normalizedLabel.includes(query) || normalizedValue.includes(query) || normalizedDescription.includes(query)
         })
         .slice(0, 6)
     }
@@ -109,6 +113,7 @@ export function useMessageInputController({
         type: 'channel' as const,
         value: channel.name ?? '',
         label: channel.name ?? '',
+        token: `#${channel.name ?? ''}`,
       }))
       .filter((item) => {
         if (!query) return true
@@ -123,7 +128,7 @@ export function useMessageInputController({
     const caret = textarea.selectionStart ?? tokenContext.caret
     const before = content.slice(0, tokenContext.start)
     const after = content.slice(caret)
-    const token = suggestion.type === 'user' ? `@${suggestion.value}` : `#${suggestion.value}`
+    const token = suggestion.token
     const nextContent = `${before}${token} ${after}`
     const nextCaret = before.length + token.length + 1
 

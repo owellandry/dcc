@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { ApiRequestError } from '@/lib/api'
 import { Permissions } from '@/lib/permissions'
 import type { PermissionOverwrite, Role, ServerMember } from '@/lib/types'
+import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 
 export type ServerSettingsSection = 'overview' | 'channels' | 'roles' | 'members'
 export type MediaTarget = 'icon' | 'banner'
@@ -62,7 +63,7 @@ export function hexToColor(value: string) {
 export function labelForOverwrite(overwrite: PermissionOverwrite, roles: Role[], members: ServerMember[]) {
   if (overwrite.targetType === 'role') return roles.find((role) => role.id === overwrite.targetId)?.name ?? 'Rol'
   const member = members.find((entry) => entry.userId === overwrite.targetId)
-  return member?.nickname ?? member?.user.username ?? 'Miembro'
+  return member ? getMemberDisplayName(member) : 'Miembro'
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
@@ -95,7 +96,7 @@ export function OverwriteEditor({
         <select
           value={targetType}
           onChange={(event) => setTargetType(event.target.value as 'role' | 'member')}
-          className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+          className="input-base h-10 rounded-xl bg-[var(--s2)] px-3 text-sm"
         >
           <option value="role">Rol</option>
           <option value="member">Miembro</option>
@@ -103,7 +104,7 @@ export function OverwriteEditor({
         <select
           value={targetId}
           onChange={(event) => setTargetId(event.target.value)}
-          className="h-10 rounded-xl border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] outline-none"
+          className="input-base h-10 rounded-xl bg-[var(--s2)] px-3 text-sm"
         >
           <option value="">Selecciona un objetivo</option>
           {candidates.map((candidate) => (
@@ -113,7 +114,7 @@ export function OverwriteEditor({
             >
               {targetType === 'role'
                 ? (candidate as Role).name
-                : ((candidate as ServerMember).nickname ?? (candidate as ServerMember).user.username)}
+                : getMemberDisplayName(candidate as ServerMember)}
             </option>
           ))}
         </select>

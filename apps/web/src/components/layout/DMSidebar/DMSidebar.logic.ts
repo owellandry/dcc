@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { dmsApi, friendsApi } from '@/lib/api'
+import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { MOCK_FRIENDS } from '@/lib/mock-data'
 import { useServersStore } from '@/stores/serversStore'
@@ -132,6 +133,6 @@ function withDerivedDmName(channel: Channel, fallbackUser?: User): Channel {
 
   return {
     ...channel,
-    name: channel.name ?? primaryParticipant?.username ?? fallbackUser?.username ?? 'direct-message',
+    name: channel.name ?? (primaryParticipant ? getUserDisplayName(primaryParticipant) : null) ?? (fallbackUser ? getUserDisplayName(fallbackUser) : null) ?? 'direct-message',
   }
 }
