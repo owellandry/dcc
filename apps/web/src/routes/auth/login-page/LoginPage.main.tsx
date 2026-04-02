@@ -125,6 +125,7 @@ export default function LoginPage() {
             <input
               type="text"
               autoComplete="username"
+              placeholder="Tu username"
               required
               value={login}
               onChange={(e) => {

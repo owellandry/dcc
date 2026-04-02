@@ -18,6 +18,7 @@ import { Crown, Hash, LoaderCircle, MessageSquare, Plus, Volume2, X } from 'luci
 import { ApiRequestError, resolveMediaUrl, serversApi } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
 import { useAuthStore } from '@/stores/authStore'
+import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
 import type { ServerMember, User } from '@/lib/types'
 import { UserAvatarImage } from '@/components/user/UserAvatar/UserAvatarImage.module'
 import { AppModalShell } from '@/components/ui/AppModalShell.main'
@@ -28,6 +29,7 @@ export function ServerSidebar() {
   const mockMode = isMockSession()
   const servers = useServersStore(useShallow((s) => Object.values(s.servers)))
   const channels = useServersStore(useShallow((s) => Object.values(s.channels)))
+  const unreadByChannel = useUnreadStore((state) => state.channels)
   const upsertServer = useServersStore((s) => s.upsertServer)
   const upsertChannel = useServersStore((s) => s.upsertChannel)
   const setChannels = useServersStore((s) => s.setChannels)
@@ -42,6 +44,10 @@ export function ServerSidebar() {
   const previewRef = useRef<HTMLDivElement>(null)
 
   const isDMs = pathname.startsWith('/channels/@me') || pathname.startsWith('/friends')
+  const dmUnreadCount = channels.reduce((sum, channel) => {
+    if (channel.serverId != null) return sum
+    return sum + (unreadByChannel[channel.id]?.unreadCount ?? 0)
+  }, 0)
   const getServerHref = (serverId: string) => {
     const firstChannel = [...channels]
       .filter((ch) => ch.serverId === serverId && ch.type === 'text')
@@ -236,7 +242,13 @@ export function ServerSidebar() {
   return (
     <>
       <nav className="scrollable relative z-20 flex h-full w-[72px] flex-col items-center gap-1 overflow-y-auto overflow-x-hidden bg-[var(--s0)] pb-3 pt-3">
-        <ServerIcon href="/channels/@me" active={isDMs} tooltip="Direct Messages" isHome />
+        <ServerIcon
+          href="/channels/@me"
+          active={isDMs}
+          tooltip="Direct Messages"
+          isHome
+          unreadCount={dmUnreadCount}
+        />
 
         {servers.map((server) => {
           const active = pathname.startsWith(`/channels/${server.id}`)
@@ -397,6 +409,7 @@ interface ServerIconProps {
   iconUrl?: string | null
   name?: string
   isHome?: boolean
+  unreadCount?: number
   onContextMenu?: (event: ReactMouseEvent<HTMLAnchorElement>) => void
 }
 
@@ -407,6 +420,7 @@ function ServerIcon({
   iconUrl,
   name,
   isHome,
+  unreadCount = 0,
   onContextMenu,
 }: ServerIconProps) {
   const initials = name
@@ -472,6 +486,11 @@ function ServerIcon({
           </span>
         )}
       </div>
+      {unreadCount > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#ED4245] px-1 text-[10px] font-700 text-white ring-2 ring-[var(--s0)]">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
     </Link>
   )
 }
