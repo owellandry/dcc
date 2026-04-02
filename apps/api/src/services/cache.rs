@@ -22,7 +22,6 @@ pub fn server_members_cache_key(server_id: Uuid) -> String {
 /// Cache TTLs (in seconds)
 pub const USER_CACHE_TTL: usize = 30 * 60; // 30 minutes
 pub const SERVER_CACHE_TTL: usize = 5 * 60; // 5 minutes
-pub const SERVER_MEMBERS_TTL: usize = 60; // 1 minute
 
 /// Get a cached value by key
 pub async fn get<T: for<'de> serde::Deserialize<'de>>(
@@ -66,7 +65,10 @@ pub async fn set<T: serde::Serialize>(
 }
 
 /// Delete a cached key
-pub async fn delete(redis: &mut redis::aio::ConnectionManager, key: &str) -> redis::RedisResult<()> {
+pub async fn delete(
+    redis: &mut redis::aio::ConnectionManager,
+    key: &str,
+) -> redis::RedisResult<()> {
     redis.del::<_, ()>(key).await?;
     Ok(())
 }
@@ -78,10 +80,7 @@ pub async fn invalidate_user(redis: &mut redis::aio::ConnectionManager, user_id:
 }
 
 /// Invalidate server cache (and related members cache)
-pub async fn invalidate_server(
-    redis: &mut redis::aio::ConnectionManager,
-    server_id: Uuid,
-) {
+pub async fn invalidate_server(redis: &mut redis::aio::ConnectionManager, server_id: Uuid) {
     let server_key = server_cache_key(server_id);
     let members_key = server_members_cache_key(server_id);
     let _ = redis.del::<_, ()>(&server_key).await;
@@ -95,14 +94,19 @@ pub async fn get_or_fetch_user_public<F>(
     fetch_fn: F,
 ) -> Result<Option<crate::models::user::UserPublic>, crate::error::AppError>
 where
-    F: std::future::Future<Output = Result<Option<crate::models::user::UserPublic>, crate::error::AppError>>,
+    F: std::future::Future<
+        Output = Result<Option<crate::models::user::UserPublic>, crate::error::AppError>,
+    >,
 {
     let cache_key = user_cache_key(user_id);
 
     // Try to get from cache first
-    if let Some(profile) = get::<crate::models::user::UserPublic>(redis, &cache_key).await.map_err(|e| {
-        crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
-    })? {
+    if let Some(profile) = get::<crate::models::user::UserPublic>(redis, &cache_key)
+        .await
+        .map_err(|e| {
+            crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
+        })?
+    {
         return Ok(Some(profile));
     }
 
@@ -120,35 +124,6 @@ where
     Ok(Some(profile))
 }
 
-/// Get cached user (private view with email), or fetch and cache if missing
-pub async fn get_or_fetch_user_me<F>(
-    redis: &mut redis::aio::ConnectionManager,
-    user_id: Uuid,
-    fetch_fn: F,
-) -> Result<Option<crate::models::user::UserMe>, crate::error::AppError>
-where
-    F: std::future::Future<Output = Result<Option<crate::models::user::UserMe>, crate::error::AppError>>,
-{
-    let cache_key = user_cache_key(user_id);
-
-    if let Some(profile) = get::<crate::models::user::UserMe>(redis, &cache_key).await.map_err(|e| {
-        crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
-    })? {
-        return Ok(Some(profile));
-    }
-
-    let Some(profile) = fetch_fn.await? else {
-        return Ok(None);
-    };
-
-    let profile_clone = profile.clone();
-    if let Err(e) = set(redis, &cache_key, &profile_clone, USER_CACHE_TTL).await {
-        tracing::warn!("Failed to cache user profile: {}", e);
-    }
-
-    Ok(Some(profile))
-}
-
 /// Get cached server, or fetch and cache if missing
 pub async fn get_or_fetch_server<F>(
     redis: &mut redis::aio::ConnectionManager,
@@ -156,14 +131,19 @@ pub async fn get_or_fetch_server<F>(
     fetch_fn: F,
 ) -> Result<Option<crate::models::server::Server>, crate::error::AppError>
 where
-    F: std::future::Future<Output = Result<Option<crate::models::server::Server>, crate::error::AppError>>,
+    F: std::future::Future<
+        Output = Result<Option<crate::models::server::Server>, crate::error::AppError>,
+    >,
 {
     let cache_key = server_cache_key(server_id);
 
     // Try cache first
-    if let Some(server) = get::<crate::models::server::Server>(redis, &cache_key).await.map_err(|e| {
-        crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
-    })? {
+    if let Some(server) = get::<crate::models::server::Server>(redis, &cache_key)
+        .await
+        .map_err(|e| {
+            crate::error::AppError::Internal(anyhow::anyhow!("Redis cache error: {}", e))
+        })?
+    {
         return Ok(Some(server));
     }
 

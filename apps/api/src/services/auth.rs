@@ -114,13 +114,22 @@ pub fn generate_totp_secret_base32() -> String {
     Secret::generate_secret().to_encoded().to_string()
 }
 
-pub fn verify_totp_code(secret_base32: &str, code: &str, account_name: &str, issuer: &str) -> Result<bool> {
+pub fn verify_totp_code(
+    secret_base32: &str,
+    code: &str,
+    account_name: &str,
+    issuer: &str,
+) -> Result<bool> {
     let totp = build_totp(secret_base32, account_name, issuer)?;
     totp.check_current(code.trim())
         .map_err(|e| AppError::BadRequest(format!("Invalid two-factor code: {e}")))
 }
 
-pub fn build_totp_setup(secret_base32: &str, account_name: &str, issuer: &str) -> Result<(String, String)> {
+pub fn build_totp_setup(
+    secret_base32: &str,
+    account_name: &str,
+    issuer: &str,
+) -> Result<(String, String)> {
     let totp = build_totp(secret_base32, account_name, issuer)?;
     let qr_base64 = totp
         .get_qr_base64()
@@ -151,9 +160,9 @@ pub fn decrypt_sensitive_value(value: &str, master_secret: &str) -> Result<Strin
     let nonce = URL_SAFE_NO_PAD
         .decode(nonce_b64)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode secret nonce: {e}")))?;
-    let ciphertext = URL_SAFE_NO_PAD
-        .decode(ciphertext_b64)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode encrypted secret: {e}")))?;
+    let ciphertext = URL_SAFE_NO_PAD.decode(ciphertext_b64).map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Failed to decode encrypted secret: {e}"))
+    })?;
 
     let cipher = build_cipher(master_secret);
     let decrypted = cipher

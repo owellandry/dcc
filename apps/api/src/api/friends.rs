@@ -109,12 +109,11 @@ pub async fn send_request(
     // Check existing relationship
     #[derive(sqlx::FromRow)]
     struct FriendshipStatusRow {
-        id: Uuid,
         status: String,
     }
 
     let existing = sqlx::query_as::<_, FriendshipStatusRow>(
-        r#"SELECT id, status FROM friendships
+        r#"SELECT status FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
               OR (requester_id = $2 AND addressee_id = $1)"#,
     )

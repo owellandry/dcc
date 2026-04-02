@@ -126,7 +126,10 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
     let ready_text = match serde_json::to_string(&ready_msg) {
         Ok(s) => s,
         Err(e) => {
-            error!("Failed to serialize READY gateway message for user {}: {}", user_id, e);
+            error!(
+                "Failed to serialize READY gateway message for user {}: {}",
+                user_id, e
+            );
             return;
         }
     };
@@ -479,11 +482,10 @@ async fn subscribe_and_forward(
     channels: Vec<String>,
     tx: mpsc::Sender<String>,
 ) {
-    let conn = match redis_client.get_async_connection().await {
-        Ok(conn) => conn,
+    let mut pubsub = match redis_client.get_async_pubsub().await {
+        Ok(pubsub) => pubsub,
         Err(_) => return,
     };
-    let mut pubsub = conn.into_pubsub();
 
     for ch in &channels {
         if pubsub.subscribe(ch).await.is_err() {

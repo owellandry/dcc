@@ -15,5 +15,5 @@ pnpm-lock.yaml
 yarn.lock
 package-lock.json
 .sqlx
-cargo.lock
+Cargo.lock
 target-wsl

@@ -127,7 +127,10 @@ pub fn router() -> Router<AppState> {
         )
         // ── Threads ───────────────────────────────────────────────────────────
         .route("/messages/:message_id/thread", post(threads::create_thread))
-        .route("/threads/:thread_id/archive", patch(threads::archive_thread))
+        .route(
+            "/threads/:thread_id/archive",
+            patch(threads::archive_thread),
+        )
         // ── DMs ──────────────────────────────────────────────────────────────
         .route("/dms", get(dms::list_dms))
         .route("/dms/:user_id", post(dms::open_dm))

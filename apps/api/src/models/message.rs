@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
+use super::user::UserPublic;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::user::UserPublic;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {

@@ -46,13 +46,12 @@ pub async fn create_channel(
     }
 
     if let Some(category_id) = body.category_id {
-        let category_server_id = sqlx::query_scalar::<_, Uuid>(
-            "SELECT server_id FROM categories WHERE id = $1",
-        )
-        .bind(category_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
+        let category_server_id =
+            sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+                .bind(category_id)
+                .fetch_optional(&state.db)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
         if category_server_id != server_id {
             return Err(AppError::BadRequest(

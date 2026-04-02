@@ -19,12 +19,10 @@ pub struct AuthUser(pub Uuid);
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self> {
-        let token = extract_bearer_token(&parts.headers)
-            .ok_or_else(|| AppError::Unauthorized("Missing or invalid Authorization header".into()))?;
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self> {
+        let token = extract_bearer_token(&parts.headers).ok_or_else(|| {
+            AppError::Unauthorized("Missing or invalid Authorization header".into())
+        })?;
 
         let user_id = verify_access_token(&token, &state.config.jwt_secret)?;
 

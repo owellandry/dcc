@@ -83,13 +83,11 @@ pub async fn update_category(
     Path(category_id): Path<Uuid>,
     Json(body): Json<UpdateCategoryBody>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT server_id FROM categories WHERE id = $1",
-    )
-    .bind(category_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
+    let server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+        .bind(category_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
     ensure_server_permission(
         &state,
@@ -131,13 +129,11 @@ pub async fn delete_category(
     State(state): State<AppState>,
     Path(category_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT server_id FROM categories WHERE id = $1",
-    )
-    .bind(category_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
+    let server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+        .bind(category_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
     ensure_server_permission(
         &state,

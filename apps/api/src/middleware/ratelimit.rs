@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    http::{Request, Response, StatusCode, Method},
+    http::{Method, Request, Response, StatusCode},
     middleware::Next,
 };
 use redis::AsyncCommands;
@@ -38,11 +38,7 @@ pub async fn rate_limit_middleware(
         }
     };
 
-    let key = format!(
-        "ratelimit:{}:{}",
-        config.scope,
-        identifier
-    );
+    let key = format!("ratelimit:{}:{}", config.scope, identifier);
 
     let mut redis = state.redis.clone();
 
@@ -93,7 +89,10 @@ pub async fn rate_limit_middleware(
     );
     headers.insert(
         "X-RateLimit-Remaining",
-        (config.max_requests - current - 1).to_string().parse().unwrap(),
+        (config.max_requests - current - 1)
+            .to_string()
+            .parse()
+            .unwrap(),
     );
 
     Response::from_parts(parts, body)
@@ -143,11 +142,9 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
     }
 
     // Upload endpoints: 10 per minute
-    if method == Method::POST && (
-        path.ends_with("/avatar") ||
-        path.ends_with("/banner") ||
-        path.ends_with("/icon")
-    ) {
+    if method == Method::POST
+        && (path.ends_with("/avatar") || path.ends_with("/banner") || path.ends_with("/icon"))
+    {
         return Some(RateLimitConfig {
             max_requests: 10,
             window_secs: 60,
@@ -156,12 +153,12 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
     }
 
     // Server moderation (kicks, bans, role changes): 30 per minute
-    if path.contains("/servers/") && (
-        path.ends_with("/kick") ||
-        path.contains("/bans") ||
-        path.contains("/roles") ||
-        path.contains("/overwrites")
-    ) {
+    if path.contains("/servers/")
+        && (path.ends_with("/kick")
+            || path.contains("/bans")
+            || path.contains("/roles")
+            || path.contains("/overwrites"))
+    {
         return Some(RateLimitConfig {
             max_requests: 30,
             window_secs: 60,

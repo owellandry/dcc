@@ -67,13 +67,12 @@ pub async fn reorder_structure(
     if let Some(channels) = body.channels {
         for channel in channels {
             if let Some(category_id) = channel.category_id {
-                let category_server_id: Uuid = sqlx::query_scalar(
-                    "SELECT server_id FROM categories WHERE id = $1",
-                )
-                .bind(category_id)
-                .fetch_optional(&mut *tx)
-                .await?
-                .ok_or_else(|| AppError::BadRequest("Category does not exist".into()))?;
+                let category_server_id: Uuid =
+                    sqlx::query_scalar("SELECT server_id FROM categories WHERE id = $1")
+                        .bind(category_id)
+                        .fetch_optional(&mut *tx)
+                        .await?
+                        .ok_or_else(|| AppError::BadRequest("Category does not exist".into()))?;
 
                 if category_server_id != server_id {
                     return Err(AppError::BadRequest(

@@ -1,19 +1,16 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use axum::{
     body::Body,
     http::{Request, Response},
     middleware::Next,
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info_span, Instrument};
 
 // Global counter for request IDs (simple, not cryptographically secure)
 static REQUEST_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Middleware function that adds a unique X-Request-ID to each request and sets up tracing spans.
-pub async fn request_id_middleware(
-    mut req: Request<Body>,
-    next: Next,
-) -> Response<Body> {
+pub async fn request_id_middleware(mut req: Request<Body>, next: Next) -> Response<Body> {
     // Generate request ID
     let request_id = REQUEST_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
 

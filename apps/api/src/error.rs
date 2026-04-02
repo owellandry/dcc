@@ -68,19 +68,35 @@ impl IntoResponse for AppError {
             AppError::Database(e) => {
                 if let sqlx::Error::Database(db_err) = e {
                     if db_err.constraint().is_some() {
-                        (StatusCode::CONFLICT, "CONFLICT", "Resource already exists".into())
+                        (
+                            StatusCode::CONFLICT,
+                            "CONFLICT",
+                            "Resource already exists".into(),
+                        )
                     } else {
                         tracing::error!("Database error: {:?}", e);
-                        (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error".into())
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "INTERNAL_ERROR",
+                            "Internal server error".into(),
+                        )
                     }
                 } else {
                     tracing::error!("Database error: {:?}", e);
-                    (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error".into())
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "INTERNAL_ERROR",
+                        "Internal server error".into(),
+                    )
                 }
             }
             AppError::Internal(e) => {
                 tracing::error!("Internal error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Internal server error".into(),
+                )
             }
         };
 

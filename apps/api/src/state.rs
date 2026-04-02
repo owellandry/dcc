@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use sqlx::PgPool;
+use crate::config::Config;
 use redis::aio::ConnectionManager;
 use redis::Client;
-use crate::config::Config;
+use sqlx::PgPool;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {

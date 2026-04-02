@@ -26,10 +26,10 @@ pub async fn replace_category_overwrites(
     Json(body): Json<ReplaceOverwritesBody>,
 ) -> Result<Json<Value>> {
     let server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
-    .bind(category_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
+        .bind(category_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
     let actor = ensure_server_permission(
         &state,
@@ -57,12 +57,13 @@ pub async fn replace_channel_overwrites(
     Path(channel_id): Path<Uuid>,
     Json(body): Json<ReplaceOverwritesBody>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
-        .bind(channel_id)
-        .fetch_optional(&state.db)
-        .await?
-        .flatten()
-        .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
+    let server_id =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .flatten()
+            .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     let actor = ensure_server_permission(
         &state,

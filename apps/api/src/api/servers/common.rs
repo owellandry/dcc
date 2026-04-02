@@ -83,9 +83,7 @@ pub(crate) struct ServerPermissionsContext {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ChannelAccess {
-    pub channel_id: Uuid,
     pub server_id: Option<Uuid>,
-    pub category_id: Option<Uuid>,
     pub permissions: i64,
 }
 
@@ -204,7 +202,7 @@ pub(crate) async fn load_server_permissions_context(
         "SELECT s.owner_id, (sm.user_id IS NOT NULL) as \"is_member!\"
          FROM servers s
          LEFT JOIN server_members sm ON sm.server_id = s.id AND sm.user_id = $2
-         WHERE s.id = $1"
+         WHERE s.id = $1",
     )
     .bind(server_id)
     .bind(user_id)
@@ -422,9 +420,7 @@ pub(crate) async fn load_channel_access(
         }
 
         return Ok(ChannelAccess {
-            channel_id,
             server_id: None,
-            category_id: None,
             permissions: ALL_KNOWN_PERMISSIONS,
         });
     };
@@ -434,9 +430,7 @@ pub(crate) async fn load_channel_access(
         resolve_channel_permissions(state, &context, location.category_id, location.id).await?;
 
     Ok(ChannelAccess {
-        channel_id,
         server_id: Some(server_id),
-        category_id: location.category_id,
         permissions,
     })
 }
@@ -596,7 +590,7 @@ pub(crate) async fn load_all_overwrites_for_server(
                   deny_bits, created_at
            FROM permission_overwrites
            WHERE server_id = $1
-           ORDER BY created_at ASC"#
+           ORDER BY created_at ASC"#,
     )
     .bind(server_id)
     .fetch_all(&state.db)
@@ -613,5 +607,8 @@ pub(crate) async fn load_all_overwrites_for_server(
         }
     }
 
-    Ok(OverwritesBatch { by_channel, by_category })
+    Ok(OverwritesBatch {
+        by_channel,
+        by_category,
+    })
 }

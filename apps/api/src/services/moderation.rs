@@ -6,13 +6,14 @@ use std::sync::LazyLock;
 
 /// Lista básica de palabras prohibidas (se puede mover a BD o archivo de configuración)
 const PROFANITY_WORDS: &[&str] = &[
-    "palabra1", "palabra2", "testbadword", // TODO: completar con lista real
+    "palabra1",
+    "palabra2",
+    "testbadword", // TODO: completar con lista real
 ];
 
 /// Regex para detectar URLs (simple)
-static URL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(https?://[^\s]+|www\.[^\s]+)").unwrap()
-});
+static URL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(https?://[^\s]+|www\.[^\s]+)").unwrap());
 
 /// Malicious domains blocklist (podría cargarse desde DB o archivo)
 const BLOCKED_DOMAINS: &[&str] = &[
@@ -47,12 +48,15 @@ pub fn is_blocked_url(url: &str) -> bool {
     false
 }
 
-/// Censura palabras profanas reemplazando con asteriscos
-pub fn censor_profanity(text: &str) -> String {
+/// Censura palabras profanas reemplazando con asteriscos.
+#[cfg(test)]
+fn censor_profanity(text: &str) -> String {
     let mut result = text.to_string();
     for word in PROFANITY_WORDS {
         let pattern = regex::Regex::new(&format!(r"(?i)\b{}\b", regex::escape(word))).unwrap();
-        result = pattern.replace_all(&result, "*".repeat(word.len())).to_string();
+        result = pattern
+            .replace_all(&result, "*".repeat(word.len()))
+            .to_string();
     }
     result
 }

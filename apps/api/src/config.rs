@@ -13,7 +13,6 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub app_urls: Vec<String>,
     pub app_url: String,
-    pub api_urls: Vec<String>,
     pub api_url: String,
     pub google_client_id: String,
     pub google_client_secret: String,
@@ -54,7 +53,6 @@ impl Config {
             app_url: pick_primary_url(&app_urls, "http://localhost:3000"),
             app_urls,
             api_url: pick_primary_url(&api_urls, "http://localhost:8080"),
-            api_urls,
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap_or_default(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap_or_default(),
             google_redirect_uri: env::var("GOOGLE_REDIRECT_URI").unwrap_or_default(),
@@ -71,7 +69,10 @@ fn read_url_list(keys: &[&str], fallback: &str) -> Vec<String> {
         .find_map(|key| env::var(key).ok())
         .unwrap_or_else(|| fallback.to_owned());
 
-    let urls = raw.split(',').filter_map(normalize_origin).collect::<Vec<_>>();
+    let urls = raw
+        .split(',')
+        .filter_map(normalize_origin)
+        .collect::<Vec<_>>();
     if urls.is_empty() {
         fallback
             .split(',')
@@ -198,6 +199,8 @@ mod tests {
         assert!(is_localish_url("http://localhost:3000"));
         assert!(is_localish_url("http://127.0.0.1:8080"));
         assert!(is_localish_url("http://192.168.1.23:3000"));
-        assert!(!is_localish_url("https://vbtsoybxichbrqgmwimzzxsgabdco.servgrid.xyz"));
+        assert!(!is_localish_url(
+            "https://vbtsoybxichbrqgmwimzzxsgabdco.servgrid.xyz"
+        ));
     }
 }

@@ -1,8 +1,7 @@
 use super::*;
 use crate::api::servers::common::{
-    ensure_owner, ensure_owner_or_manage_server, load_all_overwrites_for_server,
-    load_server_permissions_context, load_server_roles, overwrite_payload,
-    role_payload, apply_overwrites,
+    apply_overwrites, ensure_owner, ensure_owner_or_manage_server, load_all_overwrites_for_server,
+    load_server_permissions_context, load_server_roles, overwrite_payload, role_payload,
     DEFAULT_EVERYONE_PERMISSIONS, SEND_MESSAGES_PERMISSION, VIEW_CHANNEL_PERMISSION,
 };
 use crate::services::cache;
@@ -156,7 +155,11 @@ pub async fn get_server(
             visible_category_ids.insert(category_id);
         }
 
-        let channel_overwrites = overwrites_batch.by_channel.get(&channel.id).cloned().unwrap_or_default();
+        let channel_overwrites = overwrites_batch
+            .by_channel
+            .get(&channel.id)
+            .cloned()
+            .unwrap_or_default();
         channel_payloads.push(json!({
             "id": channel.id,
             "serverId": channel.server_id,
@@ -188,7 +191,11 @@ pub async fn get_server(
             continue;
         }
 
-        let category_overwrites = overwrites_batch.by_category.get(&category.id).cloned().unwrap_or_default();
+        let category_overwrites = overwrites_batch
+            .by_category
+            .get(&category.id)
+            .cloned()
+            .unwrap_or_default();
         category_payloads.push(json!({
             "id": category.id,
             "serverId": category.server_id,

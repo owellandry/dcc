@@ -172,10 +172,13 @@ pub async fn send_message(
     if let Err(violations) = moderation::validate_message_content(&content) {
         let reasons = violations
             .iter()
-            .map(|v| v.reason.clone())
+            .map(|v| format!("{}: {}", v.field, v.reason))
             .collect::<Vec<_>>()
             .join("; ");
-        return Err(AppError::BadRequest(format!("Content policy violation: {}", reasons)));
+        return Err(AppError::BadRequest(format!(
+            "Content policy violation: {}",
+            reasons
+        )));
     }
 
     let reply_to_id = validate_reply_target(&state, body.reply_to_id, channel_id).await?;
@@ -183,11 +186,12 @@ pub async fn send_message(
 
     // Validate parent_message_id if provided (thread participation)
     if let Some(pid) = parent_message_id {
-        let parent_channel_id = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
-            .bind(pid)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| AppError::BadRequest("Parent message not found".into()))?;
+        let parent_channel_id =
+            sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+                .bind(pid)
+                .fetch_optional(&state.db)
+                .await?
+                .ok_or_else(|| AppError::BadRequest("Parent message not found".into()))?;
 
         if parent_channel_id != channel_id {
             return Err(AppError::BadRequest(
@@ -312,13 +316,12 @@ pub async fn delete_message(
 ) -> Result<Json<Value>> {
     #[derive(sqlx::FromRow)]
     struct MessageOwnerRow {
-        id: Uuid,
         channel_id: Uuid,
         author_id: Uuid,
     }
 
     let row = sqlx::query_as::<_, MessageOwnerRow>(
-        "SELECT id, channel_id, author_id FROM messages WHERE id = $1",
+        "SELECT channel_id, author_id FROM messages WHERE id = $1",
     )
     .bind(message_id)
     .fetch_optional(&state.db)
@@ -452,11 +455,12 @@ async fn validate_reply_target(
         return Ok(None);
     };
 
-    let reply_channel_id = sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
-        .bind(reply_to_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::BadRequest("Reply target message was not found".into()))?;
+    let reply_channel_id =
+        sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM messages WHERE id = $1")
+            .bind(reply_to_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("Reply target message was not found".into()))?;
 
     if reply_channel_id != channel_id {
         return Err(AppError::BadRequest(
@@ -598,13 +602,14 @@ async fn fetch_reactions(state: &AppState, message_id: Uuid, user_id: Uuid) -> R
 
 async fn get_pub_channel(state: &AppState, channel_id: Uuid) -> String {
     // Determine if DM or guild channel for routing
-    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
-        .bind(channel_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-        .flatten();
+    let server_id =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
 
     if let Some(sid) = server_id {
         guild_channel(sid)

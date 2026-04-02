@@ -11,12 +11,8 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use axum::{
-    extract::State,
-    http::HeaderValue,
-    middleware as axum_middleware,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
+    extract::State, http::HeaderValue, middleware as axum_middleware, response::IntoResponse,
+    routing::get, Json, Router,
 };
 use serde_json::json;
 use tower_http::{
@@ -41,7 +37,8 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     // Tracing
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "dcc_api=debug,tower_http=debug".into());
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "dcc_api=debug,tower_http=debug".into());
 
     tracing_subscriber::registry()
         .with(filter)
@@ -49,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
             fmt::layer()
                 .with_target(false)
                 .with_thread_ids(false)
-                .with_thread_names(false)
+                .with_thread_names(false),
         )
         .init();
 
@@ -117,14 +114,13 @@ async fn main() -> anyhow::Result<()> {
         // WebSocket gateway
         .route("/ws", get(gateway::ws_handler))
         // Static uploads (for local avatar storage)
-        .nest_service(
-            "/uploads",
-            tower_http::services::ServeDir::new("uploads"),
-        )
+        .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         .layer(cors)
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
-            |State(state): State<AppState>, req, next| async move { rate_limit(&state, req, next).await },
+            |State(state): State<AppState>, req, next| async move {
+                rate_limit(&state, req, next).await
+            },
         ))
         .layer(axum_middleware::from_fn(request_id_middleware))
         .layer(CompressionLayer::new())
@@ -158,10 +154,13 @@ async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
 
 /// health: /health checks DB and Redis connectivity
 async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
-    let db_ok = sqlx::query("SELECT 1").fetch_optional(&state.db).await.is_ok();
+    let db_ok = sqlx::query("SELECT 1")
+        .fetch_optional(&state.db)
+        .await
+        .is_ok();
     let mut redis = state.redis.clone();
     let redis_ok = redis::cmd("PING")
-        .query_async::<_, String>(&mut redis)
+        .query_async::<String>(&mut redis)
         .await
         .is_ok();
 

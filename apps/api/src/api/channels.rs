@@ -104,15 +104,14 @@ pub async fn update_channel(
 ) -> Result<Json<Value>> {
     #[derive(sqlx::FromRow)]
     struct ChannelServerRow {
-        id: Uuid,
         server_id: Option<Uuid>,
     }
 
-    let ch = sqlx::query_as::<_, ChannelServerRow>("SELECT id, server_id FROM channels WHERE id = $1")
+    let ch = sqlx::query_as::<_, ChannelServerRow>("SELECT server_id FROM channels WHERE id = $1")
         .bind(channel_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     let Some(server_id) = ch.server_id else {
         return Err(AppError::Forbidden("Cannot edit DM channels".into()));
@@ -128,11 +127,12 @@ pub async fn update_channel(
     .await?;
 
     if let Some(category_id) = body.category_id {
-        let category_server_id = sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
-        .bind(category_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
+        let category_server_id =
+            sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM categories WHERE id = $1")
+                .bind(category_id)
+                .fetch_optional(&state.db)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
         if category_server_id != server_id {
             return Err(AppError::BadRequest(
@@ -206,11 +206,12 @@ pub async fn delete_channel(
     State(state): State<AppState>,
     Path(channel_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let server_id = sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
-        .bind(channel_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
+    let server_id =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     let Some(server_id) = server_id else {
         return Err(AppError::Forbidden(

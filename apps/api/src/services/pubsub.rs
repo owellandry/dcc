@@ -2,7 +2,11 @@ use redis::{aio::ConnectionManager, AsyncCommands};
 use uuid::Uuid;
 
 /// Publish a raw JSON string to a Redis pub/sub channel.
-pub async fn publish(redis: &ConnectionManager, channel: &str, message: &str) -> anyhow::Result<()> {
+pub async fn publish(
+    redis: &ConnectionManager,
+    channel: &str,
+    message: &str,
+) -> anyhow::Result<()> {
     let mut conn = redis.clone();
     let _: () = conn.publish(channel, message).await?;
     Ok(())

@@ -10,10 +10,7 @@ use serde_json::{json, Value};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::{
-    error::Result,
-    state::AppState,
-};
+use crate::{error::Result, state::AppState};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,14 +134,13 @@ pub async fn search(
 
     // Search users if requested
     if type_filter == "all" || type_filter == "users" {
-        let user_rows = sqlx::query_as::<_, UserSearchRow>(
-            "SELECT * FROM search_users($1, $2, $3)",
-        )
-        .bind(&search_text)
-        .bind(limit as i32)
-        .bind(offset as i32)
-        .fetch_all(&state.db)
-        .await?;
+        let user_rows =
+            sqlx::query_as::<_, UserSearchRow>("SELECT * FROM search_users($1, $2, $3)")
+                .bind(&search_text)
+                .bind(limit as i32)
+                .bind(offset as i32)
+                .fetch_all(&state.db)
+                .await?;
 
         for row in user_rows {
             results.push(SearchResult {
@@ -171,14 +167,13 @@ pub async fn search(
 
     // Search servers if requested
     if type_filter == "all" || type_filter == "servers" {
-        let server_rows = sqlx::query_as::<_, ServerSearchRow>(
-            "SELECT * FROM search_servers($1, $2, $3)",
-        )
-        .bind(&search_text)
-        .bind(limit as i32)
-        .bind(offset as i32)
-        .fetch_all(&state.db)
-        .await?;
+        let server_rows =
+            sqlx::query_as::<_, ServerSearchRow>("SELECT * FROM search_servers($1, $2, $3)")
+                .bind(&search_text)
+                .bind(limit as i32)
+                .bind(offset as i32)
+                .fetch_all(&state.db)
+                .await?;
 
         for row in server_rows {
             results.push(SearchResult {

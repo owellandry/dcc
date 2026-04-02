@@ -23,12 +23,11 @@ pub async fn ensure_thread_exists(
     channel_id: Uuid,
 ) -> Result<()> {
     // Check if thread already exists
-    let exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM threads WHERE first_message_id = $1)"
-    )
-    .bind(first_message_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let exists: Option<bool> =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM threads WHERE first_message_id = $1)")
+            .bind(first_message_id)
+            .fetch_optional(&state.db)
+            .await?;
     let exists = exists.unwrap_or(false);
 
     if !exists {
@@ -68,18 +67,6 @@ pub struct Thread {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ThreadResponse {
-    pub id: Uuid,
-    pub channel_id: Uuid,
-    pub first_message_id: Uuid,
-    pub is_archived: bool,
-    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Create a thread from an existing message
 /// POST /messages/:message_id/thread
 pub async fn create_thread(
@@ -92,13 +79,10 @@ pub async fn create_thread(
     #[derive(sqlx::FromRow)]
     struct MessageRow {
         channel_id: Uuid,
-        author_id: Uuid,
-        content: String,
-        message_type: String,
     }
 
     let message_row = sqlx::query_as::<_, MessageRow>(
-        r#"SELECT m.channel_id, m.author_id, m.content, m.message_type
+        r#"SELECT m.channel_id
            FROM messages m
            WHERE m.id = $1"#,
     )
@@ -108,18 +92,22 @@ pub async fn create_thread(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     // Ensure user can view the channel
-    let _access = crate::api::servers::common::load_channel_access(
-        &state,
-        user_id,
-        message_row.channel_id,
-    )
-    .await?;
+    let _access =
+        crate::api::servers::common::load_channel_access(&state, user_id, message_row.channel_id)
+            .await?;
 
     // Si body.content viene, creamos un primer mensaje dentro del thread
     // (en este modelo, se representa con `parent_message_id = message_id`).
-    if let Some(content) = body.content.as_deref().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+    if let Some(content) = body
+        .content
+        .as_deref()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty())
+    {
         if content.len() > 4000 {
-            return Err(AppError::BadRequest("Message exceeds 4000 character limit".into()));
+            return Err(AppError::BadRequest(
+                "Message exceeds 4000 character limit".into(),
+            ));
         }
 
         let reply_message_id = Uuid::new_v4();
@@ -144,12 +132,11 @@ pub async fn create_thread(
     }
 
     // Check if thread already exists
-    let existing_thread = sqlx::query_as::<_, Thread>(
-        "SELECT * FROM threads WHERE first_message_id = $1",
-    )
-    .bind(message_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let existing_thread =
+        sqlx::query_as::<_, Thread>("SELECT * FROM threads WHERE first_message_id = $1")
+            .bind(message_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if let Some(thread) = existing_thread {
         return Ok(Json(json!({
@@ -204,7 +191,7 @@ pub async fn archive_thread(
     Json(body): Json<ArchiveThreadBody>,
 ) -> Result<Json<Value>> {
     // Find thread
-    let thread = sqlx::query_as::<_, Thread>("SELECT * FROM threads WHERE id = $1",)
+    let thread = sqlx::query_as::<_, Thread>("SELECT * FROM threads WHERE id = $1")
         .bind(thread_id)
         .fetch_optional(&state.db)
         .await?

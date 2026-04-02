@@ -258,13 +258,12 @@ pub async fn update_me(
     )
     .await;
 
-    let guild_ids = sqlx::query_scalar::<_, Uuid>(
-        "SELECT server_id FROM server_members WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default();
+    let guild_ids =
+        sqlx::query_scalar::<_, Uuid>("SELECT server_id FROM server_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
 
     for guild_id in guild_ids {
         let _ = publish(
