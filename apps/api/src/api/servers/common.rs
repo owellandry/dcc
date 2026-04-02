@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
 use sqlx::FromRow;
@@ -193,8 +193,24 @@ pub(crate) async fn load_server_permissions_context(
     user_id: Uuid,
     server_id: Uuid,
 ) -> Result<ServerPermissionsContext> {
-    let owner_id = fetch_server_owner_id(state, server_id).await?;
-    ensure_member(state, user_id, server_id).await?;
+    // Combined query: obtain owner_id and verify membership in a single DB roundtrip
+    let row = sqlx::query!(
+        "SELECT s.owner_id, (sm.user_id IS NOT NULL) as \"is_member!\"
+         FROM servers s
+         LEFT JOIN server_members sm ON sm.server_id = s.id AND sm.user_id = $2
+         WHERE s.id = $1",
+        server_id,
+        user_id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
+
+    if !row.is_member {
+        return Err(AppError::Forbidden("Not a member of this server".into()));
+    }
+
+    let owner_id = row.owner_id;
 
     let default_role = fetch_default_role(state, server_id).await?;
     let roles = load_member_roles(state, server_id, user_id).await?;
@@ -486,7 +502,7 @@ pub(crate) async fn load_scope_overwrites(
     }
 }
 
-fn apply_overwrites(
+pub fn apply_overwrites(
     mut permissions: i64,
     context: &ServerPermissionsContext,
     overwrites: &[PermissionOverwriteRecord],
@@ -554,4 +570,43 @@ pub(crate) fn overwrite_payload(overwrite: &PermissionOverwriteRecord) -> Value 
         "denyBits": overwrite.deny_bits,
         "createdAt": overwrite.created_at,
     })
+}
+
+/// Batch de overwrites cargados para un servidor.
+/// Permite acceso O(1) por channel_id o category_id, evitando N+1 queries.
+#[derive(Clone)]
+pub(crate) struct OverwritesBatch {
+    pub by_channel: HashMap<Uuid, Vec<PermissionOverwriteRecord>>,
+    pub by_category: HashMap<Uuid, Vec<PermissionOverwriteRecord>>,
+}
+
+/// Carga todos los permission overwrites de un servidor en una sola query.
+/// Retorna un batch organizado por channel_id y category_id.
+pub(crate) async fn load_all_overwrites_for_server(
+    state: &AppState,
+    server_id: Uuid,
+) -> Result<OverwritesBatch> {
+    let rows = sqlx::query_as::<_, PermissionOverwriteRecord>(
+        r#"SELECT id, server_id, category_id, channel_id, target_type, target_id, allow_bits,
+                  deny_bits, created_at
+           FROM permission_overwrites
+           WHERE server_id = $1
+           ORDER BY created_at ASC"#
+    )
+    .bind(server_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut by_channel: HashMap<Uuid, Vec<PermissionOverwriteRecord>> = HashMap::new();
+    let mut by_category: HashMap<Uuid, Vec<PermissionOverwriteRecord>> = HashMap::new();
+
+    for row in rows {
+        if let Some(channel_id) = row.channel_id {
+            by_channel.entry(channel_id).or_default().push(row);
+        } else if let Some(category_id) = row.category_id {
+            by_category.entry(category_id).or_default().push(row);
+        }
+    }
+
+    Ok(OverwritesBatch { by_channel, by_category })
 }

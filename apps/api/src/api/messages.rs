@@ -11,9 +11,11 @@ use crate::{
         ensure_channel_view_access, has_permission, load_channel_access,
         load_server_permissions_context, MANAGE_MESSAGES_PERMISSION, SEND_MESSAGES_PERMISSION,
     },
+    api::threads::ensure_thread_exists,
     error::{AppError, Result},
     middleware::AuthUser,
     models::message::MessageRow,
+    services::moderation,
     services::pubsub::{dm_channel, guild_channel, publish},
     state::AppState,
 };
@@ -41,7 +43,7 @@ pub async fn list_messages(
     let (rows, reverse_after) = if let Some(before) = q.before {
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
-                      m.reply_to_id, m.is_edited, m.created_at, m.edited_at,
+                      m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
                       u.username as author_username, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
@@ -63,7 +65,7 @@ pub async fn list_messages(
     } else if let Some(after) = q.after {
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
-                      m.reply_to_id, m.is_edited, m.created_at, m.edited_at,
+                      m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
                       u.username as author_username, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
@@ -85,7 +87,7 @@ pub async fn list_messages(
     } else {
         let r = sqlx::query_as::<_, MessageRow>(
             r#"SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
-                      m.reply_to_id, m.is_edited, m.created_at, m.edited_at,
+                      m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
                       u.username as author_username, u.discriminator as author_discriminator,
                       u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                       u.bio as author_bio, u.status as author_status,
@@ -138,6 +140,8 @@ pub async fn list_messages(
 pub struct SendMessageBody {
     pub content: Option<String>,
     pub reply_to_id: Option<Uuid>,
+    /// If set, this message starts or continues a thread
+    pub parent_message_id: Option<Uuid>,
 }
 
 pub async fn send_message(
@@ -156,23 +160,57 @@ pub async fn send_message(
         ));
     }
     let content = content.unwrap();
+
+    // Length check
     if content.len() > 4000 {
         return Err(AppError::BadRequest(
             "Message exceeds 4000 character limit".into(),
         ));
     }
 
+    // Moderation: validate content (profanity, blocked links)
+    if let Err(violations) = moderation::validate_message_content(&content) {
+        let reasons = violations
+            .iter()
+            .map(|v| v.reason.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::BadRequest(format!("Content policy violation: {}", reasons)));
+    }
+
     let reply_to_id = validate_reply_target(&state, body.reply_to_id, channel_id).await?;
+    let parent_message_id = body.parent_message_id;
+
+    // Validate parent_message_id if provided (thread participation)
+    if let Some(pid) = parent_message_id {
+        let parent_msg = sqlx::query!(
+            "SELECT channel_id FROM messages WHERE id = $1",
+            pid
+        )
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("Parent message not found".into()))?;
+
+        if parent_msg.channel_id != channel_id {
+            return Err(AppError::BadRequest(
+                "Parent message is not in this channel".into(),
+            ));
+        }
+
+        // Ensure thread exists (create if not)
+        ensure_thread_exists(&state, pid, channel_id).await?;
+    }
+
     let message_id = Uuid::new_v4();
 
     let row = sqlx::query_as::<_, MessageRow>(
         r#"WITH ins AS (
-               INSERT INTO messages (id, channel_id, author_id, content, reply_to_id)
-               VALUES ($1, $2, $3, $4, $5)
+               INSERT INTO messages (id, channel_id, author_id, content, reply_to_id, parent_message_id)
+               VALUES ($1, $2, $3, $4, $5, $6)
                RETURNING *
            )
            SELECT m.id, m.channel_id, m.author_id, m.content, m.message_type,
-                  m.reply_to_id, m.is_edited, m.created_at, m.edited_at,
+                  m.reply_to_id, m.parent_message_id, m.is_edited, m.created_at, m.edited_at,
                   u.username as author_username, u.discriminator as author_discriminator,
                   u.avatar_url as author_avatar_url, u.banner_url as author_banner_url,
                   u.bio as author_bio, u.status as author_status,
@@ -186,6 +224,7 @@ pub async fn send_message(
     .bind(user_id)
     .bind(content)
     .bind(reply_to_id)
+    .bind(parent_message_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -490,6 +529,7 @@ async fn build_message_payload(state: &AppState, row: &MessageRow, user_id: Uuid
         "content": row.content,
         "type": row.message_type,
         "replyTo": reply_to,
+        "threadParentId": row.parent_message_id,
         "attachments": [],
         "reactions": reactions,
         "isEdited": row.is_edited,

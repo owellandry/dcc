@@ -1,5 +1,8 @@
 use super::*;
 use crate::api::servers::common::{ensure_server_permission, MANAGE_SERVER_PERMISSION};
+use crate::middleware::AuthUser;
+use crate::services::cache;
+use serde_json::Value;
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +22,7 @@ struct ResolvedInviteServer {
     is_public: bool,
     member_count: i32,
     created_at: chrono::DateTime<Utc>,
+    resolved_invite_code: String,
     tracked_invite: bool,
 }
 
@@ -48,6 +52,7 @@ async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedI
             is_public: row.is_public,
             member_count: row.member_count,
             created_at: row.created_at,
+            resolved_invite_code: code.to_string(),
             tracked_invite: true,
         });
     }
@@ -63,6 +68,7 @@ async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedI
     .await?;
 
     if let Some(row) = permanent {
+        let resolved_invite_code = row.invite_code.clone();
         return Ok(ResolvedInviteServer {
             id: row.id,
             name: row.name,
@@ -74,6 +80,7 @@ async fn resolve_invite_server(state: &AppState, code: &str) -> Result<ResolvedI
             is_public: row.is_public,
             member_count: row.member_count,
             created_at: row.created_at,
+            resolved_invite_code,
             tracked_invite: false,
         });
     }
@@ -144,6 +151,7 @@ pub async fn get_invite(
 
     Ok(Json(json!({
         "data": {
+            "inviteCode": row.resolved_invite_code,
             "server": {
                 "id": row.id,
                 "name": row.name,
@@ -208,6 +216,10 @@ pub async fn join_server(
         )
         .execute(&state.db)
         .await?;
+
+        // Invalidate server cache after member count change
+        let mut redis = state.redis.clone();
+        cache::invalidate_server(&mut redis, row.id).await;
 
         let first_text_channel = sqlx::query!(
             r#"SELECT id

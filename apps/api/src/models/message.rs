@@ -14,6 +14,9 @@ pub struct Message {
     #[serde(rename = "type")]
     pub message_type: String,
     pub reply_to: Option<Box<MessageReply>>,
+    /// If this message is part of a thread, this is the root message ID
+    #[serde(rename = "threadParentId")]
+    pub thread_parent_id: Option<Uuid>,
     pub attachments: Vec<Attachment>,
     pub reactions: Vec<Reaction>,
     pub is_edited: bool,
@@ -56,6 +59,7 @@ pub struct MessageRow {
     pub content: Option<String>,
     pub message_type: String,
     pub reply_to_id: Option<Uuid>,
+    pub parent_message_id: Option<Uuid>,
     pub is_edited: bool,
     pub created_at: DateTime<Utc>,
     pub edited_at: Option<DateTime<Utc>>,
@@ -98,6 +102,7 @@ impl MessageRow {
             content: self.content,
             message_type: self.message_type,
             reply_to: reply_to.map(Box::new),
+            thread_parent_id: self.parent_message_id,
             attachments,
             reactions,
             is_edited: self.is_edited,

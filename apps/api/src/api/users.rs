@@ -15,6 +15,7 @@ use crate::{
         generate_backup_codes, generate_totp_secret_base32, hash_password, verify_password,
         verify_totp_code,
     },
+    services::cache,
     services::pubsub::{guild_channel, publish, user_channel},
     state::AppState,
 };
@@ -216,6 +217,10 @@ pub async fn update_me(
     .fetch_one(&state.db)
     .await?;
     let user_id = user.try_get::<Uuid, _>("id")?;
+
+    // Invalidate user cache after profile update
+    let mut redis = state.redis.clone();
+    cache::invalidate_user(&mut redis, user_id).await;
     let username = user.try_get::<String, _>("username")?;
     let discriminator = user.try_get::<String, _>("discriminator")?;
     let email = user.try_get::<String, _>("email")?;
@@ -487,15 +492,22 @@ pub async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let user = sqlx::query!(
-        r#"SELECT id, username, discriminator, avatar_url, banner_url,
-                  bio, status, custom_status, is_verified, badges, created_at
-           FROM users WHERE id = $1"#,
-        id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    let user_opt = cache::get_or_fetch_user_public(&mut state.redis.clone(), id, |db_state: &AppState| {
+        async move {
+            sqlx::query_as!(
+                crate::models::user::UserPublic,
+                r#"SELECT id, username, discriminator, avatar_url, banner_url,
+                          bio, status, custom_status, is_verified, badges, created_at
+                   FROM users WHERE id = $1"#,
+                id
+            )
+            .fetch_optional(&db_state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))
+        }
+    }).await?;
+
+    let user = user_opt.ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     Ok(Json(json!({
         "data": {
@@ -583,6 +595,10 @@ pub async fn upload_avatar(
     .execute(&state.db)
     .await?;
 
+    // Invalidate user cache after avatar update
+    let mut redis = state.redis.clone();
+    cache::invalidate_user(&mut redis, user_id).await;
+
     Ok(Json(json!({ "data": { "avatarUrl": avatar_url } })))
 }
 
@@ -651,6 +667,10 @@ pub async fn upload_banner(
     )
     .execute(&state.db)
     .await?;
+
+    // Invalidate user cache after banner update
+    let mut redis = state.redis.clone();
+    cache::invalidate_user(&mut redis, user_id).await;
 
     Ok(Json(json!({ "data": { "bannerUrl": banner_url } })))
 }

@@ -4,7 +4,10 @@ use crate::api::servers::common::{
     load_member_roles, load_role, role_payload, BAN_MEMBERS_PERMISSION, KICK_MEMBERS_PERMISSION,
     MANAGE_ROLES_PERMISSION,
 };
+use crate::middleware::AuthUser;
 use crate::models::server::ServerMemberRow;
+use crate::services::cache;
+use serde_json::Value;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -230,5 +233,10 @@ async fn sync_member_count(state: &AppState, server_id: Uuid) -> Result<()> {
     )
     .execute(&state.db)
     .await?;
+
+    // Invalidate server cache after member count change
+    let mut redis = state.redis.clone();
+    cache::invalidate_server(&mut redis, server_id).await;
+
     Ok(())
 }

@@ -357,7 +357,7 @@ export const serversApi = {
   uploadBanner: (serverId: string, formData: FormData) =>
     api.upload<{ bannerUrl: string }>(`/servers/${serverId}/banner`, formData),
   delete: (id: string) => api.delete(`/servers/${id}`),
-  getInvite: (code: string) => api.get<{ server: import('../types').Server }>(`/invites/${code}`),
+  getInvite: (code: string) => api.get<{ server: import('../types').Server; inviteCode: string }>(`/invites/${code}`),
   join: (code: string) => api.post<import('../types').Server>(`/invites/${code}/join`),
   createInvite: (serverId: string, body?: { expiresInSeconds?: number | null; maxUses?: number | null }) =>
     api.post<{ code: string }>(`/servers/${serverId}/invites`, body),

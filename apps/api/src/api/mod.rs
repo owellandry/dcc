@@ -4,7 +4,9 @@ pub mod dms;
 pub mod friends;
 pub mod link_preview;
 pub mod messages;
+pub mod search;
 pub mod servers;
+// pub mod threads; // TODO: Enable after database migration is applied
 pub mod users;
 
 use crate::state::AppState;
@@ -123,6 +125,15 @@ pub fn router() -> Router<AppState> {
             "/messages/:message_id/reactions/:emoji",
             post(messages::add_reaction).delete(messages::remove_reaction),
         )
+        // ── Threads ───────────────────────────────────────────────────────────
+        // .route(
+        //     "/messages/:message_id/thread",
+        //     post(threads::create_thread),
+        // )
+        // .route(
+        //     "/threads/:thread_id/archive",
+        //     patch(threads::archive_thread),
+        // )
         // ── DMs ──────────────────────────────────────────────────────────────
         .route("/dms", get(dms::list_dms))
         .route("/dms/:user_id", post(dms::open_dm))
@@ -136,4 +147,6 @@ pub fn router() -> Router<AppState> {
                 .delete(friends::remove_friend),
         )
         .route("/utils/link-preview", get(link_preview::get_link_preview))
+        // ── Search ─────────────────────────────────────────────────────────────
+        .route("/search", get(search::search))
 }

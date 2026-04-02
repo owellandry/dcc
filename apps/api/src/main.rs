@@ -10,8 +10,10 @@ mod state;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::{http::HeaderValue, routing::get, Router};
+use axum::{middleware as axum_middleware, routing::get, response::IntoResponse, Router, Json, extract::State};
+use serde_json::json;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
     timeout::TimeoutLayer,
     trace::TraceLayer,
@@ -19,6 +21,8 @@ use tower_http::{
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use config::Config;
+use middleware::ratelimit::rate_limit_middleware as rate_limit;
+use middleware::request_id::request_id_middleware;
 use state::AppState;
 
 #[tokio::main]
@@ -30,16 +34,28 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     // Tracing
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "dcc_api=debug,tower_http=debug".into());
+
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "dcc_api=debug,tower_http=debug".into()))
-        .with(fmt::layer())
+        .with(filter)
+        .with(
+            fmt::layer()
+                .with_target(false)
+                .with_thread_ids(false)
+                .with_thread_names(false)
+        )
         .init();
 
     let config = Config::from_env();
 
     // Database pool
+    let max_connections: u32 = std::env::var("DB_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20);
     let db = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(20)
+        .max_connections(max_connections)
+        .idle_timeout(Duration::from_secs(30)) // Close idle connections after 30s
         .acquire_timeout(Duration::from_secs(10))
         .connect(&config.database_url)
         .await?;
@@ -85,6 +101,10 @@ async fn main() -> anyhow::Result<()> {
         .allow_credentials(true);
 
     let app = Router::new()
+        // Health checks
+        .route("/health", get(health_check))
+        .route("/ready", get(readiness_check))
+        .route("/live", get(liveness_check))
         // API routes under /v1
         .nest("/v1", api::router())
         // WebSocket gateway
@@ -95,6 +115,12 @@ async fn main() -> anyhow::Result<()> {
             tower_http::services::ServeDir::new("uploads"),
         )
         .layer(cors)
+        .layer(axum_middleware::from_fn({
+            let state = state.clone();
+            move |req, next| rate_limit(&state, req, next)
+        }))
+        .layer(axum_middleware::from_fn(request_id_middleware))
+        .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .with_state(state);
@@ -107,3 +133,39 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// ── Health Checks ─────────────────────────────────────────────────────────────
+
+/// liveness: /live returns 200 if process is alive
+async fn liveness_check() -> impl IntoResponse {
+    "alive"
+}
+
+/// readiness: /ready checks if DB is ready to accept connections
+async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").fetch_optional(&state.db).await {
+        Ok(_) => (axum::http::StatusCode::OK, "ready").into_response(),
+        Err(_) => (axum::http::StatusCode::SERVICE_UNAVAILABLE, "not ready").into_response(),
+    }
+}
+
+/// health: /health checks DB and Redis connectivity
+async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+    let db_ok = sqlx::query("SELECT 1").fetch_optional(&state.db).await.is_ok();
+    let redis_ok = state.redis.get_async_connection().await.is_ok();
+
+    let status = if db_ok && redis_ok {
+        axum::http::StatusCode::OK
+    } else {
+        axum::http::StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    let body = json!({
+        "status": if db_ok && redis_ok { "ok" } else { "error" },
+        "database": if db_ok { "up" } else { "down" },
+        "redis": if redis_ok { "up" } else { "down" },
+    });
+
+    (status, Json(body)).into_response()
+}
+

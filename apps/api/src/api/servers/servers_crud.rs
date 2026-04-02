@@ -1,10 +1,11 @@
 use super::*;
 use crate::api::servers::common::{
-    ensure_owner, ensure_owner_or_manage_server, load_scope_overwrites,
+    ensure_owner, ensure_owner_or_manage_server, load_all_overwrites_for_server,
     load_server_permissions_context, load_server_roles, overwrite_payload,
-    resolve_channel_permissions, role_payload, DEFAULT_EVERYONE_PERMISSIONS,
-    SEND_MESSAGES_PERMISSION, VIEW_CHANNEL_PERMISSION,
+    role_payload, apply_overwrites, OverwritesBatch,
+    DEFAULT_EVERYONE_PERMISSIONS, SEND_MESSAGES_PERMISSION, VIEW_CHANNEL_PERMISSION,
 };
+use crate::services::cache;
 
 #[derive(Deserialize)]
 pub struct CreateServerBody {
@@ -90,15 +91,21 @@ pub async fn get_server(
 ) -> Result<Json<Value>> {
     let context = load_server_permissions_context(&state, user_id, server_id).await?;
 
-    let s = sqlx::query!(
-        r#"SELECT id, name, description, icon_url, banner_url,
-                  owner_id, invite_code, is_public, member_count, created_at
-           FROM servers WHERE id = $1"#,
-        server_id
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
+    // Try cache first, or fetch and cache
+    let s = cache::get_or_fetch_server(&mut state.redis.clone(), server_id, |db_state| {
+        let server_id = server_id;
+        async move {
+            sqlx::query_as::<_, crate::models::server::Server>(
+                r#"SELECT id, name, description, icon_url, banner_url,
+                          owner_id, invite_code, is_public, member_count, created_at
+                   FROM servers WHERE id = $1"#
+            )
+            .bind(server_id)
+            .fetch_optional(&db_state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Server not found".into()))
+        }
+    }).await?;
 
     let categories = sqlx::query_as::<_, ServerCategoryRow>(
         r#"SELECT id, server_id, name, position
@@ -124,11 +131,23 @@ pub async fn get_server(
     let roles = load_server_roles(&state, server_id).await?;
     let roles_payload: Vec<Value> = roles.iter().map(role_payload).collect();
 
+    // Cargar todos los permission overwrites del servidor en una sola query (elimina N+1)
+    let overwrites_batch = load_all_overwrites_for_server(&state, server_id).await?;
+
     let mut visible_category_ids = std::collections::HashSet::new();
     let mut channel_payloads = Vec::new();
     for channel in channels {
-        let permissions =
-            resolve_channel_permissions(&state, &context, channel.category_id, channel.id).await?;
+        // Calcular permisos efectivos usando el batch (sin queries)
+        let mut permissions = context.base_permissions;
+        if let Some(category_id) = channel.category_id {
+            if let Some(overwrites) = overwrites_batch.by_category.get(&category_id) {
+                permissions = apply_overwrites(permissions, &context, overwrites);
+            }
+        }
+        if let Some(overwrites) = overwrites_batch.by_channel.get(&channel.id) {
+            permissions = apply_overwrites(permissions, &context, overwrites);
+        }
+
         if (permissions & VIEW_CHANNEL_PERMISSION) != VIEW_CHANNEL_PERMISSION {
             continue;
         }
@@ -137,7 +156,7 @@ pub async fn get_server(
             visible_category_ids.insert(category_id);
         }
 
-        let overwrites = load_scope_overwrites(&state, None, Some(channel.id)).await?;
+        let channel_overwrites = overwrites_batch.by_channel.get(&channel.id).cloned().unwrap_or_default();
         channel_payloads.push(json!({
             "id": channel.id,
             "serverId": channel.server_id,
@@ -152,7 +171,7 @@ pub async fn get_server(
             "lastMessageId": channel.last_message_id,
             "createdAt": channel.created_at,
             "canSendMessages": (permissions & SEND_MESSAGES_PERMISSION) == SEND_MESSAGES_PERMISSION,
-            "overwrites": overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
+            "overwrites": channel_overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
         }));
     }
 
@@ -169,13 +188,13 @@ pub async fn get_server(
             continue;
         }
 
-        let overwrites = load_scope_overwrites(&state, Some(category.id), None).await?;
+        let category_overwrites = overwrites_batch.by_category.get(&category.id).cloned().unwrap_or_default();
         category_payloads.push(json!({
             "id": category.id,
             "serverId": category.server_id,
             "name": category.name,
             "position": category.position,
-            "overwrites": overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
+            "overwrites": category_overwrites.iter().map(overwrite_payload).collect::<Vec<_>>(),
         }));
     }
 
@@ -495,6 +514,10 @@ pub async fn update_server(
     .fetch_one(&state.db)
     .await?;
 
+    // Invalidate server cache after successful update
+    let mut redis = state.redis.clone();
+    cache::invalidate_server(&mut redis, server_id).await;
+
     Ok(Json(json!({
         "data": {
             "id": s.id,
@@ -580,6 +603,10 @@ pub async fn upload_server_icon(
     .execute(&state.db)
     .await?;
 
+    // Invalidate cache
+    let mut redis = state.redis.clone();
+    cache::invalidate_server(&mut redis, server_id).await;
+
     Ok(Json(json!({ "data": { "iconUrl": icon_url } })))
 }
 
@@ -652,6 +679,10 @@ pub async fn upload_server_banner(
     .execute(&state.db)
     .await?;
 
+    // Invalidate cache
+    let mut redis = state.redis.clone();
+    cache::invalidate_server(&mut redis, server_id).await;
+
     Ok(Json(json!({ "data": { "bannerUrl": banner_url } })))
 }
 
@@ -665,6 +696,10 @@ pub async fn delete_server(
     sqlx::query!("DELETE FROM servers WHERE id = $1", server_id)
         .execute(&state.db)
         .await?;
+
+    // Invalidate cache
+    let mut redis = state.redis.clone();
+    cache::invalidate_server(&mut redis, server_id).await;
 
     Ok(Json(json!({ "data": null })))
 }

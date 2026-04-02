@@ -21,6 +21,7 @@ export default function InvitePage() {
 
   const [state, setState] = useState<InviteState>('loading')
   const [server, setServer] = useState<Server | null>(null)
+  const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function InvitePage() {
         const res = await serversApi.getInvite(code)
         if (cancelled) return
         setServer(res.data.server)
+        setInviteCode(res.data.inviteCode)
         setState('ready')
       } catch (err) {
         if (cancelled) return
@@ -194,7 +196,7 @@ export default function InvitePage() {
                         {server.isPublic ? 'Public' : 'Private'}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-1 text-[11px] font-700 text-[var(--t2)]">
-                        Invite /{server.inviteCode}
+                        Invite /{inviteCode ?? code}
                       </span>
                     </div>
                   </div>

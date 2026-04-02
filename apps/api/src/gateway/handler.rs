@@ -14,13 +14,14 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
     gateway::events::{GatewayMessage, OP_HEARTBEAT, OP_IDENTIFY, OP_VOICE_SIGNAL, OP_VOICE_STATE},
     models::{channel::Channel, server::Server, user::User},
     services::auth::verify_access_token,
-    services::pubsub::{guild_channel, publish, user_channel},
+    services::pubsub::{dm_channel, guild_channel, publish, user_channel},
     state::AppState,
 };
 
@@ -67,7 +68,13 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
 
     // Send HELLO immediately
     let hello = GatewayMessage::hello();
-    let hello_text = serde_json::to_string(&hello).unwrap();
+    let hello_text = match serde_json::to_string(&hello) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to serialize HELLO gateway message: {}", e);
+            return;
+        }
+    };
     if sender.send(Message::Text(hello_text)).await.is_err() {
         return;
     }
@@ -88,23 +95,23 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
     let guilds = get_user_guilds(&state, user_id).await;
     let dm_channels_ids = get_user_dm_channels(&state, user_id).await;
 
-    let mut sub_channels: Vec<String> = vec![format!("user:{}", user_id)];
+    let mut sub_channels: Vec<String> = vec![user_channel(user_id)];
     for gid in &guilds {
-        sub_channels.push(format!("guild:{}", gid));
+        sub_channels.push(guild_channel(*gid));
     }
     for cid in &dm_channels_ids {
-        sub_channels.push(format!("dm:{}", cid));
+        sub_channels.push(dm_channel(*cid));
     }
 
-    // mpsc: Redis events → WS sender
-    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<String>();
+    // mpsc: Redis events → WS sender (bounded channel to prevent memory growth)
+    let (event_tx, mut event_rx) = mpsc::channel(1000); // buffer de 1000 eventos
 
-    // Spawn Redis subscriber
-    let redis_url = state.config.redis_url.clone();
+    // Spawn Redis subscriber reutilizando el ConnectionManager del estado
+    let redis = state.redis.clone();
     let event_tx_clone = event_tx.clone();
     let sub_channels_clone = sub_channels.clone();
     tokio::spawn(async move {
-        subscribe_and_forward(redis_url, sub_channels_clone, event_tx_clone).await;
+        subscribe_and_forward(redis, sub_channels_clone, event_tx_clone).await;
     });
 
     // Send READY
@@ -115,7 +122,13 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
         d: Some(ready_data),
         s: Some(0),
     };
-    let ready_text = serde_json::to_string(&ready_msg).unwrap();
+    let ready_text = match serde_json::to_string(&ready_msg) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to serialize READY gateway message for user {}: {}", user_id, e);
+            return;
+        }
+    };
     if sender.send(Message::Text(ready_text)).await.is_err() {
         return;
     }
@@ -123,27 +136,24 @@ async fn handle_socket(socket: WebSocket, state: AppState, token: Option<String>
     let seq = Arc::new(AtomicU64::new(1));
     let seq_clone = seq.clone();
 
-    // Sender task: forward Redis events to WS
+    // Sender task: forward Redis events to WS (optimizado)
     tokio::spawn(async move {
         while let Some(raw) = event_rx.recv().await {
-            if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                let t = val["t"].as_str().unwrap_or("DISPATCH").to_string();
-                if t == "__heartbeat_ack" {
-                    // Send raw heartbeat ack
-                    let ack = GatewayMessage::heartbeat_ack();
-                    if let Ok(text) = serde_json::to_string(&ack) {
-                        if sender.send(Message::Text(text)).await.is_err() {
-                            break;
-                        }
+            if let Ok(mut val) = serde_json::from_str::<Value>(&raw) {
+                // Check for heartbeat_ack and forward raw without modification
+                if let Some("__heartbeat_ack") = val["t"].as_str() {
+                    if sender.send(Message::Text(raw)).await.is_err() {
+                        break;
                     }
-                } else {
-                    let d = val["d"].clone();
-                    let s = seq_clone.fetch_add(1, Ordering::Relaxed);
-                    let dispatch = GatewayMessage::dispatch(&t, d, s);
-                    if let Ok(text) = serde_json::to_string(&dispatch) {
-                        if sender.send(Message::Text(text)).await.is_err() {
-                            break;
-                        }
+                    continue;
+                }
+
+                // Agregar sequence number directamente al JSON sin clonar `d`
+                val["s"] = serde_json::json!(seq_clone.fetch_add(1, Ordering::Relaxed));
+                // Para eventos normales, serializar el JSON modificado
+                if let Ok(text) = serde_json::to_string(&val) {
+                    if sender.send(Message::Text(text)).await.is_err() {
+                        break;
                     }
                 }
             }
@@ -275,16 +285,16 @@ async fn join_voice_channel(
     let mut redis = state.redis.clone();
     let session_key = voice_session_key(user_id);
     let participants_key = voice_participants_key(channel_id);
-    let _: () = redis
-        .set(session_key, serde_json::to_string(&session)?)
-        .await?;
-    let _: () = redis
-        .hset(
-            participants_key,
-            user_id.to_string(),
-            joined_at.to_rfc3339(),
-        )
-        .await?;
+    let session_json = serde_json::to_string(&session)?;
+
+    // Use pipeline for atomic multi-key operations + TTL (1 hour)
+    let mut conn = redis.get_async_connection().await?;
+    let mut pipe = redis::pipeline();
+    pipe.set(session_key, session_json);
+    pipe.hset(participants_key, user_id.to_string(), joined_at.to_rfc3339());
+    pipe.expire(session_key, 3600);
+    pipe.expire(participants_key, 3600);
+    let _: () = pipe.ignore(&mut conn).await?;
 
     let joined_event = serde_json::json!({
         "t": "VOICE_USER_JOINED",
@@ -316,8 +326,13 @@ async fn leave_active_voice_channel(state: &AppState, user_id: Uuid) -> anyhow::
     let mut redis = state.redis.clone();
     let session_key = voice_session_key(user_id);
     let participants_key = voice_participants_key(session.channel_id);
-    let _: () = redis.del(session_key).await?;
-    let _: () = redis.hdel(participants_key, user_id.to_string()).await?;
+
+    // Use pipeline for atomic delete operations
+    let mut conn = redis.get_async_connection().await?;
+    let mut pipe = redis::pipeline();
+    pipe.del(session_key);
+    pipe.hdel(participants_key, user_id.to_string());
+    let _: () = pipe.ignore(&mut conn).await?;
 
     let left_event = serde_json::json!({
         "t": "VOICE_USER_LEFT",
@@ -457,19 +472,15 @@ fn try_identify(
 }
 
 async fn subscribe_and_forward(
-    redis_url: String,
+    mut redis: redis::aio::ConnectionManager,
     channels: Vec<String>,
-    tx: mpsc::UnboundedSender<String>,
+    tx: mpsc::Sender<String>,
 ) {
-    let client = match redis::Client::open(redis_url.as_str()) {
-        Ok(c) => c,
+    let conn = match redis.get_async_connection().await {
+        Ok(conn) => conn,
         Err(_) => return,
     };
-    let conn = match client.get_async_connection().await {
-        Ok(c) => c,
-        Err(_) => return,
-    };
-    let mut pubsub: redis::aio::PubSub = conn.into_pubsub();
+    let mut pubsub = redis::pubsub(&mut conn);
 
     for ch in &channels {
         if pubsub.subscribe(ch).await.is_err() {
@@ -483,7 +494,7 @@ async fn subscribe_and_forward(
             Ok(p) => p,
             Err(_) => continue,
         };
-        if tx.send(payload).is_err() {
+        if tx.send(payload).await.is_err() {
             break;
         }
     }
