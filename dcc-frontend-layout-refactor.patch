@@ -1,0 +1,485 @@
+diff --git a/apps/web/src/app/(app)/channels/%40me/[channelId]/page.tsx b/apps/web/src/app/(app)/channels/%40me/[channelId]/page.tsx
+index e66d50d..7964124 100644
+--- a/apps/web/src/app/(app)/channels/%40me/[channelId]/page.tsx
++++ b/apps/web/src/app/(app)/channels/%40me/[channelId]/page.tsx
+@@ -1,6 +1,3 @@
+-import { ServerSidebar } from '@/components/layout/ServerSidebar'
+-import { DMSidebar } from '@/components/layout/DMSidebar'
+-import { UserPanel } from '@/components/user/UserPanel'
+ import { ChatHeader } from '@/components/chat/ChatHeader'
+ import { ChatArea } from '@/components/chat/ChatArea'
+ 
+@@ -10,14 +7,9 @@ interface Props {
+ 
+ export default function DMChannelPage({ params }: Props) {
+   return (
+-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-      <ServerSidebar />
+-      <DMSidebar />
+-      <UserPanel />
+-      <div className="flex min-w-0 flex-1 flex-col">
+-        <ChatHeader channelId={params.channelId} />
+-        <ChatArea channelId={params.channelId} />
+-      </div>
++    <div className="flex min-w-0 flex-1 flex-col">
++      <ChatHeader channelId={params.channelId} />
++      <ChatArea channelId={params.channelId} />
+     </div>
+   )
+ }
+diff --git a/apps/web/src/app/(app)/channels/%40me/layout.tsx b/apps/web/src/app/(app)/channels/%40me/layout.tsx
+new file mode 100644
+index 0000000..ee3915b
+--- /dev/null
++++ b/apps/web/src/app/(app)/channels/%40me/layout.tsx
+@@ -0,0 +1,11 @@
++import { DMSidebar } from '@/components/layout/DMSidebar'
++
++export default function DMSectionLayout({ children }: { children: React.ReactNode }) {
++  return (
++    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
++      <DMSidebar />
++      {children}
++    </div>
++  )
++}
++
+diff --git a/apps/web/src/app/(app)/channels/%40me/page.tsx b/apps/web/src/app/(app)/channels/%40me/page.tsx
+index 4bc33f0..982595b 100644
+--- a/apps/web/src/app/(app)/channels/%40me/page.tsx
++++ b/apps/web/src/app/(app)/channels/%40me/page.tsx
+@@ -1,15 +1,5 @@
+-import { ServerSidebar } from '@/components/layout/ServerSidebar'
+-import { DMSidebar } from '@/components/layout/DMSidebar'
+-import { UserPanel } from '@/components/user/UserPanel'
+ import { DMHomeView } from '@/components/dm/DMHomeView'
+ 
+ export default function DMHomePage() {
+-  return (
+-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-      <ServerSidebar />
+-      <DMSidebar />
+-      <UserPanel />
+-      <DMHomeView />
+-    </div>
+-  )
++  return <DMHomeView />
+ }
+diff --git a/apps/web/src/app/(app)/channels/[serverId]/[channelId]/page.tsx b/apps/web/src/app/(app)/channels/[serverId]/[channelId]/page.tsx
+index 8145783..c55a460 100644
+--- a/apps/web/src/app/(app)/channels/[serverId]/[channelId]/page.tsx
++++ b/apps/web/src/app/(app)/channels/[serverId]/[channelId]/page.tsx
+@@ -1,58 +1,19 @@
+ 'use client'
+ 
+ import { useState } from 'react'
+-import { usePathname } from 'next/navigation'
+-import { ServerSidebar } from '@/components/layout/ServerSidebar'
+-import { DMSidebar } from '@/components/layout/DMSidebar'
+-import { ChannelSidebar } from '@/components/layout/ChannelSidebar'
+ import { MemberSidebar } from '@/components/layout/MemberSidebar'
+ import { ChatHeader } from '@/components/chat/ChatHeader'
+ import { ChatArea } from '@/components/chat/ChatArea'
+ import { VoiceChannelRoom } from '@/components/chat/VoiceChannelRoom'
+-import { UserPanel } from '@/components/user/UserPanel'
+ import { useServersStore } from '@/stores/serversStore'
+ 
+-export default function ChannelPage() {
+-  const pathname = usePathname()
+-  const { serverId, channelId } = getRouteIdsFromPath(pathname)
++export default function ChannelPage({ params }: { params: { serverId: string; channelId: string } }) {
++  const { serverId, channelId } = params
+   const currentChannel = useServersStore((state) => (channelId ? state.channels[channelId] ?? null : null))
+   const [isMemberListOpen, setIsMemberListOpen] = useState(true)
+ 
+-  if (!channelId) {
+-    return (
+-      <div className="app-shell-bg flex h-screen w-screen items-center justify-center text-sm text-[var(--t4)]">
+-        Loading channel...
+-      </div>
+-    )
+-  }
+-
+-  if (serverId === '@me') {
+-    return (
+-      <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-        <ServerSidebar />
+-        <DMSidebar />
+-        <UserPanel />
+-        <div className="flex min-w-0 flex-1 flex-col">
+-          <ChatHeader channelId={channelId} />
+-          <ChatArea channelId={channelId} />
+-        </div>
+-      </div>
+-    )
+-  }
+-
+-  if (!serverId) {
+-    return (
+-      <div className="app-shell-bg flex h-screen w-screen items-center justify-center text-sm text-[var(--t4)]">
+-        Loading server...
+-      </div>
+-    )
+-  }
+-
+   return (
+-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-      <ServerSidebar />
+-      <ChannelSidebar serverId={serverId} />
+-      <UserPanel />
++    <>
+       <div className="flex min-w-0 flex-1 flex-col">
+         <ChatHeader
+           channelId={channelId}
+@@ -66,38 +27,9 @@ export default function ChannelPage() {
+           ) : (
+             <ChatArea channelId={channelId} />
+           )}
+-          {isMemberListOpen && <MemberSidebar serverId={serverId} />}
+         </div>
+       </div>
+-    </div>
++      {isMemberListOpen && <MemberSidebar serverId={serverId} />}
++    </>
+   )
+ }
+-
+-function getRouteIdsFromPath(pathname: string | null): { serverId: string | null; channelId: string | null } {
+-  if (!pathname) {
+-    return { serverId: null, channelId: null }
+-  }
+-
+-  const parts = pathname.split('/').filter(Boolean)
+-  if (parts[0] !== 'channels') {
+-    return { serverId: null, channelId: null }
+-  }
+-
+-  const decodePart = (rawValue: string | undefined): string | null => {
+-    if (!rawValue) return null
+-    try {
+-      return decodeURIComponent(rawValue)
+-    } catch {
+-      return rawValue
+-    }
+-  }
+-
+-  try {
+-    return {
+-      serverId: decodePart(parts[1]),
+-      channelId: decodePart(parts[2]),
+-    }
+-  } catch {
+-    return { serverId: parts[1] ?? null, channelId: parts[2] ?? null }
+-  }
+-}
+diff --git a/apps/web/src/app/(app)/channels/[serverId]/layout.tsx b/apps/web/src/app/(app)/channels/[serverId]/layout.tsx
+new file mode 100644
+index 0000000..9e8bd91
+--- /dev/null
++++ b/apps/web/src/app/(app)/channels/[serverId]/layout.tsx
+@@ -0,0 +1,17 @@
++import { ChannelSidebar } from '@/components/layout/ChannelSidebar'
++
++export default function ServerSectionLayout({
++  children,
++  params,
++}: {
++  children: React.ReactNode
++  params: { serverId: string }
++}) {
++  return (
++    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
++      <ChannelSidebar serverId={params.serverId} />
++      {children}
++    </div>
++  )
++}
++
+diff --git a/apps/web/src/app/(app)/channels/[serverId]/page.tsx b/apps/web/src/app/(app)/channels/[serverId]/page.tsx
+index 957fa85..c8cddc7 100644
+--- a/apps/web/src/app/(app)/channels/[serverId]/page.tsx
++++ b/apps/web/src/app/(app)/channels/[serverId]/page.tsx
+@@ -1,22 +1,15 @@
+ 'use client'
+ 
+ import { useEffect, useState } from 'react'
+-import { usePathname, useRouter } from 'next/navigation'
+-import { ServerSidebar } from '@/components/layout/ServerSidebar'
+-import { DMSidebar } from '@/components/layout/DMSidebar'
+-import { ChannelSidebar } from '@/components/layout/ChannelSidebar'
++import { useRouter } from 'next/navigation'
+ import { MemberSidebar } from '@/components/layout/MemberSidebar'
+-import { UserPanel } from '@/components/user/UserPanel'
+-import { DMHomeView } from '@/components/dm/DMHomeView'
+ import { useServerChannels, useServersStore } from '@/stores/serversStore'
+ import { serversApi } from '@/lib/api'
+ import { isMockSession } from '@/lib/mock-init'
+ 
+-export default function ServerEntryPage() {
++export default function ServerEntryPage({ params }: { params: { serverId: string } }) {
+   const router = useRouter()
+-  const pathname = usePathname()
+-  const serverId = getServerIdFromPath(pathname)
+-  const isDMHome = serverId === '@me'
++  const serverId = params.serverId
+   const channels = useServerChannels(serverId)
+   const setChannels = useServersStore((s) => s.setChannels)
+   const setRoles = useServersStore((s) => s.setRoles)
+@@ -28,7 +21,6 @@ export default function ServerEntryPage() {
+ 
+   useEffect(() => {
+     if (!serverId) return
+-    if (isDMHome) return
+     if (channels.length > 0) return
+     if (isMockSession()) return
+ 
+@@ -51,40 +43,26 @@ export default function ServerEntryPage() {
+     return () => {
+       cancelled = true
+     }
+-  }, [channels.length, isDMHome, serverId, setChannels, setRoles, upsertServer])
++  }, [channels.length, serverId, setChannels, setRoles, upsertServer])
+ 
+   useEffect(() => {
+     if (!serverId) return
+-    if (!isDMHome && firstChannelId) {
++    if (firstChannelId) {
+       router.replace(`/channels/${serverId}/${firstChannelId}`)
+     }
+-  }, [firstChannelId, isDMHome, router, serverId])
++  }, [firstChannelId, router, serverId])
+ 
+   if (!serverId) {
+     return (
+-      <div className="app-shell-bg flex h-screen w-screen items-center justify-center text-sm text-[var(--t4)]">
++      <div className="flex h-full min-w-0 flex-1 items-center justify-center text-sm text-[var(--t4)]">
+         Loading route...
+       </div>
+     )
+   }
+ 
+-  if (isDMHome) {
+-    return (
+-      <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-        <ServerSidebar />
+-        <DMSidebar />
+-        <UserPanel />
+-        <DMHomeView />
+-      </div>
+-    )
+-  }
+-
+   return (
+-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-      <ServerSidebar />
+-      <ChannelSidebar serverId={serverId} />
+-      <UserPanel />
+-      <div className="flex flex-1 items-center justify-center bg-[var(--s3)]">
++    <>
++      <div className="flex min-w-0 flex-1 items-center justify-center bg-[var(--s3)]">
+         <div className="text-center">
+           <p className="font-display text-lg font-600 text-[var(--t1)]">
+             {firstChannelId ? 'Opening your first channel...' : isHydratingServer ? 'Loading server...' : 'No channels available'}
+@@ -99,15 +77,6 @@ export default function ServerEntryPage() {
+         </div>
+       </div>
+       <MemberSidebar serverId={serverId} />
+-    </div>
++    </>
+   )
+ }
+-
+-function getServerIdFromPath(pathname: string | null): string | null {
+-  if (!pathname) return null
+-
+-  const parts = pathname.split('/').filter(Boolean)
+-  if (parts[0] !== 'channels') return null
+-
+-  return parts[1] ?? null
+-}
+diff --git a/apps/web/src/app/(app)/friends/layout.tsx b/apps/web/src/app/(app)/friends/layout.tsx
+new file mode 100644
+index 0000000..707ba02
+--- /dev/null
++++ b/apps/web/src/app/(app)/friends/layout.tsx
+@@ -0,0 +1,11 @@
++import { DMSidebar } from '@/components/layout/DMSidebar'
++
++export default function FriendsLayout({ children }: { children: React.ReactNode }) {
++  return (
++    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
++      <DMSidebar />
++      {children}
++    </div>
++  )
++}
++
+diff --git a/apps/web/src/components/layout/DMSidebar/DMSidebar.visual.tsx b/apps/web/src/components/layout/DMSidebar/DMSidebar.visual.tsx
+index dd1e65d..c4e93b7 100644
+--- a/apps/web/src/components/layout/DMSidebar/DMSidebar.visual.tsx
++++ b/apps/web/src/components/layout/DMSidebar/DMSidebar.visual.tsx
+@@ -27,10 +27,10 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
+ 
+       <div className="px-2 pb-3">
+         <Link
+-          href="/channels/@me"
++          href="/friends"
+           className={cn(
+             'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-500 transition-colors',
+-            pathname === '/channels/@me'
++            pathname === '/friends' || pathname === '/channels/@me'
+               ? 'bg-[var(--ember-dim)] text-[var(--t0)]'
+               : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
+           )}
+diff --git a/apps/web/src/components/layout/ServerSidebar/ServerSidebar.main.tsx b/apps/web/src/components/layout/ServerSidebar/ServerSidebar.main.tsx
+index 4e820cd..038de41 100644
+--- a/apps/web/src/components/layout/ServerSidebar/ServerSidebar.main.tsx
++++ b/apps/web/src/components/layout/ServerSidebar/ServerSidebar.main.tsx
+@@ -33,7 +33,7 @@ export function ServerSidebar() {
+   const [preview, setPreview] = useState<{ server: Server; x: number; y: number } | null>(null)
+   const previewRef = useRef<HTMLDivElement>(null)
+ 
+-  const isDMs = pathname.startsWith('/channels/@me')
++  const isDMs = pathname.startsWith('/channels/@me') || pathname.startsWith('/friends')
+   const getServerHref = (serverId: string) => {
+     const firstChannel = [...channels]
+       .filter((ch) => ch.serverId === serverId && ch.type === 'text')
+diff --git a/apps/web/src/routes/app-shell/AppLayout.main.tsx b/apps/web/src/routes/app-shell/AppLayout.main.tsx
+index 94e28c0..d19c90f 100644
+--- a/apps/web/src/routes/app-shell/AppLayout.main.tsx
++++ b/apps/web/src/routes/app-shell/AppLayout.main.tsx
+@@ -8,6 +8,8 @@ import { useWebSocket } from '@/hooks/useWebSocket'
+ import { authApi, serversApi, setAccessToken, usersApi } from '@/lib/api'
+ import { isMockSession } from '@/lib/mock-init'
+ import { MotionPage, motion } from '@/lib/motion'
++import { ServerSidebar } from '@/components/layout/ServerSidebar'
++import { UserPanel } from '@/components/user/UserPanel'
+ 
+ export default function AppLayout({ children }: { children: React.ReactNode }) {
+   const router = useRouter()
+@@ -100,5 +102,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
+ 
+   if (!isAuthenticated) return null
+ 
+-  return <MotionPage className="contents">{children}</MotionPage>
++  return (
++    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
++      <ServerSidebar />
++      {children}
++      <UserPanel />
++    </div>
++  )
+ }
+diff --git a/apps/web/src/routes/friends-page/FriendsPage.main.tsx b/apps/web/src/routes/friends-page/FriendsPage.main.tsx
+index d703f55..f597b30 100644
+--- a/apps/web/src/routes/friends-page/FriendsPage.main.tsx
++++ b/apps/web/src/routes/friends-page/FriendsPage.main.tsx
+@@ -1,9 +1,6 @@
+ 'use client'
+ 
+ import { useState } from 'react'
+-import { ServerSidebar } from '@/components/layout/ServerSidebar'
+-import { DMSidebar } from '@/components/layout/DMSidebar'
+-import { UserPanel } from '@/components/user/UserPanel'
+ import { cn } from '@/lib/cn'
+ import { Users } from 'lucide-react'
+ 
+@@ -14,57 +11,51 @@ export default function FriendsPage() {
+   const [addUsername, setAddUsername] = useState('')
+ 
+   return (
+-    <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
+-      <ServerSidebar />
+-      <DMSidebar />
+-      <UserPanel />
+-
+-      <main className="flex flex-1 flex-col overflow-hidden bg-[var(--s3)]">
+-        {/* Header */}
+-        <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[var(--b0)] px-4 surface-elevated">
+-          <div className="flex items-center gap-2">
+-            <Users size={20} className="text-[var(--t3)]" />
+-            <span className="font-display font-700 text-[var(--t0)]">Friends</span>
+-          </div>
++    <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[var(--s3)]">
++      {/* Header */}
++      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[var(--b0)] px-4 surface-elevated">
++        <div className="flex items-center gap-2">
++          <Users size={20} className="text-[var(--t3)]" />
++          <span className="font-display font-700 text-[var(--t0)]">Friends</span>
++        </div>
+ 
+-          <div className="h-4 w-px bg-[var(--b1)]" />
++        <div className="h-4 w-px bg-[var(--b1)]" />
+ 
+-          {/* Tabs */}
+-          <nav className="flex gap-1">
+-            {(['online', 'all', 'pending', 'blocked'] as const).map((t) => (
+-              <button
+-                key={t}
+-                onClick={() => setTab(t)}
+-                className={cn(
+-                  'rounded-md px-3 py-1 text-sm font-500 capitalize transition-colors',
+-                  tab === t
+-                    ? 'bg-[var(--b2)] text-[var(--t0)]'
+-                    : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
+-                )}
+-              >
+-                {t}
+-              </button>
+-            ))}
+-          </nav>
++        {/* Tabs */}
++        <nav className="flex gap-1">
++          {(['online', 'all', 'pending', 'blocked'] as const).map((t) => (
++            <button
++              key={t}
++              onClick={() => setTab(t)}
++              className={cn(
++                'rounded-md px-3 py-1 text-sm font-500 capitalize transition-colors',
++                tab === t
++                  ? 'bg-[var(--b2)] text-[var(--t0)]'
++                  : 'text-[var(--t3)] hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]'
++              )}
++            >
++              {t}
++            </button>
++          ))}
++        </nav>
+ 
+-          <button
+-            onClick={() => setTab('add')}
+-            className="ml-1 rounded-md bg-[var(--online)]/15 px-3 py-1 text-sm font-600 text-[var(--online)] transition-colors hover:bg-[var(--online)]/25"
+-          >
+-            Add Friend
+-          </button>
+-        </header>
++        <button
++          onClick={() => setTab('add')}
++          className="ml-1 rounded-md bg-[var(--online)]/15 px-3 py-1 text-sm font-600 text-[var(--online)] transition-colors hover:bg-[var(--online)]/25"
++        >
++          Add Friend
++        </button>
++      </header>
+ 
+-        {/* Content */}
+-        <div className="scrollable flex-1 px-8 py-6">
+-          {tab === 'add' ? (
+-            <AddFriendSection value={addUsername} onChange={setAddUsername} />
+-          ) : (
+-            <FriendListSection tab={tab} />
+-          )}
+-        </div>
+-      </main>
+-    </div>
++      {/* Content */}
++      <div className="scrollable flex-1 px-8 py-6">
++        {tab === 'add' ? (
++          <AddFriendSection value={addUsername} onChange={setAddUsername} />
++        ) : (
++          <FriendListSection tab={tab} />
++        )}
++      </div>
++    </main>
+   )
+ }
+
