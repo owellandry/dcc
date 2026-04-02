@@ -10,6 +10,7 @@ import { hasPermission } from '@/lib/permissions'
 import type { Channel, ServerMember, VoiceParticipant } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useServerCategories, useServerChannels, useServersStore } from '@/stores/serversStore'
+import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
 import { useVoiceStore } from '@/stores/voiceStore'
 import {
   type ChannelSidebarCategoryGroup,
@@ -32,7 +33,8 @@ function toChannelSidebarItem(
   pathname: string,
   activeVoiceChannelId: string | null,
   membersById: Record<string, ServerMember>,
-  participantsByChannel: Record<string, Record<string, VoiceParticipant>>
+  participantsByChannel: Record<string, Record<string, VoiceParticipant>>,
+  unreadByChannel: Record<string, import('@/lib/types').ChannelReadState>
 ): ChannelSidebarItem {
   const voiceParticipants = channel.type === 'voice'
     ? Object.values(participantsByChannel[channel.id] ?? {})
@@ -58,6 +60,8 @@ function toChannelSidebarItem(
     fontWeight: channel.fontWeight ?? null,
     ...(voiceParticipants ? { voiceParticipants } : {}),
     isConnected: channel.type === 'voice' && activeVoiceChannelId === channel.id,
+    hasUnread: (unreadByChannel[channel.id]?.unreadCount ?? 0) > 0,
+    mentionCount: unreadByChannel[channel.id]?.mentionCount ?? 0,
   }
 }
 
@@ -75,6 +79,7 @@ export function useChannelSidebarModel({
     }))
   )
   const upsertChannel = useServersStore((state) => state.upsertChannel)
+  const unreadByChannel = useUnreadStore((state) => state.channels)
   const membersById = useServersStore((state) =>
     resolvedServerId ? state.members[resolvedServerId] ?? EMPTY_MEMBERS : EMPTY_MEMBERS
   )
@@ -149,10 +154,11 @@ export function useChannelSidebarModel({
           pathname,
           activeVoiceChannelId,
           membersById,
-          participantsByChannel
+          participantsByChannel,
+          unreadByChannel
         )
       )
-  }, [activeVoiceChannelId, channels, membersById, participantsByChannel, pathname, resolvedServerId])
+  }, [activeVoiceChannelId, channels, membersById, participantsByChannel, pathname, resolvedServerId, unreadByChannel])
 
   const categorizedChannels = useMemo<ChannelSidebarCategoryGroup[]>(() => {
     if (!resolvedServerId) return []
@@ -170,16 +176,17 @@ export function useChannelSidebarModel({
           .sort((left, right) => left.position - right.position)
           .map((channel) =>
             toChannelSidebarItem(
-              channel,
-              resolvedServerId,
-              pathname,
-              activeVoiceChannelId,
-              membersById,
-              participantsByChannel
-            )
-          ),
+            channel,
+            resolvedServerId,
+            pathname,
+            activeVoiceChannelId,
+            membersById,
+            participantsByChannel,
+            unreadByChannel
+          )
+        ),
       }))
-  }, [activeVoiceChannelId, categories, channels, collapsedCategories, membersById, participantsByChannel, pathname, resolvedServerId])
+  }, [activeVoiceChannelId, categories, channels, collapsedCategories, membersById, participantsByChannel, pathname, resolvedServerId, unreadByChannel])
 
   const bannerBackground = server?.bannerUrl
     ? `url(${resolveMediaUrl(server.bannerUrl)})`

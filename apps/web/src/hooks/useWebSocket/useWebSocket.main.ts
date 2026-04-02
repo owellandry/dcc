@@ -6,6 +6,7 @@ import { useServersStore } from '@/stores/serversStore'
 import { useMessagesStore } from '@/stores/messagesStore'
 import { usePresenceStore } from '@/stores/presenceStore'
 import { useVoiceStore } from '@/stores/voiceStore'
+import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
 import type { GatewayEvent } from '@/lib/types'
 import { getAccessToken } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
@@ -50,9 +51,10 @@ export function useWebSocket(enabled = true) {
   const readyState = useRef<WSReadyState>('closed')
 
   const { setUser, isAuthenticated, isLoading } = useAuthStore()
-  const { setServers, upsertServer, removeServer, upsertChannel, removeChannel, upsertMember, removeMember } = useServersStore()
+  const { setServers, upsertServer, removeServer, upsertChannel, patchChannel, removeChannel, upsertMember, removeMember } = useServersStore()
   const { appendMessage, updateMessage, deleteMessage, addReaction, removeReaction, setTyping } = useMessagesStore()
   const { setPresence } = usePresenceStore()
+  const { incrementFromMessage, markReadLocal } = useUnreadStore()
   const {
     syncParticipants,
     upsertParticipant,
@@ -104,6 +106,7 @@ export function useWebSocket(enabled = true) {
         case 11: // READY
           setUser(event.d.user)
           setServers(event.d.guilds)
+          event.d.dmChannels.forEach((channel) => upsertChannel(channel))
           // Seed presence store from the current user's stored status
           setPresence(event.d.user.id, event.d.user.status ?? 'online', event.d.user.customStatus ?? null)
           reconnectAttempts.current = 0
@@ -111,6 +114,17 @@ export function useWebSocket(enabled = true) {
 
         case 'MESSAGE_CREATE':
           appendMessage(event.d)
+          patchChannel(event.d.channelId, { lastMessageId: event.d.id })
+          if (event.d.author.id !== meIdRef.current) {
+            const activeChannelId = useServersStore.getState().activeChannelId
+            const isDocumentVisible = typeof document === 'undefined' || !document.hidden
+            if (activeChannelId === event.d.channelId && isDocumentVisible) {
+              markReadLocal(event.d.channelId, event.d.id)
+            } else {
+              const viewer = useAuthStore.getState().user
+              if (viewer) incrementFromMessage(event.d.channelId, event.d, viewer)
+            }
+          }
           break
 
         case 'MESSAGE_UPDATE':
@@ -197,6 +211,7 @@ export function useWebSocket(enabled = true) {
       meId,
       setUser,
       setServers,
+      patchChannel,
       appendMessage,
       updateMessage,
       deleteMessage,
@@ -204,6 +219,8 @@ export function useWebSocket(enabled = true) {
       removeReaction,
       setTyping,
       setPresence,
+      incrementFromMessage,
+      markReadLocal,
       upsertServer,
       removeServer,
       upsertChannel,
@@ -243,7 +260,7 @@ export function useWebSocket(enabled = true) {
         const raw = JSON.parse(e.data)
         // Backend sends dispatch events as { op: 0, t: "EVENT_NAME", d: {...} }.
         // Normalize so that op === t (the event type name) for the switch in handleEvent.
-        const event: GatewayEvent = raw.op === 0 ? { ...raw, op: raw.t } : raw
+        const event: GatewayEvent = raw.t ? { ...raw, op: raw.t } : raw
         seqRef.current++
         handleEventRef.current(event)
       } catch { /* ignore malformed frames */ }

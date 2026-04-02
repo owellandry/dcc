@@ -16,7 +16,7 @@ use crate::{
     middleware::AuthUser,
     models::message::MessageRow,
     services::moderation,
-    services::pubsub::{dm_channel, guild_channel, publish},
+    services::pubsub::{guild_channel, publish, user_channel},
     state::AppState,
 };
 
@@ -239,10 +239,8 @@ pub async fn send_message(
 
     let message = build_message_payload(&state, &row, user_id).await?;
 
-    // Publish to Redis pub/sub
-    let pub_channel = get_pub_channel(&state, channel_id).await;
     let event = json!({ "t": "MESSAGE_CREATE", "d": message });
-    let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
+    broadcast_channel_event(&state, channel_id, &event).await;
 
     Ok(Json(json!({ "data": message })))
 }
@@ -300,9 +298,8 @@ pub async fn edit_message(
 
     let message = build_message_payload(&state, &row, user_id).await?;
 
-    let pub_channel = get_pub_channel(&state, row.channel_id).await;
     let event = json!({ "t": "MESSAGE_UPDATE", "d": message });
-    let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
+    broadcast_channel_event(&state, row.channel_id, &event).await;
 
     Ok(Json(json!({ "data": message })))
 }
@@ -348,10 +345,11 @@ pub async fn delete_message(
         .execute(&state.db)
         .await?;
 
-    let pub_channel = get_pub_channel(&state, row.channel_id).await;
-    let event =
-        json!({ "t": "MESSAGE_DELETE", "d": { "id": message_id, "channelId": row.channel_id } });
-    let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
+    let event = json!({
+        "t": "MESSAGE_DELETE",
+        "d": { "messageId": message_id, "channelId": row.channel_id }
+    });
+    broadcast_channel_event(&state, row.channel_id, &event).await;
 
     Ok(Json(json!({ "data": null })))
 }
@@ -387,12 +385,11 @@ pub async fn add_reaction(
     .execute(&state.db)
     .await?;
 
-    let pub_channel = get_pub_channel(&state, msg).await;
     let event = json!({
         "t": "REACTION_ADD",
         "d": { "messageId": message_id, "channelId": msg, "userId": user_id, "emoji": emoji }
     });
-    let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
+    broadcast_channel_event(&state, msg, &event).await;
 
     Ok(Json(json!({ "data": null })))
 }
@@ -423,12 +420,11 @@ pub async fn remove_reaction(
     .execute(&state.db)
     .await?;
 
-    let pub_channel = get_pub_channel(&state, msg).await;
     let event = json!({
         "t": "REACTION_REMOVE",
         "d": { "messageId": message_id, "channelId": msg, "userId": user_id, "emoji": emoji }
     });
-    let _ = publish(&state.redis.clone(), &pub_channel, &event.to_string()).await;
+    broadcast_channel_event(&state, msg, &event).await;
 
     Ok(Json(json!({ "data": null })))
 }
@@ -608,8 +604,8 @@ async fn fetch_reactions(state: &AppState, message_id: Uuid, user_id: Uuid) -> R
         .collect())
 }
 
-async fn get_pub_channel(state: &AppState, channel_id: Uuid) -> String {
-    // Determine if DM or guild channel for routing
+async fn broadcast_channel_event(state: &AppState, channel_id: Uuid, event: &Value) {
+    let event_text = event.to_string();
     let server_id =
         sqlx::query_scalar::<_, Option<Uuid>>("SELECT server_id FROM channels WHERE id = $1")
             .bind(channel_id)
@@ -619,9 +615,22 @@ async fn get_pub_channel(state: &AppState, channel_id: Uuid) -> String {
             .flatten()
             .flatten();
 
-    if let Some(sid) = server_id {
-        guild_channel(sid)
-    } else {
-        dm_channel(channel_id)
+    if let Some(server_id) = server_id {
+        let _ = publish(&state.redis, &guild_channel(server_id), &event_text).await;
+        return;
+    }
+
+    let participant_ids =
+        sqlx::query_scalar::<_, Uuid>("SELECT user_id FROM dm_participants WHERE channel_id = $1")
+            .bind(channel_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+
+    let mut seen = std::collections::HashSet::new();
+    for participant_id in participant_ids {
+        if seen.insert(participant_id) {
+            let _ = publish(&state.redis, &user_channel(participant_id), &event_text).await;
+        }
     }
 }

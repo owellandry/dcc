@@ -22,6 +22,7 @@ interface ServersState {
   removeServer: (serverId: string) => void
   setChannels: (serverId: string, channels: Channel[], categories: Category[]) => void
   upsertChannel: (channel: Channel) => void
+  patchChannel: (channelId: string, patch: Partial<Channel>) => void
   removeChannel: (channelId: string) => void
   setRoles: (serverId: string, roles: Role[]) => void
   upsertRole: (role: Role) => void
@@ -74,6 +75,21 @@ export const useServersStore = create<ServersState>((set) => ({
 
   upsertChannel: (channel) =>
     set((s) => ({ channels: { ...s.channels, [channel.id]: channel } })),
+
+  patchChannel: (channelId, patch) =>
+    set((s) => {
+      const current = s.channels[channelId]
+      if (!current) return {}
+      return {
+        channels: {
+          ...s.channels,
+          [channelId]: {
+            ...current,
+            ...patch,
+          },
+        },
+      }
+    }),
 
   removeChannel: (channelId) =>
     set((s) => {

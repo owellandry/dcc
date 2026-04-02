@@ -8,6 +8,7 @@ import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { MOCK_FRIENDS } from '@/lib/mock-data'
 import { useServersStore } from '@/stores/serversStore'
+import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
 import type { Channel, Friendship, User } from '@/lib/types'
 import { type DMSidebarItem, type DMSidebarVisualProps } from './DMSidebar.shared'
 
@@ -31,6 +32,7 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
   const [friends, setFriends] = useState<User[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [openingUserId, setOpeningUserId] = useState<string | null>(null)
+  const unreadByChannel = useUnreadStore((state) => state.channels)
   const isMock = isMockSession()
 
   useEffect(() => {
@@ -73,20 +75,31 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
 
   const dmUsers = isMock ? MOCK_DM_USERS : friends
   const badgeCount = isMock ? MOCK_PENDING_COUNT : pendingCount
+  const unreadBadgeCount = useMemo(
+    () =>
+      dmChannels.reduce((sum, channel) => {
+        const unread = unreadByChannel[channel.id]
+        return sum + (unread?.unreadCount ?? 0)
+      }, 0),
+    [dmChannels, unreadByChannel]
+  )
 
   const items = useMemo<DMSidebarItem[]>(() => {
     return dmUsers.map((user) => {
       const existingChannel = dmChannels.find((channel) =>
         channel.participants?.some((participant) => participant.id === user.id)
       )
+      const unreadState = existingChannel ? unreadByChannel[existingChannel.id] : undefined
 
       return {
         user,
         active: isMock ? pathname.includes(user.id) : currentChannelId === existingChannel?.id,
         isLoading: openingUserId === user.id,
+        unreadCount: unreadState?.unreadCount ?? 0,
+        mentionCount: unreadState?.mentionCount ?? 0,
       }
     })
-  }, [currentChannelId, dmChannels, dmUsers, isMock, openingUserId, pathname])
+  }, [currentChannelId, dmChannels, dmUsers, isMock, openingUserId, pathname, unreadByChannel])
 
   const openDm = async (user: User) => {
     if (isMock) {
@@ -121,6 +134,7 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
   return {
     pathname,
     badgeCount,
+    unreadBadgeCount,
     items,
     onOpenDm: (user: User) => {
       void openDm(user)

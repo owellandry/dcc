@@ -116,6 +116,14 @@ export interface Channel {
   overwrites?: PermissionOverwrite[]
 }
 
+export interface ChannelReadState {
+  channelId: string
+  lastReadMessageId: string | null
+  lastReadAt: string
+  unreadCount: number
+  mentionCount: number
+}
+
 export type PermissionOverwriteTargetType = 'role' | 'member'
 
 export interface PermissionOverwrite {

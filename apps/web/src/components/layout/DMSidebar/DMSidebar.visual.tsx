@@ -9,7 +9,7 @@ import { UserAvatar } from '@/components/user/UserAvatar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type { DMSidebarItem, DMSidebarVisualProps } from './DMSidebar.shared'
 
-export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSidebarVisualProps) {
+export function DMSidebarVisual({ pathname, badgeCount, unreadBadgeCount, items, onOpenDm }: DMSidebarVisualProps) {
   const mobileSidebar = useMobileSidebar()
   return (
     <motion.aside
@@ -64,9 +64,16 @@ export function DMSidebarVisual({ pathname, badgeCount, items, onOpenDm }: DMSid
           <span className="text-[10px] font-700 uppercase tracking-[0.16em] text-[var(--t4)]">
             Mensajes directos
           </span>
-          <button type="button" className="text-[var(--t4)] transition-colors hover:text-[var(--t2)]">
-            <Plus size={13} />
-          </button>
+          <div className="flex items-center gap-2">
+            {unreadBadgeCount > 0 && (
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--accent-solid)] px-1.5 text-[10px] font-700 text-white">
+                {unreadBadgeCount > 99 ? '99+' : unreadBadgeCount}
+              </span>
+            )}
+            <button type="button" className="text-[var(--t4)] transition-colors hover:text-[var(--t2)]">
+              <Plus size={13} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -117,6 +124,18 @@ function DMItem({ item, onClick }: { item: DMSidebarItem; onClick: () => void })
           {item.isLoading ? 'Abriendo...' : item.user.customStatus ?? getUserHandle(item.user)}
         </p>
       </div>
+      {item.unreadCount > 0 && (
+        <span
+          className={cn(
+            'flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-700',
+            item.mentionCount > 0
+              ? 'bg-[var(--accent-solid)] text-white'
+              : 'bg-[var(--surface-soft)] text-[var(--t1)]'
+          )}
+        >
+          {item.unreadCount > 99 ? '99+' : item.unreadCount}
+        </span>
+      )}
     </motion.button>
   )
 }

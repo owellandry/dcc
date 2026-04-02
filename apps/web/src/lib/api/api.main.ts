@@ -472,6 +472,8 @@ export const channelsApi = {
     api.getPaginated<import('../types').Message>(`/channels/${channelId}/messages`, params),
   sendMessage: (channelId: string, body: { content?: string; replyToId?: string }) =>
     api.post<import('../types').Message>(`/channels/${channelId}/messages`, body),
+  markRead: (channelId: string) =>
+    api.post<import('../types').ChannelReadState>(`/channels/${channelId}/read`),
   editMessage: (messageId: string, body: { content: string }) =>
     api.patch<import('../types').Message>(`/messages/${messageId}`, body),
   deleteMessage: (messageId: string) => api.delete(`/messages/${messageId}`),
@@ -517,6 +519,10 @@ export const dmsApi = {
   list: () => api.get<import('../types').Channel[]>('/dms'),
   open: (userId: string) => api.post<import('../types').Channel>(`/dms/${userId}`),
   close: (channelId: string) => api.delete(`/dms/${channelId}`),
+}
+
+export const readStatesApi = {
+  list: () => api.get<import('../types').ChannelReadState[]>('/channels/read-states'),
 }
 
 export const friendsApi = {
