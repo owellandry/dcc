@@ -101,6 +101,8 @@ export interface Channel {
   name: string | null
   topic: string | null
   iconKey?: string | null
+  fontKey?: string | null
+  fontWeight?: number | null
   type: ChannelType
   position: number
   isNsfw: boolean

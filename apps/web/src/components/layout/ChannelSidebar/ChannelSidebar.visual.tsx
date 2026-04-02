@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Hash, Home, Plus, Shield, UserPlus, Volume2, X } from 'lucide-react'
+import { ChevronDown, Hash, Home, Plus, Settings2, Shield, UserPlus, Volume2, X } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
+import { getChannelNameTextStyle } from '@/lib/channel-appearance/channelAppearance.shared'
 import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared'
 import { cn } from '@/lib/cn'
 import { AnimatePresence, interactiveMotion, itemVariants, listVariants, motion } from '@/lib/motion'
@@ -21,10 +22,13 @@ export function ChannelSidebarVisual({
   bannerBackground,
   canOpenServerSettings,
   canCreateChannels,
+  canManageChannels,
   uncategorizedChannels,
   categorizedChannels,
   isInviteModalOpen,
   isServerSettingsOpen,
+  serverSettingsInitialSection,
+  serverSettingsInitialSelection,
   isCreateChannelModalOpen,
   createChannelName,
   createChannelType,
@@ -34,6 +38,7 @@ export function ChannelSidebarVisual({
   onOpenInviteModal,
   onCloseInviteModal,
   onOpenServerSettings,
+  onOpenChannelSettings,
   onCloseServerSettings,
   onOpenCreateChannelModal,
   onCloseCreateChannelModal,
@@ -126,7 +131,12 @@ export function ChannelSidebarVisual({
       >
         {uncategorizedChannels.map((channel) => (
           <motion.div key={channel.id} variants={itemVariants}>
-            <ChannelItem item={channel} nowMs={nowMs} />
+            <ChannelItem
+              item={channel}
+              nowMs={nowMs}
+              canManageChannels={canManageChannels}
+              onOpenChannelSettings={onOpenChannelSettings}
+            />
           </motion.div>
         ))}
 
@@ -168,7 +178,12 @@ export function ChannelSidebarVisual({
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <ChannelItem item={channel} nowMs={nowMs} />
+                  <ChannelItem
+                    item={channel}
+                    nowMs={nowMs}
+                    canManageChannels={canManageChannels}
+                    onOpenChannelSettings={onOpenChannelSettings}
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -185,6 +200,8 @@ export function ChannelSidebarVisual({
         <ServerSettingsModal
           open={isServerSettingsOpen}
           serverId={resolvedServerId}
+          {...(serverSettingsInitialSection !== undefined ? { initialSection: serverSettingsInitialSection } : {})}
+          {...(serverSettingsInitialSelection !== undefined ? { initialSelection: serverSettingsInitialSelection } : {})}
           onClose={onCloseServerSettings}
         />
       ) : null}
@@ -269,7 +286,17 @@ export function ChannelSidebarVisual({
   )
 }
 
-function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number }) {
+function ChannelItem({
+  item,
+  nowMs,
+  canManageChannels,
+  onOpenChannelSettings,
+}: {
+  item: ChannelSidebarItem
+  nowMs: number
+  canManageChannels: boolean
+  onOpenChannelSettings: (channelId: string) => void
+}) {
   const mobileSidebar = useMobileSidebar()
   const normalizedName = item.name
     .normalize('NFD')
@@ -277,8 +304,9 @@ function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number 
     .toLowerCase()
   const isRulesChannel = /\b(regla|reglas|rule|rules)\b/.test(normalizedName)
   const isWelcomeChannel = /\b(bienvenida|bienvenidas|welcome)\b/.test(normalizedName)
-  const ChannelIcon =
-    item.type === 'voice'
+  const ChannelIcon = item.iconKey
+    ? getChannelIconComponent(item.iconKey ?? null, item.type)
+    : item.type === 'voice'
       ? Volume2
       : isWelcomeChannel
         ? Home
@@ -287,43 +315,65 @@ function ChannelItem({ item, nowMs }: { item: ChannelSidebarItem; nowMs: number 
           : getChannelIconComponent(item.iconKey ?? null, item.type)
   const voiceParticipants = item.type === 'voice' ? item.voiceParticipants ?? [] : []
   const hasVoiceParticipants = voiceParticipants.length > 0
+  const channelNameStyle = getChannelNameTextStyle({ fontKey: item.fontKey, fontWeight: item.fontWeight })
 
   const voiceElapsedLabel = hasVoiceParticipants ? formatChannelElapsed(voiceParticipants, nowMs) : null
 
   return (
     <motion.div {...interactiveMotion}>
-      <Link
-        href={`/channels/${item.serverId}/${item.id}`}
-        onClick={() => mobileSidebar?.close()}
-        className={cn(
-          'group channel-item',
-          item.active && 'active',
-          item.hasUnread && !item.active && 'has-unread'
-        )}
-      >
-        <ChannelIcon
-          size={18}
+      <div className="group relative">
+        <Link
+          href={`/channels/${item.serverId}/${item.id}`}
+          onClick={() => mobileSidebar?.close()}
           className={cn(
-            'shrink-0 transition-colors',
-            item.active ? 'text-ember' : 'text-[var(--t4)] group-hover:text-[var(--t3)]'
+            'channel-item',
+            item.active && 'active',
+            item.hasUnread && !item.active && 'has-unread'
           )}
-        />
-        <span className="min-w-0 flex-1 truncate text-sm">{item.name}</span>
+        >
+          <ChannelIcon
+            size={18}
+            className={cn(
+              'shrink-0 transition-colors',
+              item.active ? 'text-ember' : 'text-[var(--t4)] group-hover:text-[var(--t3)]'
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>{item.name}</span>
 
-        {item.mentionCount ? (
-          <span className="badge">{item.mentionCount > 99 ? '99+' : item.mentionCount}</span>
-        ) : voiceElapsedLabel ? (
-          <span className="tabular-nums rounded-md bg-[var(--online)]/18 px-1.5 py-0.5 text-[10px] font-700 text-[var(--online)]">
-            {voiceElapsedLabel}
-          </span>
-        ) : item.isConnected ? (
-          <span className="rounded-full bg-[var(--online)]/20 px-2 py-0.5 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--online)]">
-            LIVE
-          </span>
-        ) : item.hasUnread ? (
-          <span className="h-2 w-2 rounded-full bg-[var(--t0)]" />
-        ) : null}
-      </Link>
+          {item.mentionCount ? (
+            <span className="badge">{item.mentionCount > 99 ? '99+' : item.mentionCount}</span>
+          ) : voiceElapsedLabel ? (
+            <span className="tabular-nums rounded-md bg-[var(--online)]/18 px-1.5 py-0.5 text-[10px] font-700 text-[var(--online)]">
+              {voiceElapsedLabel}
+            </span>
+          ) : item.isConnected ? (
+            <span className="rounded-full bg-[var(--online)]/20 px-2 py-0.5 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--online)]">
+              LIVE
+            </span>
+          ) : item.hasUnread ? (
+            <span className="h-2 w-2 rounded-full bg-[var(--t0)]" />
+          ) : null}
+
+          {canManageChannels ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onOpenChannelSettings(item.id)
+              }}
+              className={cn(
+                'ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--s2)]/92 text-[var(--t3)] transition-all hover:bg-[var(--surface-soft)] hover:text-[var(--t1)]',
+                item.active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              )}
+              data-tooltip="Editar canal"
+              data-tooltip-position="bottom"
+            >
+              <Settings2 size={14} />
+            </button>
+          ) : null}
+        </Link>
+      </div>
 
       {hasVoiceParticipants ? (
         <div className="ml-6 mt-1.5 space-y-1 pb-1">

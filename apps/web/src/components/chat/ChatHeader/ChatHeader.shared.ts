@@ -11,7 +11,10 @@ export interface ChatHeaderVisualProps {
   kind: 'channel' | 'dm'
   channelName: string
   topic?: string
-  channelType?: 'text' | 'voice'
+  iconKey?: string | null
+  fontKey?: string | null
+  fontWeight?: number | null
+  channelType?: 'text' | 'voice' | 'announcement'
   isMemberListOpen?: boolean
   onToggleMemberList?: () => void
   dmUser?: User | null

@@ -3,6 +3,9 @@ import { type ChannelHeaderBarProps, type ChannelHeaderBarVisualProps } from './
 export function useChannelHeaderBarModel({
   channelName,
   topic,
+  iconKey,
+  fontKey,
+  fontWeight,
   channelType,
   isMemberListOpen,
   onToggleMemberList,
@@ -19,6 +22,10 @@ export function useChannelHeaderBarModel({
     channelName,
     ...(topic !== undefined ? { topic } : {}),
     channelKind: channelType === 'voice' ? 'voice' : isWelcomeChannel ? 'welcome' : isRulesChannel ? 'rules' : 'default',
+    ...(channelType !== undefined ? { channelType } : {}),
+    ...(iconKey !== undefined ? { iconKey } : {}),
+    ...(fontKey !== undefined ? { fontKey } : {}),
+    ...(fontWeight !== undefined ? { fontWeight } : {}),
     ...(isMemberListOpen !== undefined ? { isMemberListOpen } : {}),
     ...(onToggleMemberList !== undefined ? { onToggleMemberList } : {}),
   }

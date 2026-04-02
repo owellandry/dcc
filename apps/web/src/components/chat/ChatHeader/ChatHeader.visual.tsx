@@ -12,6 +12,9 @@ export function ChatHeaderVisual({
   kind,
   channelName,
   topic,
+  iconKey,
+  fontKey,
+  fontWeight,
   channelType,
   isMemberListOpen,
   onToggleMemberList,
@@ -70,6 +73,9 @@ export function ChatHeaderVisual({
     <ChannelHeaderBar
       channelName={channelName}
       {...(topic != null ? { topic } : {})}
+      {...(iconKey !== undefined ? { iconKey } : {})}
+      {...(fontKey !== undefined ? { fontKey } : {})}
+      {...(fontWeight !== undefined ? { fontWeight } : {})}
       {...(channelType != null ? { channelType } : {})}
       {...(isMemberListOpen !== undefined ? { isMemberListOpen } : {})}
       {...(onToggleMemberList !== undefined ? { onToggleMemberList } : {})}

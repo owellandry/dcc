@@ -51,6 +51,8 @@ function toChannelSidebarItem(
     serverId: resolvedServerId,
     type: channel.type,
     iconKey: channel.iconKey ?? null,
+    fontKey: channel.fontKey ?? null,
+    fontWeight: channel.fontWeight ?? null,
     ...(voiceParticipants ? { voiceParticipants } : {}),
     isConnected: channel.type === 'voice' && activeVoiceChannelId === channel.id,
   }
@@ -73,7 +75,7 @@ export function useChannelSidebarModel({
   const membersById = useServersStore((state) =>
     resolvedServerId ? state.members[resolvedServerId] ?? EMPTY_MEMBERS : EMPTY_MEMBERS
   )
-  const { server, canOpenServerSettings, canCreateChannels } = useServersStore(
+  const { server, canOpenServerSettings, canCreateChannels, canManageChannels } = useServersStore(
     useShallow((state) => {
       const currentServer = resolvedServerId ? state.servers[resolvedServerId] : undefined
       const membership = resolvedServerId && myUserId ? state.members[resolvedServerId]?.[myUserId] : null
@@ -94,6 +96,7 @@ export function useChannelSidebarModel({
         canOpenServerSettings:
           isOwner || hasManageServerRole || hasManageChannelsRole || hasManageRolesRole || hasKickMembersRole || hasBanMembersRole,
         canCreateChannels: isOwner || hasManageServerRole || hasManageChannelsRole,
+        canManageChannels: isOwner || hasManageServerRole || hasManageChannelsRole,
       }
     })
   )
@@ -104,6 +107,8 @@ export function useChannelSidebarModel({
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false)
+  const [serverSettingsInitialSection, setServerSettingsInitialSection] = useState<'overview' | 'channels' | 'roles' | 'members'>('overview')
+  const [serverSettingsInitialSelection, setServerSettingsInitialSelection] = useState<{ kind: 'category' | 'channel'; id: string } | null>(null)
   const [isCreateChannelModalOpen, setIsCreateChannelModalOpen] = useState(false)
   const [createChannelName, setCreateChannelName] = useState('')
   const [createChannelType, setCreateChannelType] = useState<'text' | 'voice'>('text')
@@ -244,10 +249,13 @@ export function useChannelSidebarModel({
     bannerBackground,
     canOpenServerSettings,
     canCreateChannels,
+    canManageChannels,
     uncategorizedChannels,
     categorizedChannels,
     isInviteModalOpen,
     isServerSettingsOpen,
+    serverSettingsInitialSection,
+    serverSettingsInitialSelection,
     isCreateChannelModalOpen,
     createChannelName,
     createChannelType,
@@ -268,6 +276,14 @@ export function useChannelSidebarModel({
     onCloseInviteModal: () => setIsInviteModalOpen(false),
     onOpenServerSettings: () => {
       if (!canOpenServerSettings) return
+      setServerSettingsInitialSection('overview')
+      setServerSettingsInitialSelection(null)
+      setIsServerSettingsOpen(true)
+    },
+    onOpenChannelSettings: (channelId) => {
+      if (!canManageChannels) return
+      setServerSettingsInitialSection('channels')
+      setServerSettingsInitialSelection({ kind: 'channel', id: channelId })
       setIsServerSettingsOpen(true)
     },
     onCloseServerSettings: () => setIsServerSettingsOpen(false),

@@ -3,6 +3,7 @@ use crate::api::servers::common::{
     ensure_server_permission, resolve_channel_permissions, MANAGE_CHANNELS_PERMISSION,
     SEND_MESSAGES_PERMISSION,
 };
+use crate::models::channel::{is_valid_channel_font_key, is_valid_channel_font_weight};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,6 +14,8 @@ pub struct CreateChannelBody {
     pub category_id: Option<Uuid>,
     pub topic: Option<String>,
     pub icon_key: Option<String>,
+    pub font_key: Option<String>,
+    pub font_weight: Option<i32>,
     pub is_nsfw: Option<bool>,
     pub slowmode_seconds: Option<i32>,
 }
@@ -60,6 +63,24 @@ pub async fn create_channel(
         }
     }
 
+    if let Some(font_key) = body.font_key.as_deref() {
+        if !is_valid_channel_font_key(font_key) {
+            return Err(AppError::validation(
+                "fontKey",
+                "Unsupported channel font",
+            ));
+        }
+    }
+
+    if let Some(font_weight) = body.font_weight {
+        if !is_valid_channel_font_weight(font_weight) {
+            return Err(AppError::validation(
+                "fontWeight",
+                "Unsupported channel font weight",
+            ));
+        }
+    }
+
     let position: i32 = sqlx::query_scalar(
         r#"SELECT COALESCE(MAX(position) + 1, 0)
            FROM channels
@@ -79,6 +100,8 @@ pub async fn create_channel(
         name: String,
         topic: Option<String>,
         icon_key: Option<String>,
+        font_key: Option<String>,
+        font_weight: Option<i32>,
         channel_type: String,
         position: i32,
         is_nsfw: bool,
@@ -89,10 +112,10 @@ pub async fn create_channel(
 
     let c = sqlx::query_as::<_, ChannelRow>(
         r#"INSERT INTO channels (
-                id, server_id, category_id, name, topic, icon_key, channel_type, position, is_nsfw, slowmode_seconds
+                id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type, position, is_nsfw, slowmode_seconds
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, FALSE), COALESCE($10, 0))
-           RETURNING id, server_id, category_id, name, topic, icon_key, channel_type,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, FALSE), COALESCE($12, 0))
+           RETURNING id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type,
                      position, is_nsfw, slowmode_seconds, last_message_id, created_at"#,
     )
     .bind(Uuid::new_v4())
@@ -101,6 +124,8 @@ pub async fn create_channel(
     .bind(name)
     .bind(body.topic)
     .bind(body.icon_key)
+    .bind(body.font_key)
+    .bind(body.font_weight)
     .bind(channel_type)
     .bind(position)
     .bind(body.is_nsfw)
@@ -118,6 +143,8 @@ pub async fn create_channel(
             "name": c.name,
             "topic": c.topic,
             "iconKey": c.icon_key,
+            "fontKey": c.font_key,
+            "fontWeight": c.font_weight,
             "type": c.channel_type,
             "position": c.position,
             "isNsfw": c.is_nsfw,

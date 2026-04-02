@@ -9,6 +9,8 @@ export interface ChannelSidebarItem {
   serverId: string
   type: 'text' | 'voice' | 'announcement'
   iconKey?: string | null
+  fontKey?: string | null
+  fontWeight?: number | null
   voiceParticipants?: Array<{
     userId: string
     displayName: string
@@ -33,10 +35,13 @@ export interface ChannelSidebarVisualProps {
   bannerBackground: string
   canOpenServerSettings: boolean
   canCreateChannels: boolean
+  canManageChannels: boolean
   uncategorizedChannels: ChannelSidebarItem[]
   categorizedChannels: ChannelSidebarCategoryGroup[]
   isInviteModalOpen: boolean
   isServerSettingsOpen: boolean
+  serverSettingsInitialSection?: 'overview' | 'channels' | 'roles' | 'members'
+  serverSettingsInitialSelection?: { kind: 'category' | 'channel'; id: string } | null
   isCreateChannelModalOpen: boolean
   createChannelName: string
   createChannelType: 'text' | 'voice'
@@ -46,6 +51,7 @@ export interface ChannelSidebarVisualProps {
   onOpenInviteModal: () => void
   onCloseInviteModal: () => void
   onOpenServerSettings: () => void
+  onOpenChannelSettings: (channelId: string) => void
   onCloseServerSettings: () => void
   onOpenCreateChannelModal: (categoryId?: string | null) => void
   onCloseCreateChannelModal: () => void

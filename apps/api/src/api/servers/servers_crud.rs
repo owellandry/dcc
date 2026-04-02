@@ -38,6 +38,8 @@ struct ServerChannelRow {
     name: Option<String>,
     topic: Option<String>,
     icon_key: Option<String>,
+    font_key: Option<String>,
+    font_weight: Option<i32>,
     channel_type: String,
     position: i32,
     is_nsfw: bool,
@@ -117,7 +119,7 @@ pub async fn get_server(
     .await?;
 
     let channels = sqlx::query_as::<_, ServerChannelRow>(
-        r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type, position,
+        r#"SELECT id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type, position,
                   is_nsfw, slowmode_seconds, last_message_id, created_at
            FROM channels
            WHERE server_id = $1
@@ -167,6 +169,8 @@ pub async fn get_server(
             "name": channel.name,
             "topic": channel.topic,
             "iconKey": channel.icon_key,
+            "fontKey": channel.font_key,
+            "fontWeight": channel.font_weight,
             "type": channel.channel_type,
             "position": channel.position,
             "isNsfw": channel.is_nsfw,
@@ -374,7 +378,7 @@ pub async fn create_server(
     .fetch_all(&state.db)
     .await?;
     let channels = sqlx::query_as::<_, ServerChannelRow>(
-        r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type, position,
+        r#"SELECT id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type, position,
                   is_nsfw, slowmode_seconds, last_message_id, created_at
            FROM channels
            WHERE server_id = $1
@@ -406,6 +410,8 @@ pub async fn create_server(
                 "name": channel.name,
                 "topic": channel.topic,
                 "iconKey": channel.icon_key,
+                "fontKey": channel.font_key,
+                "fontWeight": channel.font_weight,
                 "type": channel.channel_type,
                 "position": channel.position,
                 "isNsfw": channel.is_nsfw,

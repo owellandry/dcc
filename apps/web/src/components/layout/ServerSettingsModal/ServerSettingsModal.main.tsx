@@ -37,10 +37,18 @@ import {
 interface Props {
   open: boolean
   serverId: string
+  initialSection?: ServerSettingsSection
+  initialSelection?: StructureSelection
   onClose: () => void
 }
 
-export function ServerSettingsModal({ open, serverId, onClose }: Props) {
+export function ServerSettingsModal({
+  open,
+  serverId,
+  initialSection,
+  initialSelection,
+  onClose,
+}: Props) {
   const user = useAuthStore((s) => s.user)
   const server = useServersStore((s) => s.servers[serverId])
   const upsertServer = useServersStore((s) => s.upsertServer)
@@ -80,6 +88,8 @@ export function ServerSettingsModal({ open, serverId, onClose }: Props) {
   const [channelTopicDraft, setChannelTopicDraft] = useState('')
   const [channelCategoryDraft, setChannelCategoryDraft] = useState<string | null>(null)
   const [channelIconDraft, setChannelIconDraft] = useState('hash')
+  const [channelFontKeyDraft, setChannelFontKeyDraft] = useState('k2d')
+  const [channelFontWeightDraft, setChannelFontWeightDraft] = useState(700)
   const [categoryNameDraft, setCategoryNameDraft] = useState('')
   const [roleNameDraft, setRoleNameDraft] = useState('')
   const [roleColorDraft, setRoleColorDraft] = useState('#5865f2')
@@ -135,11 +145,19 @@ export function ServerSettingsModal({ open, serverId, onClose }: Props) {
   }, [open, server])
 
   useEffect(() => {
+    if (!open) return
+    setSection(initialSection ?? 'overview')
+    setSelection(initialSelection ?? null)
+  }, [initialSection, initialSelection, open])
+
+  useEffect(() => {
     if (selectedChannel) {
       setChannelNameDraft(selectedChannel.name ?? '')
       setChannelTopicDraft(selectedChannel.topic ?? '')
       setChannelCategoryDraft(selectedChannel.categoryId)
       setChannelIconDraft(selectedChannel.iconKey ?? 'hash')
+      setChannelFontKeyDraft(selectedChannel.fontKey ?? 'k2d')
+      setChannelFontWeightDraft(selectedChannel.fontWeight ?? 700)
       setOverwriteDrafts(selectedChannel.overwrites ?? [])
     } else if (selectedCategory) {
       setCategoryNameDraft(selectedCategory.name)
@@ -296,6 +314,8 @@ export function ServerSettingsModal({ open, serverId, onClose }: Props) {
         channelTopicDraft={channelTopicDraft}
         channelCategoryDraft={channelCategoryDraft}
         channelIconDraft={channelIconDraft}
+        channelFontKeyDraft={channelFontKeyDraft}
+        channelFontWeightDraft={channelFontWeightDraft}
         overwriteDrafts={overwriteDrafts}
         onSelectionChange={setSelection}
         onCreateCategoryNameChange={setCreateCategoryName}
@@ -307,6 +327,8 @@ export function ServerSettingsModal({ open, serverId, onClose }: Props) {
         onChannelTopicDraftChange={setChannelTopicDraft}
         onChannelCategoryDraftChange={setChannelCategoryDraft}
         onChannelIconDraftChange={setChannelIconDraft}
+        onChannelFontKeyDraftChange={setChannelFontKeyDraft}
+        onChannelFontWeightDraftChange={setChannelFontWeightDraft}
         onOverwriteDraftsChange={setOverwriteDrafts}
         onCreateCategory={() => void updateSection(async () => {
           await serversApi.createCategory(serverId, { name: createCategoryName.trim() })
@@ -344,6 +366,8 @@ export function ServerSettingsModal({ open, serverId, onClose }: Props) {
             topic: channelTopicDraft.trim() || null,
             categoryId: channelCategoryDraft,
             iconKey: channelIconDraft,
+            fontKey: channelFontKeyDraft,
+            fontWeight: channelFontWeightDraft,
           })
           upsertChannel(response.data)
           await refreshAll()

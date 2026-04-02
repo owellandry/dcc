@@ -13,6 +13,7 @@ use crate::{
     },
     error::{AppError, Result},
     middleware::AuthUser,
+    models::channel::{is_valid_channel_font_key, is_valid_channel_font_weight},
     state::AppState,
 };
 
@@ -24,6 +25,8 @@ struct ChannelRow {
     name: String,
     topic: Option<String>,
     icon_key: Option<String>,
+    font_key: Option<String>,
+    font_weight: Option<i32>,
     channel_type: String,
     position: i32,
     is_nsfw: bool,
@@ -39,7 +42,7 @@ pub async fn get_channel(
 ) -> Result<Json<Value>> {
     let access = ensure_channel_view_access(&state, user_id, channel_id).await?;
     let c = sqlx::query_as::<_, ChannelRow>(
-        r#"SELECT id, server_id, category_id, name, topic, icon_key, channel_type,
+        r#"SELECT id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type,
                   position, is_nsfw, slowmode_seconds, last_message_id, created_at
            FROM channels
            WHERE id = $1"#,
@@ -59,6 +62,8 @@ pub async fn get_channel(
             "name": c.name,
             "topic": c.topic,
             "iconKey": c.icon_key,
+            "fontKey": c.font_key,
+            "fontWeight": c.font_weight,
             "type": c.channel_type,
             "position": c.position,
             "isNsfw": c.is_nsfw,
@@ -90,6 +95,8 @@ pub struct UpdateChannelBody {
     pub name: Option<String>,
     pub topic: Option<String>,
     pub icon_key: Option<String>,
+    pub font_key: Option<String>,
+    pub font_weight: Option<i32>,
     pub is_nsfw: Option<bool>,
     pub slowmode_seconds: Option<i32>,
     pub position: Option<i32>,
@@ -141,23 +148,45 @@ pub async fn update_channel(
         }
     }
 
+    if let Some(font_key) = body.font_key.as_deref() {
+        if !is_valid_channel_font_key(font_key) {
+            return Err(AppError::validation(
+                "fontKey",
+                "Unsupported channel font",
+            ));
+        }
+    }
+
+    if let Some(font_weight) = body.font_weight {
+        if !is_valid_channel_font_weight(font_weight) {
+            return Err(AppError::validation(
+                "fontWeight",
+                "Unsupported channel font weight",
+            ));
+        }
+    }
+
     let c = sqlx::query_as::<_, ChannelRow>(
         r#"UPDATE channels
            SET name             = COALESCE($2, name),
                topic            = COALESCE($3, topic),
                icon_key         = COALESCE($4, icon_key),
-               is_nsfw          = COALESCE($5, is_nsfw),
-               slowmode_seconds = COALESCE($6, slowmode_seconds),
-               position         = COALESCE($7, position),
-               category_id      = COALESCE($8, category_id)
+               font_key         = COALESCE($5, font_key),
+               font_weight      = COALESCE($6, font_weight),
+               is_nsfw          = COALESCE($7, is_nsfw),
+               slowmode_seconds = COALESCE($8, slowmode_seconds),
+               position         = COALESCE($9, position),
+               category_id      = COALESCE($10, category_id)
            WHERE id = $1
-           RETURNING id, server_id, category_id, name, topic, icon_key, channel_type,
+           RETURNING id, server_id, category_id, name, topic, icon_key, font_key, font_weight, channel_type,
                      position, is_nsfw, slowmode_seconds, last_message_id, created_at"#,
     )
     .bind(channel_id)
     .bind(body.name)
     .bind(body.topic)
     .bind(body.icon_key)
+    .bind(body.font_key)
+    .bind(body.font_weight)
     .bind(body.is_nsfw)
     .bind(body.slowmode_seconds)
     .bind(body.position)
@@ -176,6 +205,8 @@ pub async fn update_channel(
             "name": c.name,
             "topic": c.topic,
             "iconKey": c.icon_key,
+            "fontKey": c.font_key,
+            "fontWeight": c.font_weight,
             "type": c.channel_type,
             "position": c.position,
             "isNsfw": c.is_nsfw,

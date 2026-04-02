@@ -583,7 +583,7 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
         .collect();
 
     let dm_rows = sqlx::query_as::<_, Channel>(
-        "SELECT c.id, c.server_id, c.category_id, c.name, c.topic, c.icon_key, c.channel_type,
+        "SELECT c.id, c.server_id, c.category_id, c.name, c.topic, c.icon_key, c.font_key, c.font_weight, c.channel_type,
                 c.position, c.is_nsfw, c.slowmode_seconds, c.last_message_id, c.created_at
          FROM channels c
          JOIN dm_participants dp ON dp.channel_id = c.id
@@ -601,6 +601,8 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
                 "id": c.id,
                 "name": c.name,
                 "iconKey": c.icon_key,
+                "fontKey": c.font_key,
+                "fontWeight": c.font_weight,
                 "type": c.channel_type,
                 "lastMessageId": c.last_message_id,
                 "createdAt": c.created_at,

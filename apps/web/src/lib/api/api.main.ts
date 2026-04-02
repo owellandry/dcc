@@ -440,6 +440,8 @@ export const channelsApi = {
       categoryId?: string | null
       topic?: string | null
       iconKey?: string | null
+      fontKey?: string | null
+      fontWeight?: number | null
       isNsfw?: boolean
       slowmodeSeconds?: number
     }
@@ -450,7 +452,7 @@ export const channelsApi = {
     body: Partial<
       Pick<
         import('../types').Channel,
-        'name' | 'topic' | 'iconKey' | 'position' | 'categoryId' | 'isNsfw' | 'slowmodeSeconds'
+        'name' | 'topic' | 'iconKey' | 'fontKey' | 'fontWeight' | 'position' | 'categoryId' | 'isNsfw' | 'slowmodeSeconds'
       >
     >
   ) => api.patch<import('../types').Channel>(`/channels/${channelId}`, body),

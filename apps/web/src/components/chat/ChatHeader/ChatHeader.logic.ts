@@ -36,7 +36,12 @@ export function useChatHeaderModel({
     kind: 'channel',
     channelName: channel?.name ?? '...',
     ...(channel?.topic != null ? { topic: channel.topic } : {}),
-    ...(channel?.type === 'voice' || channel?.type === 'text' ? { channelType: channel.type } : {}),
+    ...(channel?.iconKey !== undefined ? { iconKey: channel.iconKey } : {}),
+    ...(channel?.fontKey !== undefined ? { fontKey: channel.fontKey } : {}),
+    ...(channel?.fontWeight !== undefined ? { fontWeight: channel.fontWeight } : {}),
+    ...(channel?.type === 'voice' || channel?.type === 'text' || channel?.type === 'announcement'
+      ? { channelType: channel.type }
+      : {}),
     ...(isMemberListOpen !== undefined ? { isMemberListOpen } : {}),
     ...(onToggleMemberList !== undefined ? { onToggleMemberList } : {}),
   }

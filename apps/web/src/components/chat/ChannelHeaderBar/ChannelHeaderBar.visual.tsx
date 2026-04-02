@@ -1,6 +1,8 @@
 'use client'
 
 import { Hash, Home, Menu, MessageSquare, Pin, Search, Shield, Users, Volume2 } from 'lucide-react'
+import { getChannelNameTextStyle } from '@/lib/channel-appearance/channelAppearance.shared'
+import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared'
 import { interactiveMotion, motion } from '@/lib/motion'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import type { ChannelHeaderBarVisualProps, HeaderButtonProps } from './ChannelHeaderBar.shared'
@@ -9,12 +11,24 @@ export function ChannelHeaderBarVisual({
   channelKind,
   channelName,
   topic,
+  iconKey,
+  fontKey,
+  fontWeight,
+  channelType,
   isMemberListOpen,
   onToggleMemberList,
 }: ChannelHeaderBarVisualProps) {
-  const ChannelIcon =
-    channelKind === 'voice' ? Volume2 : channelKind === 'welcome' ? Home : channelKind === 'rules' ? Shield : Hash
+  const ChannelIcon = iconKey
+    ? getChannelIconComponent(iconKey, channelType ?? (channelKind === 'voice' ? 'voice' : 'text'))
+    : channelKind === 'voice'
+      ? Volume2
+      : channelKind === 'welcome'
+        ? Home
+        : channelKind === 'rules'
+          ? Shield
+          : Hash
   const mobileSidebar = useMobileSidebar()
+  const channelNameStyle = getChannelNameTextStyle({ fontKey, fontWeight })
 
   return (
     <motion.header
@@ -43,7 +57,7 @@ export function ChannelHeaderBarVisual({
           >
             <ChannelIcon size={17} />
           </motion.div>
-          <span className="truncate font-display text-[16px] font-700 text-[var(--t0)]">
+          <span className="truncate font-display text-[16px] font-700 text-[var(--t0)]" style={channelNameStyle}>
             {channelName}
           </span>
           {topic && (
