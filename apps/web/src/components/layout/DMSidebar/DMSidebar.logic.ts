@@ -73,7 +73,18 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
     return parts[2] ?? null
   }, [pathname])
 
-  const dmUsers = isMock ? MOCK_DM_USERS : friends
+  const dmUsers = useMemo(() => {
+    if (isMock) return MOCK_DM_USERS
+
+    const usersById = new Map<string, User>()
+    for (const friend of friends) usersById.set(friend.id, friend)
+    for (const channel of dmChannels) {
+      for (const participant of channel.participants ?? []) {
+        usersById.set(participant.id, participant)
+      }
+    }
+    return Array.from(usersById.values())
+  }, [dmChannels, friends, isMock])
   const badgeCount = isMock ? MOCK_PENDING_COUNT : pendingCount
   const unreadBadgeCount = useMemo(
     () =>
