@@ -3,6 +3,7 @@
 import { Camera, ImagePlus, Shield } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
 import type { Server } from '@/lib/types'
+import { UserAvatarImage } from '@/components/user/UserAvatar/UserAvatarImage.module'
 import { Field, SettingBlock } from '@/components/user/UserSettingsParts'
 import { ServerSettingsContentShell } from './ServerSettingsModal.shared'
 
@@ -58,7 +59,7 @@ export function ServerSettingsModalOverviewSection({
               <div className="relative">
                 <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-[var(--s3)] bg-[var(--s2)]">
                   {serverIconUrl ? (
-                    <img src={serverIconUrl} alt={displayName} className="h-full w-full object-cover" />
+                    <UserAvatarImage src={serverIconUrl} alt={displayName} status="online" />
                   ) : (
                     <span className="font-display text-xl font-800 text-white">{initials}</span>
                   )}

@@ -3,6 +3,7 @@
 import { BadgeCheck, Code2, Gamepad2, Globe2, Lock, Palette } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
 import { interactiveMotion, motion, overlayCardVariants } from '@/lib/motion'
+import { UserAvatarImage } from '@/components/user/UserAvatar/UserAvatarImage.module'
 import { type ServerPreviewCardVisualProps } from './ServerPreviewCard.shared'
 
 export function ServerPreviewCardVisual({
@@ -20,6 +21,7 @@ export function ServerPreviewCardVisual({
   onCopyInvite,
 }: ServerPreviewCardVisualProps) {
   const CategoryIcon = categoryKind === 'gaming' ? Gamepad2 : categoryKind === 'design' ? Palette : Code2
+  const serverIconUrl = resolveMediaUrl(server.iconUrl)
 
   return (
     <motion.div
@@ -38,8 +40,8 @@ export function ServerPreviewCardVisual({
       <div className="relative z-10 px-4 pb-4">
         <div className="relative z-10 -mt-7 mb-3 flex items-center gap-3">
           <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[var(--s2)] ring-4 ring-[var(--s1)]">
-            {server.iconUrl ? (
-              <img src={resolveMediaUrl(server.iconUrl)} alt={server.name} className="h-full w-full object-cover" />
+            {serverIconUrl ? (
+              <UserAvatarImage src={serverIconUrl} alt={server.name} status="online" />
             ) : (
               <span className="font-display text-lg font-700 text-[var(--t1)]">{initials}</span>
             )}

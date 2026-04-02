@@ -13,6 +13,7 @@ import { ApiRequestError, resolveMediaUrl, serversApi } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
 import { useAuthStore } from '@/stores/authStore'
 import type { ServerMember, User } from '@/lib/types'
+import { UserAvatarImage } from '@/components/user/UserAvatar/UserAvatarImage.module'
 
 export function ServerSidebar() {
   const router = useRouter()
@@ -378,7 +379,7 @@ function ServerIcon({ href, active, tooltip, iconUrl, name, isHome, onContextMen
             )}
           />
         ) : iconUrl ? (
-          <img src={iconUrl} alt={name} className="h-full w-full object-cover" />
+          <UserAvatarImage src={iconUrl} alt={name ?? tooltip} status="online" />
         ) : (
           <span
             className={cn(

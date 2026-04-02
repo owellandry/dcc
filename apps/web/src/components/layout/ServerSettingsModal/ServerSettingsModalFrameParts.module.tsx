@@ -3,6 +3,7 @@
 import { Hash, LoaderCircle, Search, Settings2, Shield, Users, X } from 'lucide-react'
 import { resolveMediaUrl } from '@/lib/api'
 import type { Server } from '@/lib/types'
+import { UserAvatarImage } from '@/components/user/UserAvatar/UserAvatarImage.module'
 import { SettingsNavItem } from '@/components/user/UserSettingsParts'
 import { ServerSettingsSection, serverSettingsViewTitles } from './ServerSettingsModal.shared'
 
@@ -30,7 +31,7 @@ export function ServerSettingsModalSidebar({
     <aside className="hidden w-[260px] shrink-0 border-r border-[var(--b1)] bg-[var(--s1)] p-4 lg:block">
       <div className="flex items-center gap-3 rounded-xl bg-[var(--s1)] px-3 py-2.5">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-[var(--s2)] text-sm font-700 text-[var(--t0)]">
-          {iconUrl ? <img src={iconUrl} alt={server.name} className="h-full w-full object-cover" /> : initials}
+          {iconUrl ? <UserAvatarImage src={iconUrl} alt={server.name} status="online" /> : initials}
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-700 text-[var(--t0)]">{server.name}</p>
