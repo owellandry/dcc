@@ -345,6 +345,25 @@ pub async fn delete_message(
         .execute(&state.db)
         .await?;
 
+    sqlx::query(
+        r#"
+        UPDATE channels
+        SET last_message_id = (
+            SELECT m.id
+            FROM messages m
+            WHERE m.channel_id = $1
+            ORDER BY m.created_at DESC
+            LIMIT 1
+        )
+        WHERE id = $1
+          AND last_message_id = $2
+        "#,
+    )
+    .bind(row.channel_id)
+    .bind(message_id)
+    .execute(&state.db)
+    .await?;
+
     let event = json!({
         "t": "MESSAGE_DELETE",
         "d": { "messageId": message_id, "channelId": row.channel_id }

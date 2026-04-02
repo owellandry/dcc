@@ -90,12 +90,22 @@ pub async fn mark_channel_read(
     ensure_channel_view_access(&state, user_id, channel_id).await?;
     initialize_channel_read(&state, user_id, channel_id).await?;
 
-    let last_message_id =
-        sqlx::query_scalar::<_, Option<Uuid>>("SELECT last_message_id FROM channels WHERE id = $1")
-            .bind(channel_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
+    let last_message_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        r#"
+        SELECT (
+            SELECT m.id
+            FROM messages m
+            WHERE m.id = c.last_message_id
+              AND m.channel_id = c.id
+        )
+        FROM channels c
+        WHERE c.id = $1
+        "#,
+    )
+    .bind(channel_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     let row = sqlx::query_as::<_, ChannelReadRow>(
         r#"
@@ -132,7 +142,12 @@ async fn initialize_missing_reads(state: &AppState, user_id: Uuid) -> Result<()>
         SELECT
             $1,
             c.id,
-            c.last_message_id,
+            (
+                SELECT m.id
+                FROM messages m
+                WHERE m.id = c.last_message_id
+                  AND m.channel_id = c.id
+            ),
             NOW()
         FROM channels c
         WHERE (
@@ -168,7 +183,16 @@ async fn initialize_channel_read(state: &AppState, user_id: Uuid, channel_id: Uu
     sqlx::query(
         r#"
         INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, last_read_at)
-        SELECT $1, c.id, c.last_message_id, NOW()
+        SELECT
+            $1,
+            c.id,
+            (
+                SELECT m.id
+                FROM messages m
+                WHERE m.id = c.last_message_id
+                  AND m.channel_id = c.id
+            ),
+            NOW()
         FROM channels c
         WHERE c.id = $2
         ON CONFLICT (user_id, channel_id) DO NOTHING

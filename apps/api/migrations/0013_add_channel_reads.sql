@@ -1,3 +1,13 @@
+UPDATE channels c
+SET last_message_id = NULL
+WHERE c.last_message_id IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM messages m
+      WHERE m.id = c.last_message_id
+        AND m.channel_id = c.id
+  );
+
 CREATE TABLE IF NOT EXISTS channel_reads (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -13,7 +23,12 @@ INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, last_read_
 SELECT
     membership.user_id,
     c.id,
-    c.last_message_id,
+    (
+        SELECT m.id
+        FROM messages m
+        WHERE m.id = c.last_message_id
+          AND m.channel_id = c.id
+    ),
     NOW()
 FROM channels c
 JOIN (
