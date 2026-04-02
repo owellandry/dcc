@@ -19,7 +19,7 @@ export function MessageListVisual({
   dmIntro,
   onScroll,
 }: MessageListVisualProps) {
-  if (isEmpty && !dmIntro) {
+  if (isEmpty) {
     return <EmptyState />
   }
 

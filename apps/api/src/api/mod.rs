@@ -4,6 +4,7 @@ pub mod dms;
 pub mod friends;
 pub mod link_preview;
 pub mod messages;
+pub mod reads;
 pub mod search;
 pub mod servers;
 pub mod threads;
@@ -49,6 +50,7 @@ pub fn router() -> Router<AppState> {
             post(users::disable_two_factor),
         )
         .route("/users/:id", get(users::get_user))
+        .route("/channels/read-states", get(reads::list_channel_reads))
         .route("/uploads/avatar", post(users::upload_avatar))
         .route(
             "/uploads/avatar-decoration",
@@ -100,6 +102,7 @@ pub fn router() -> Router<AppState> {
                 .patch(channels::update_channel)
                 .delete(channels::delete_channel),
         )
+        .route("/channels/:id/read", post(reads::mark_channel_read))
         .route(
             "/channels/:id/overwrites",
             put(servers::replace_channel_overwrites),

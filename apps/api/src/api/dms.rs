@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     middleware::AuthUser,
+    services::pubsub::{publish, user_channel},
     state::AppState,
 };
 
@@ -127,8 +128,8 @@ pub async fn open_dm(
     .fetch_optional(&state.db)
     .await?;
 
-    let channel_id = if let Some(id) = existing {
-        id
+    let (channel_id, was_created) = if let Some(id) = existing {
+        (id, false)
     } else {
         // Create new DM channel
         let new_id = Uuid::new_v4();
@@ -146,8 +147,19 @@ pub async fn open_dm(
             .execute(&mut *tx)
             .await?;
 
+        sqlx::query(
+            r#"INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, last_read_at)
+               VALUES ($1, $3, NULL, NOW()), ($2, $3, NULL, NOW())
+               ON CONFLICT (user_id, channel_id) DO NOTHING"#,
+        )
+        .bind(user_id)
+        .bind(target_user_id)
+        .bind(new_id)
+        .execute(&mut *tx)
+        .await?;
+
         tx.commit().await?;
-        new_id
+        (new_id, true)
     };
 
     // Fetch channel + other user info
@@ -168,38 +180,47 @@ pub async fn open_dm(
     .fetch_one(&state.db)
     .await?;
 
+    let payload = json!({
+        "id": ch.id,
+        "serverId": null,
+        "categoryId": null,
+        "name": ch.name,
+        "topic": null,
+        "iconKey": null,
+        "fontKey": null,
+        "fontWeight": null,
+        "type": ch.channel_type,
+        "position": 0,
+        "isNsfw": false,
+        "slowmodeSeconds": 0,
+        "lastMessageId": ch.last_message_id,
+        "createdAt": ch.created_at,
+        "participants": [{
+            "id": other.id,
+            "username": other.username,
+            "displayName": other.display_name,
+            "discriminator": other.discriminator,
+            "avatarUrl": other.avatar_url,
+            "avatarDecorationUrl": other.avatar_decoration_url,
+            "bannerUrl": other.banner_url,
+            "bio": other.bio,
+            "status": other.status,
+            "customStatus": other.custom_status,
+            "isVerified": other.is_verified,
+            "badges": other.badges,
+            "createdAt": other.created_at,
+        }],
+    });
+
+    if was_created {
+        let event = json!({ "t": "CHANNEL_CREATE", "d": payload });
+        let event_text = event.to_string();
+        let _ = publish(&state.redis, &user_channel(user_id), &event_text).await;
+        let _ = publish(&state.redis, &user_channel(target_user_id), &event_text).await;
+    }
+
     Ok(Json(json!({
-        "data": {
-            "id": ch.id,
-            "serverId": null,
-            "categoryId": null,
-            "name": ch.name,
-            "topic": null,
-            "iconKey": null,
-            "fontKey": null,
-            "fontWeight": null,
-            "type": ch.channel_type,
-            "position": 0,
-            "isNsfw": false,
-            "slowmodeSeconds": 0,
-            "lastMessageId": ch.last_message_id,
-            "createdAt": ch.created_at,
-            "participants": [{
-                "id": other.id,
-                "username": other.username,
-                "displayName": other.display_name,
-                "discriminator": other.discriminator,
-                "avatarUrl": other.avatar_url,
-                "avatarDecorationUrl": other.avatar_decoration_url,
-                "bannerUrl": other.banner_url,
-                "bio": other.bio,
-                "status": other.status,
-                "customStatus": other.custom_status,
-                "isVerified": other.is_verified,
-                "badges": other.badges,
-                "createdAt": other.created_at,
-            }],
-        }
+        "data": payload
     })))
 }
 
