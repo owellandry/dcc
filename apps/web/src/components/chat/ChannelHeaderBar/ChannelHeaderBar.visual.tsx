@@ -23,7 +23,7 @@ export function ChannelHeaderBarVisual({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28 }}
     >
-      <div className="flex h-14 items-center gap-3 rounded-bl-2xl rounded-tl-none rounded-r-none border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-3 sm:px-4">
+      <div className="flex h-14 items-center gap-3 rounded-bl-2xl rounded-tl-none rounded-r-none border border-r-0 border-[var(--b1)] bg-[var(--s0)] px-4">
         <div className="flex min-w-0 items-center gap-2.5">
           {mobileSidebar && (
             <motion.button
