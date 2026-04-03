@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import type { VoiceParticipant } from '@/lib/types'
+import type { VoiceParticipant, VoiceScreenShare } from '@/lib/types'
 
 export type VoiceConnectionState = 'idle' | 'requesting-media' | 'joining' | 'connected' | 'error'
 
@@ -14,14 +14,19 @@ interface VoiceState {
   isMicMuted: boolean
   isHeadphonesMuted: boolean
   participantsByChannel: Record<string, Record<string, VoiceParticipant>>
+  screenSharesByChannel: Record<string, Record<string, VoiceScreenShare>>
   joinVoiceChannel: (serverId: string, channelId: string) => void
   leaveVoiceChannel: () => void
   setConnectionState: (value: VoiceConnectionState) => void
   setErrorMessage: (value: string | null) => void
   syncParticipants: (channelId: string, participants: VoiceParticipant[]) => void
+  syncScreenShares: (channelId: string, screenShares: VoiceScreenShare[]) => void
   upsertParticipant: (participant: VoiceParticipant) => void
+  upsertScreenShare: (screenShare: VoiceScreenShare) => void
   removeParticipant: (channelId: string, userId: string) => void
+  removeScreenShare: (channelId: string, userId: string) => void
   clearParticipants: (channelId?: string) => void
+  clearScreenShares: (channelId?: string) => void
   toggleMic: () => void
   toggleHeadphones: () => void
   setMicMuted: (value: boolean) => void
@@ -37,6 +42,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   isMicMuted: false,
   isHeadphonesMuted: false,
   participantsByChannel: {},
+  screenSharesByChannel: {},
 
   joinVoiceChannel: (serverId, channelId) =>
     set({
@@ -61,6 +67,11 @@ export const useVoiceStore = create<VoiceState>((set) => ({
             Object.entries(state.participantsByChannel).filter(([channelId]) => channelId !== state.activeChannelId)
           )
         : state.participantsByChannel,
+      screenSharesByChannel: state.activeChannelId
+        ? Object.fromEntries(
+            Object.entries(state.screenSharesByChannel).filter(([channelId]) => channelId !== state.activeChannelId)
+          )
+        : state.screenSharesByChannel,
     })),
 
   setConnectionState: (value) => set({ connectionState: value }),
@@ -74,6 +85,14 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       },
     })),
 
+  syncScreenShares: (channelId, screenShares) =>
+    set((state) => ({
+      screenSharesByChannel: {
+        ...state.screenSharesByChannel,
+        [channelId]: Object.fromEntries(screenShares.map((screenShare) => [screenShare.userId, screenShare])),
+      },
+    })),
+
   upsertParticipant: (participant) =>
     set((state) => ({
       participantsByChannel: {
@@ -81,6 +100,17 @@ export const useVoiceStore = create<VoiceState>((set) => ({
         [participant.channelId]: {
           ...(state.participantsByChannel[participant.channelId] ?? {}),
           [participant.userId]: participant,
+        },
+      },
+    })),
+
+  upsertScreenShare: (screenShare) =>
+    set((state) => ({
+      screenSharesByChannel: {
+        ...state.screenSharesByChannel,
+        [screenShare.channelId]: {
+          ...(state.screenSharesByChannel[screenShare.channelId] ?? {}),
+          [screenShare.userId]: screenShare,
         },
       },
     })),
@@ -97,12 +127,34 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       }
     }),
 
+  removeScreenShare: (channelId, userId) =>
+    set((state) => {
+      const screenShares = { ...(state.screenSharesByChannel[channelId] ?? {}) }
+      delete screenShares[userId]
+      return {
+        screenSharesByChannel: {
+          ...state.screenSharesByChannel,
+          [channelId]: screenShares,
+        },
+      }
+    }),
+
   clearParticipants: (channelId) =>
     set((state) => {
       if (!channelId) return { participantsByChannel: {} }
       return {
         participantsByChannel: Object.fromEntries(
           Object.entries(state.participantsByChannel).filter(([currentChannelId]) => currentChannelId !== channelId)
+        ),
+      }
+    }),
+
+  clearScreenShares: (channelId) =>
+    set((state) => {
+      if (!channelId) return { screenSharesByChannel: {} }
+      return {
+        screenSharesByChannel: Object.fromEntries(
+          Object.entries(state.screenSharesByChannel).filter(([currentChannelId]) => currentChannelId !== channelId)
         ),
       }
     }),

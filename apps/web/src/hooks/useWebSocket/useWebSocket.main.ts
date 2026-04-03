@@ -59,8 +59,11 @@ export function useWebSocket(enabled = true) {
   const { incrementFromMessage, markReadLocal } = useUnreadStore()
   const {
     syncParticipants,
+    syncScreenShares,
     upsertParticipant,
+    upsertScreenShare,
     removeParticipant,
+    removeScreenShare,
     setConnectionState,
     setErrorMessage,
   } = useVoiceStore()
@@ -204,6 +207,7 @@ export function useWebSocket(enabled = true) {
 
         case 'VOICE_STATE_SNAPSHOT':
           syncParticipants(event.d.channelId, event.d.participants)
+          syncScreenShares(event.d.channelId, event.d.screenShares)
           setConnectionState('connected')
           setErrorMessage(null)
           break
@@ -214,6 +218,15 @@ export function useWebSocket(enabled = true) {
 
         case 'VOICE_USER_LEFT':
           removeParticipant(event.d.channelId, event.d.userId)
+          removeScreenShare(event.d.channelId, event.d.userId)
+          break
+
+        case 'VOICE_SCREEN_SHARE_UPDATED':
+          if (event.d.share) {
+            upsertScreenShare(event.d.share)
+          } else {
+            removeScreenShare(event.d.channelId, event.d.userId)
+          }
           break
       }
 
@@ -243,8 +256,11 @@ export function useWebSocket(enabled = true) {
       upsertMember,
       removeMember,
       syncParticipants,
+      syncScreenShares,
       upsertParticipant,
+      upsertScreenShare,
       removeParticipant,
+      removeScreenShare,
       setConnectionState,
       setErrorMessage,
       send,

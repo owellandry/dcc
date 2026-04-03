@@ -1,11 +1,13 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { PhoneOff, Volume2 } from 'lucide-react'
+import { Volume2 } from 'lucide-react'
 import { motion } from '@/lib/motion'
 import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { OfficialMemberTag, hasOfficialMemberBadge } from '@/components/user/Badge'
 import { UserAvatar } from '@/components/user/UserAvatar'
+import { VoiceChannelControls } from './VoiceChannelControls.module'
+import { VoiceChannelScreenShareGrid } from './VoiceChannelScreenShareGrid.module'
 import { type VoiceChannelRoomVisualProps } from './VoiceChannelRoom.shared'
 
 export function VoiceChannelRoomVisual({
@@ -14,11 +16,21 @@ export function VoiceChannelRoomVisual({
   isConnected,
   connectionState,
   errorMessage,
+  isScreenSharing,
+  screenShareState,
+  screenShareError,
+  isMicMuted,
+  isHeadphonesMuted,
   activeMemberCount,
   connectedMembers,
   availableMembers,
+  screenShareTiles,
   onJoin,
   onLeave,
+  onToggleMic,
+  onToggleHeadphones,
+  onStartScreenShare,
+  onStopScreenShare,
 }: VoiceChannelRoomVisualProps) {
   const connectionLabel = getConnectionLabel(isConnected, connectionState)
 
@@ -29,11 +41,13 @@ export function VoiceChannelRoomVisual({
       <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="relative flex min-h-0 flex-1 items-start justify-center px-6 py-10">
           <motion.div
-            className="relative z-10 flex w-full max-w-5xl flex-col items-center"
+            className="relative z-10 flex w-full max-w-6xl flex-col items-center"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
+            <VoiceChannelScreenShareGrid tiles={screenShareTiles} />
+
             {connectedMembers.length > 0 ? (
               <div className="mb-8 flex min-h-[220px] w-full max-w-3xl items-center justify-center">
                 <div className="grid w-full gap-3 sm:grid-cols-2">
@@ -53,9 +67,7 @@ export function VoiceChannelRoomVisual({
                               <OfficialMemberTag compact className="translate-y-[1px]" />
                             )}
                           </div>
-                          <p className="mt-0.5 text-xs text-[var(--t3)]">
-                            En el chat de voz
-                          </p>
+                          <p className="mt-0.5 text-xs text-[var(--t3)]">En el chat de voz</p>
                         </div>
                       </div>
                     </div>
@@ -78,9 +90,13 @@ export function VoiceChannelRoomVisual({
                 {channelName}
               </h1>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 text-sm text-[var(--t2)]">
-                <InfoChip icon={<Volume2 size={15} />} label={`${activeMemberCount} participante${activeMemberCount === 1 ? '' : 's'}`} />
+                <InfoChip
+                  icon={<Volume2 size={15} />}
+                  label={`${activeMemberCount} participante${activeMemberCount === 1 ? '' : 's'}`}
+                />
                 <InfoChip label={serverName} />
                 <InfoChip label={connectionLabel} />
+                {isScreenSharing ? <InfoChip label="Pantalla activa" /> : null}
               </div>
 
               {connectedMembers.length === 0 ? (
@@ -97,17 +113,27 @@ export function VoiceChannelRoomVisual({
                 </p>
               ) : null}
 
-              <div className="mt-7">
-                {isConnected ? (
-                  <button
-                    type="button"
-                    onClick={onLeave}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-[var(--dnd)] px-6 py-3.5 text-sm font-700 text-white shadow-[0_18px_40px_rgba(240,71,71,0.24)] transition-transform hover:-translate-y-0.5"
-                  >
-                    <PhoneOff size={18} />
-                    Salir del chat de voz
-                  </button>
-                ) : (
+              {screenShareError ? (
+                <p className="mx-auto mt-4 max-w-lg rounded-2xl border border-[var(--ember)]/25 bg-[rgba(255,145,86,0.12)] px-4 py-3 text-sm leading-6 text-[#ffd8c0]">
+                  {screenShareError}
+                </p>
+              ) : null}
+
+              {isConnected ? (
+                <VoiceChannelControls
+                  isConnected={isConnected}
+                  isMicMuted={isMicMuted}
+                  isHeadphonesMuted={isHeadphonesMuted}
+                  isScreenSharing={isScreenSharing}
+                  screenShareState={screenShareState}
+                  onToggleMic={onToggleMic}
+                  onToggleHeadphones={onToggleHeadphones}
+                  onStartScreenShare={onStartScreenShare}
+                  onStopScreenShare={onStopScreenShare}
+                  onLeave={onLeave}
+                />
+              ) : (
+                <div className="mt-7">
                   <button
                     type="button"
                     onClick={onJoin}
@@ -117,8 +143,8 @@ export function VoiceChannelRoomVisual({
                     <Volume2 size={18} />
                     Unirse al chat de voz
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {availableMembers.length > 0 ? (
@@ -137,7 +163,6 @@ export function VoiceChannelRoomVisual({
             ) : null}
           </motion.div>
         </div>
-
       </div>
     </main>
   )
@@ -159,7 +184,7 @@ function InfoChip({
 }
 
 function getConnectionLabel(isConnected: boolean, connectionState: VoiceChannelRoomVisualProps['connectionState']) {
-  if (connectionState === 'requesting-media') return 'Solicitando acceso al micrófono'
+  if (connectionState === 'requesting-media') return 'Solicitando acceso al microfono'
   if (connectionState === 'joining') return 'Entrando al canal'
   if (connectionState === 'error') return 'No se pudo conectar'
   return isConnected ? 'Conectado al chat de voz' : 'Fuera del canal'

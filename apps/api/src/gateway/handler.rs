@@ -38,11 +38,35 @@ struct VoiceSession {
     joined_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VoiceScreenShareState {
+    user_id: Uuid,
+    server_id: Uuid,
+    channel_id: Uuid,
+    started_at: DateTime<Utc>,
+    surface: String,
+    width: Option<u32>,
+    height: Option<u32>,
+    frame_rate: Option<f32>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VoiceStatePayload {
     action: String,
+    server_id: Option<Uuid>,
     channel_id: Option<Uuid>,
+    screen_share: Option<VoiceScreenShareMetadataPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VoiceScreenShareMetadataPayload {
+    surface: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    frame_rate: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -213,6 +237,38 @@ async fn handle_voice_state_update(
         "leave" => {
             leave_active_voice_channel(state, user_id).await?;
         }
+        "start-screen-share" => {
+            let Some(session) = get_active_voice_session(state, user_id).await? else {
+                return Ok(());
+            };
+
+            if payload.server_id != Some(session.server_id)
+                || payload.channel_id != Some(session.channel_id)
+            {
+                return Ok(());
+            }
+
+            upsert_screen_share(
+                state,
+                user_id,
+                &session,
+                payload.screen_share.as_ref(),
+            )
+            .await?;
+        }
+        "stop-screen-share" => {
+            let Some(session) = get_active_voice_session(state, user_id).await? else {
+                return Ok(());
+            };
+
+            if payload.server_id != Some(session.server_id)
+                || payload.channel_id != Some(session.channel_id)
+            {
+                return Ok(());
+            }
+
+            remove_screen_share(state, user_id, &session).await?;
+        }
         _ => {}
     }
 
@@ -330,6 +386,8 @@ async fn leave_active_voice_channel(state: &AppState, user_id: Uuid) -> anyhow::
         return Ok(());
     };
 
+    remove_screen_share(state, user_id, &session).await?;
+
     let mut redis = state.redis.clone();
     let session_key = voice_session_key(user_id);
     let participants_key = voice_participants_key(session.channel_id);
@@ -381,12 +439,30 @@ async fn publish_voice_snapshot(
         })
         .collect::<Vec<_>>();
 
+    let screen_shares = list_screen_shares(state, session.channel_id)
+        .await?
+        .into_iter()
+        .map(|share| {
+            serde_json::json!({
+                "userId": share.user_id,
+                "serverId": share.server_id,
+                "channelId": share.channel_id,
+                "startedAt": share.started_at,
+                "surface": share.surface,
+                "width": share.width,
+                "height": share.height,
+                "frameRate": share.frame_rate,
+            })
+        })
+        .collect::<Vec<_>>();
+
     let snapshot_event = serde_json::json!({
         "t": "VOICE_STATE_SNAPSHOT",
         "d": {
             "serverId": session.server_id,
             "channelId": session.channel_id,
             "participants": participants,
+            "screenShares": screen_shares,
         }
     });
 
@@ -394,6 +470,106 @@ async fn publish_voice_snapshot(
         &state.redis,
         &user_channel(user_id),
         &snapshot_event.to_string(),
+    )
+    .await?;
+    Ok(())
+}
+
+async fn upsert_screen_share(
+    state: &AppState,
+    user_id: Uuid,
+    session: &VoiceSession,
+    metadata: Option<&VoiceScreenShareMetadataPayload>,
+) -> anyhow::Result<()> {
+    let share = VoiceScreenShareState {
+        user_id,
+        server_id: session.server_id,
+        channel_id: session.channel_id,
+        started_at: Utc::now(),
+        surface: metadata
+            .and_then(|value| value.surface.clone())
+            .unwrap_or_else(|| "unknown".to_string()),
+        width: metadata.and_then(|value| value.width),
+        height: metadata.and_then(|value| value.height),
+        frame_rate: metadata.and_then(|value| value.frame_rate),
+    };
+
+    let mut redis = state.redis.clone();
+    let screen_shares_key = voice_screen_shares_key(session.channel_id);
+    let share_json = serde_json::to_string(&share)?;
+
+    let mut pipe = redis::pipe();
+    pipe.hset(&screen_shares_key, user_id.to_string(), share_json);
+    pipe.expire(&screen_shares_key, 3600);
+    let _: () = pipe.ignore().query_async(&mut redis).await?;
+
+    publish_screen_share_update(state, session, user_id, Some(&share)).await?;
+    Ok(())
+}
+
+async fn remove_screen_share(
+    state: &AppState,
+    user_id: Uuid,
+    session: &VoiceSession,
+) -> anyhow::Result<()> {
+    let mut redis = state.redis.clone();
+    let screen_shares_key = voice_screen_shares_key(session.channel_id);
+    let existing: Option<String> = redis.hget(&screen_shares_key, user_id.to_string()).await?;
+
+    if existing.is_none() {
+        return Ok(());
+    }
+
+    let _: usize = redis.hdel(&screen_shares_key, user_id.to_string()).await?;
+    publish_screen_share_update(state, session, user_id, None).await?;
+    Ok(())
+}
+
+async fn list_screen_shares(
+    state: &AppState,
+    channel_id: Uuid,
+) -> anyhow::Result<Vec<VoiceScreenShareState>> {
+    let mut redis = state.redis.clone();
+    let screen_shares: std::collections::HashMap<String, String> = redis
+        .hgetall(voice_screen_shares_key(channel_id))
+        .await
+        .unwrap_or_default();
+
+    Ok(screen_shares
+        .into_values()
+        .filter_map(|value| serde_json::from_str::<VoiceScreenShareState>(&value).ok())
+        .collect())
+}
+
+async fn publish_screen_share_update(
+    state: &AppState,
+    session: &VoiceSession,
+    user_id: Uuid,
+    share: Option<&VoiceScreenShareState>,
+) -> anyhow::Result<()> {
+    let event = serde_json::json!({
+        "t": "VOICE_SCREEN_SHARE_UPDATED",
+        "d": {
+            "serverId": session.server_id,
+            "channelId": session.channel_id,
+            "userId": user_id,
+            "share": share.map(|value| serde_json::json!({
+                "userId": value.user_id,
+                "serverId": value.server_id,
+                "channelId": value.channel_id,
+                "startedAt": value.started_at,
+                "surface": value.surface,
+                "width": value.width,
+                "height": value.height,
+                "frameRate": value.frame_rate,
+            })),
+        }
+    });
+
+    publish(
+        &state.redis,
+        &guild_channel(session.server_id),
+        &event.to_string(),
     )
     .await?;
     Ok(())
@@ -452,6 +628,10 @@ fn voice_session_key(user_id: Uuid) -> String {
 
 fn voice_participants_key(channel_id: Uuid) -> String {
     format!("voice:channel:{}:participants", channel_id)
+}
+
+fn voice_screen_shares_key(channel_id: Uuid) -> String {
+    format!("voice:channel:{}:screen-shares", channel_id)
 }
 
 fn try_identify(

@@ -155,6 +155,19 @@ export interface VoiceParticipant {
 
 export type VoiceSignalType = 'offer' | 'answer' | 'ice-candidate'
 
+export type VoiceScreenSurface = 'monitor' | 'window' | 'browser' | 'application' | 'unknown'
+
+export interface VoiceScreenShare {
+  userId: string
+  serverId: string
+  channelId: string
+  startedAt: string
+  surface: VoiceScreenSurface
+  width: number | null
+  height: number | null
+  frameRate: number | null
+}
+
 // ── Messages ────────────────────────────────────────────────────────────────
 
 export type MessageType = 'default' | 'system' | 'reply'
@@ -250,10 +263,24 @@ export type GatewayEvent =
   | { op: 'FRIEND_REMOVE'; d: FriendRemoveEvent }
   | {
       op: 'VOICE_STATE_SNAPSHOT'
-      d: { serverId: string; channelId: string; participants: VoiceParticipant[] }
+      d: {
+        serverId: string
+        channelId: string
+        participants: VoiceParticipant[]
+        screenShares: VoiceScreenShare[]
+      }
     }
   | { op: 'VOICE_USER_JOINED'; d: VoiceParticipant }
   | { op: 'VOICE_USER_LEFT'; d: { serverId: string; channelId: string; userId: string } }
+  | {
+      op: 'VOICE_SCREEN_SHARE_UPDATED'
+      d: {
+        serverId: string
+        channelId: string
+        userId: string
+        share: VoiceScreenShare | null
+      }
+    }
   | {
       op: 'VOICE_SIGNAL'
       d: {
