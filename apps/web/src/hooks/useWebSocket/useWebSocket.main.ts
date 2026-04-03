@@ -64,6 +64,8 @@ export function useWebSocket(enabled = true) {
     upsertScreenShare,
     removeParticipant,
     removeScreenShare,
+    clearParticipants,
+    clearScreenShares,
     setConnectionState,
     setErrorMessage,
   } = useVoiceStore()
@@ -112,6 +114,12 @@ export function useWebSocket(enabled = true) {
           setUser(event.d.user)
           setServers(event.d.guilds)
           event.d.dmChannels.forEach((channel) => upsertChannel(channel))
+          clearParticipants()
+          clearScreenShares()
+          event.d.voiceStates.forEach((voiceState) => {
+            syncParticipants(voiceState.channelId, voiceState.participants)
+            syncScreenShares(voiceState.channelId, voiceState.screenShares)
+          })
           // Seed presence store from the current user's stored status
           setPresence(event.d.user.id, event.d.user.status ?? 'online', event.d.user.customStatus ?? null)
           reconnectAttempts.current = 0
@@ -261,6 +269,8 @@ export function useWebSocket(enabled = true) {
       upsertScreenShare,
       removeParticipant,
       removeScreenShare,
+      clearParticipants,
+      clearScreenShares,
       setConnectionState,
       setErrorMessage,
       send,

@@ -333,7 +333,6 @@ async fn join_voice_channel(
     };
 
     leave_active_voice_channel(state, user_id).await?;
-    let existing_participants = list_voice_participant_ids(state, channel_id).await?;
 
     let joined_at = Utc::now();
     let session = VoiceSession {
@@ -368,14 +367,12 @@ async fn join_voice_channel(
             "joinedAt": joined_at,
         }
     });
-    for participant_id in existing_participants {
-        publish(
-            &state.redis,
-            &user_channel(participant_id),
-            &joined_event.to_string(),
-        )
-        .await?;
-    }
+    publish(
+        &state.redis,
+        &guild_channel(server_id),
+        &joined_event.to_string(),
+    )
+    .await?;
     publish_voice_snapshot(state, user_id, &session).await?;
 
     Ok(())
@@ -584,22 +581,6 @@ async fn get_active_voice_session(
     Ok(raw.and_then(|value| serde_json::from_str::<VoiceSession>(&value).ok()))
 }
 
-async fn list_voice_participant_ids(
-    state: &AppState,
-    channel_id: Uuid,
-) -> anyhow::Result<Vec<Uuid>> {
-    let mut redis = state.redis.clone();
-    let participants: std::collections::HashMap<String, String> = redis
-        .hgetall(voice_participants_key(channel_id))
-        .await
-        .unwrap_or_default();
-
-    Ok(participants
-        .into_keys()
-        .filter_map(|participant_user_id| Uuid::parse_str(&participant_user_id).ok())
-        .collect())
-}
-
 async fn load_joinable_voice_channel(
     state: &AppState,
     user_id: Uuid,
@@ -792,9 +773,93 @@ async fn build_ready_payload(state: &AppState, user_id: Uuid) -> Value {
         })
         .collect();
 
+    let voice_states = build_ready_voice_states(state, &guilds).await;
+
     serde_json::json!({
         "user": user_val,
         "guilds": guilds,
         "dmChannels": dm_channels,
+        "voiceStates": voice_states,
     })
+}
+
+async fn build_ready_voice_states(state: &AppState, guilds: &[Value]) -> Vec<Value> {
+    let server_ids = guilds
+        .iter()
+        .filter_map(|guild| guild.get("id")?.as_str())
+        .filter_map(|value| Uuid::parse_str(value).ok())
+        .collect::<Vec<_>>();
+
+    if server_ids.is_empty() {
+        return Vec::new();
+    }
+
+    let voice_channels = sqlx::query_as::<_, Channel>(
+        "SELECT c.id, c.server_id, c.category_id, c.name, c.topic, c.icon_key, c.font_key, c.font_weight, c.channel_type,
+                c.position, c.is_nsfw, c.slowmode_seconds, c.last_message_id, c.created_at
+         FROM channels c
+         WHERE c.server_id = ANY($1)
+           AND c.channel_type = 'voice'",
+    )
+    .bind(&server_ids)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let mut snapshots = Vec::new();
+
+    for channel in voice_channels {
+        let Some(server_id) = channel.server_id else {
+            continue;
+        };
+
+        let mut redis = state.redis.clone();
+        let participants: std::collections::HashMap<String, String> = redis
+            .hgetall(voice_participants_key(channel.id))
+            .await
+            .unwrap_or_default();
+
+        let participants = participants
+            .into_iter()
+            .filter_map(|(participant_user_id, joined_at)| {
+                Some(serde_json::json!({
+                    "userId": Uuid::parse_str(&participant_user_id).ok()?,
+                    "serverId": server_id,
+                    "channelId": channel.id,
+                    "joinedAt": joined_at,
+                }))
+            })
+            .collect::<Vec<_>>();
+
+        let screen_shares = list_screen_shares(state, channel.id)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|share| {
+                serde_json::json!({
+                    "userId": share.user_id,
+                    "serverId": share.server_id,
+                    "channelId": share.channel_id,
+                    "startedAt": share.started_at,
+                    "surface": share.surface,
+                    "width": share.width,
+                    "height": share.height,
+                    "frameRate": share.frame_rate,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        if participants.is_empty() && screen_shares.is_empty() {
+            continue;
+        }
+
+        snapshots.push(serde_json::json!({
+            "serverId": server_id,
+            "channelId": channel.id,
+            "participants": participants,
+            "screenShares": screen_shares,
+        }));
+    }
+
+    snapshots
 }

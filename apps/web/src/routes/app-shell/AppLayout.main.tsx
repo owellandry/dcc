@@ -9,6 +9,7 @@ import { authApi, getAccessToken, serversApi, setAccessToken, usersApi } from '@
 import { isMockSession } from '@/lib/mock-init'
 import { MotionPage, motion } from '@/lib/motion'
 import { ServerSidebar } from '@/components/layout/ServerSidebar'
+import { VoiceChannelRuntime } from '@/components/chat/VoiceChannelRuntime'
 import { UserPanel } from '@/components/user/UserPanel'
 import { UnreadEffects } from './UnreadEffects.main'
 
@@ -110,6 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell-bg flex h-screen w-screen overflow-hidden">
       <UnreadEffects />
+      <VoiceChannelRuntime />
       <ServerSidebar />
       {children}
       <UserPanel />

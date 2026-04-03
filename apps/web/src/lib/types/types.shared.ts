@@ -230,9 +230,16 @@ export interface FriendRemoveEvent {
 
 // ── WebSocket events ─────────────────────────────────────────────────────────
 
+export interface VoiceChannelStateSnapshot {
+  serverId: string
+  channelId: string
+  participants: VoiceParticipant[]
+  screenShares: VoiceScreenShare[]
+}
+
 export type GatewayEvent =
   | { op: 10; d: { heartbeatInterval: number } }
-  | { op: 11; d: { user: User; guilds: Server[]; dmChannels: Channel[] } }
+  | { op: 11; d: { user: User; guilds: Server[]; dmChannels: Channel[]; voiceStates: VoiceChannelStateSnapshot[] } }
   | { op: 12; d: null }
   | { op: 'MESSAGE_CREATE'; d: Message }
   | { op: 'MESSAGE_UPDATE'; d: Partial<Message> & { id: string; channelId: string } }

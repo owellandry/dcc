@@ -74,12 +74,11 @@ export function useVoiceChannel({
     errorMessage,
     isMicMuted,
     isHeadphonesMuted,
+    participantsByChannel,
     joinVoiceChannel,
     leaveVoiceChannel,
     setConnectionState,
     setErrorMessage,
-    clearParticipants,
-    clearScreenShares,
   } = useVoiceStore(
     useShallow((state) => ({
       activeServerId: state.activeServerId,
@@ -88,12 +87,11 @@ export function useVoiceChannel({
       errorMessage: state.errorMessage,
       isMicMuted: state.isMicMuted,
       isHeadphonesMuted: state.isHeadphonesMuted,
+      participantsByChannel: state.participantsByChannel,
       joinVoiceChannel: state.joinVoiceChannel,
       leaveVoiceChannel: state.leaveVoiceChannel,
       setConnectionState: state.setConnectionState,
       setErrorMessage: state.setErrorMessage,
-      clearParticipants: state.clearParticipants,
-      clearScreenShares: state.clearScreenShares,
     }))
   )
 
@@ -536,8 +534,6 @@ export function useVoiceChannel({
     cleanupAllPeers()
     stopLocalScreenCapture()
     stopLocalStream()
-    clearParticipants(channelId)
-    clearScreenShares(channelId)
     leaveVoiceChannel()
     setConnectionState('idle')
     setErrorMessage(null)
@@ -546,8 +542,6 @@ export function useVoiceChannel({
   }, [
     channelId,
     cleanupAllPeers,
-    clearParticipants,
-    clearScreenShares,
     leaveVoiceChannel,
     serverId,
     setConnectionState,
@@ -598,6 +592,26 @@ export function useVoiceChannel({
     setErrorMessage,
     stopLocalStream,
   ])
+
+  useEffect(() => {
+    if (!isConnected || !meId) return
+
+    const activeParticipants = Object.values(participantsByChannel[channelId] ?? {})
+      .map((participant) => participant.userId)
+      .filter((userId) => userId !== meId)
+
+    if (activeParticipants.length === 0) return
+
+    const peersMissingConnection = activeParticipants.filter(
+      (userId) => !peerConnectionsRef.current.has(userId)
+    )
+
+    if (peersMissingConnection.length === 0) return
+
+    peersMissingConnection.forEach((userId) => {
+      requestOfferRef.current(userId)
+    })
+  }, [channelId, isConnected, meId, participantsByChannel])
 
   useEffect(() => {
     const unsubscribe = subscribeGatewayEvents((event) => {
@@ -665,16 +679,17 @@ export function useVoiceChannel({
 
   useEffect(() => {
     return () => {
-      if (useVoiceStore.getState().activeServerId === serverId && useVoiceStore.getState().activeChannelId === channelId) {
-        leave()
-        return
-      }
+      const isStillActiveSession =
+        useVoiceStore.getState().activeServerId === serverId &&
+        useVoiceStore.getState().activeChannelId === channelId
+
+      if (isStillActiveSession) return
 
       cleanupAllPeers()
       stopLocalScreenCapture()
       stopLocalStream()
     }
-  }, [channelId, cleanupAllPeers, leave, serverId, stopLocalScreenCapture, stopLocalStream])
+  }, [channelId, cleanupAllPeers, serverId, stopLocalScreenCapture, stopLocalStream])
 
   return {
     isConnected,

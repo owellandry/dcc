@@ -60,18 +60,8 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       joinedAt: null,
       connectionState: 'idle',
       errorMessage: null,
-      isMicMuted: false,
-      isHeadphonesMuted: false,
-      participantsByChannel: state.activeChannelId
-        ? Object.fromEntries(
-            Object.entries(state.participantsByChannel).filter(([channelId]) => channelId !== state.activeChannelId)
-          )
-        : state.participantsByChannel,
-      screenSharesByChannel: state.activeChannelId
-        ? Object.fromEntries(
-            Object.entries(state.screenSharesByChannel).filter(([channelId]) => channelId !== state.activeChannelId)
-          )
-        : state.screenSharesByChannel,
+      participantsByChannel: state.participantsByChannel,
+      screenSharesByChannel: state.screenSharesByChannel,
     })),
 
   setConnectionState: (value) => set({ connectionState: value }),
