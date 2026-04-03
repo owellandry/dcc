@@ -693,7 +693,7 @@ export function UserSettingsModal({
         open={open}
         onClose={onClose}
         panelClassName="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
-        overlayClassName="z-[140]"
+        overlayClassName="z-[320]"
       >
         <UserSettingsModalSidebar
           user={user}

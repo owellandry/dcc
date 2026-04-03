@@ -69,6 +69,7 @@ export function UserPanelVisual({
             <AudioSplitButton
               title={isMicMuted ? 'Unmute microphone' : 'Mute microphone'}
               active={isMicMuted}
+              isPanelOpen={openAudioPanel === 'input'}
               defaultIcon={<Mic size={18} />}
               activeIcon={<MicOff size={18} />}
               onToggle={() => {
@@ -107,6 +108,7 @@ export function UserPanelVisual({
             <AudioSplitButton
               title={isHeadphonesMuted ? 'Undeafen' : 'Deafen'}
               active={isHeadphonesMuted}
+              isPanelOpen={openAudioPanel === 'output'}
               defaultIcon={<Headphones size={18} />}
               activeIcon={<VolumeX size={18} />}
               onToggle={() => {
@@ -172,6 +174,7 @@ export function UserPanelVisual({
 function AudioSplitButton({
   title,
   active,
+  isPanelOpen,
   defaultIcon,
   activeIcon,
   onToggle,
@@ -180,6 +183,7 @@ function AudioSplitButton({
 }: {
   title: string
   active: boolean
+  isPanelOpen: boolean
   defaultIcon: React.ReactNode
   activeIcon: React.ReactNode
   onToggle: () => void
@@ -187,8 +191,10 @@ function AudioSplitButton({
   panel?: React.ReactNode
 }) {
   return (
-    <div data-tooltip={title} data-tooltip-position="top" className="relative">
+    <div className="relative">
       <div
+        data-tooltip={!isPanelOpen ? title : undefined}
+        data-tooltip-position={!isPanelOpen ? 'top' : undefined}
         className={`flex h-9 overflow-hidden rounded-xl border transition-colors ${
           active
             ? 'border-[var(--b1)] bg-[var(--s1)]'
@@ -212,6 +218,8 @@ function AudioSplitButton({
         <motion.button
           type="button"
           aria-label="Open audio options"
+          aria-haspopup="menu"
+          aria-expanded={isPanelOpen}
           onClick={onOpenOptions}
           className={`flex h-9 w-5 items-center justify-center border-l transition-colors ${
             active

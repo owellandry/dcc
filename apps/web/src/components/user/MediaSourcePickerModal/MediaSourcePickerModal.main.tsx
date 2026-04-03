@@ -120,7 +120,7 @@ export function MediaSourcePickerModal({
       open={open}
       onClose={onClose}
       panelClassName="w-full max-w-3xl rounded-2xl border border-[var(--b1)] bg-[var(--s1)] shadow-[0_24px_52px_rgba(0,0,0,0.48)]"
-      overlayClassName="z-[180]"
+      overlayClassName="z-[340]"
       closeDisabled={isBusy || isSubmitting}
     >
       <div className="flex items-center justify-between border-b border-[var(--b1)] px-4 py-3">
