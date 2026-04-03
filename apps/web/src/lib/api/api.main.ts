@@ -1,6 +1,7 @@
 import type { ApiError, ApiResponse, PaginatedResponse } from '../types'
 
 const API_URL = resolveRuntimeUrl(process.env.NEXT_PUBLIC_API_URL, 'http://localhost:8080')
+const REQUEST_TIMEOUT_MS = 15_000
 
 /** Converts a server-relative upload path (/uploads/...) to an absolute URL.
  *  Pass-through for already-absolute URLs and null/undefined. */
@@ -145,16 +146,29 @@ class ApiClient {
       requestInit.body = payload
     }
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    requestInit.signal = controller.signal
+
     let res: Response
     try {
       res = await fetch(url.toString(), requestInit)
-    } catch {
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ApiRequestError(
+          0,
+          'REQUEST_TIMEOUT',
+          'La solicitud tardó demasiado. Intenta de nuevo.'
+        )
+      }
       throw new ApiRequestError(
         0,
         'NETWORK_ERROR',
         'No se pudo conectar con el servidor. Verifica que la API esté encendida.'
       )
     }
+    clearTimeout(timeoutId)
 
     // Auto-refresh on 401
     if (res.status === 401 && !isRetry && !skipAuthRefresh) {
@@ -198,16 +212,21 @@ class ApiClient {
   private async refresh(): Promise<string | null> {
     if (_refreshing) return _refreshing
     _refreshing = (async () => {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
       try {
         const res = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId)
         if (res.status === 204 || !res.ok) return null
         const data = (await res.json()) as ApiResponse<{ accessToken: string }>
         _accessToken = data.data.accessToken
         return _accessToken
       } catch {
+        clearTimeout(timeoutId)
         return null
       } finally {
         _refreshing = null

@@ -45,26 +45,33 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
       return
     }
 
-    if (friendshipsLoaded || friendshipsLoading) return
-
     let cancelled = false
-    setFriendshipsLoading(true)
 
-    ;(async () => {
-      try {
-        const [friendsResponse, dmsResponse] = await Promise.all([friendsApi.list(), dmsApi.list()])
+    if (!friendshipsLoaded && !friendshipsLoading) {
+      setFriendshipsLoading(true)
+      friendsApi
+        .list()
+        .then((friendsResponse) => {
+          if (!cancelled) setFriendships(friendsResponse.data)
+        })
+        .catch((error) => {
+          console.error('Failed to load friendships for DM sidebar', error)
+          if (!cancelled) setFriendshipsLoading(false)
+        })
+    }
+
+    dmsApi
+      .list()
+      .then((dmsResponse) => {
         if (cancelled) return
-
-        setFriendships(friendsResponse.data)
 
         dmsResponse.data.forEach((channel) => {
           upsertChannel(withDerivedDmName(channel))
         })
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error('Failed to load direct messages', error)
-        if (!cancelled) setFriendshipsLoading(false)
-      }
-    })()
+      })
 
     return () => {
       cancelled = true
