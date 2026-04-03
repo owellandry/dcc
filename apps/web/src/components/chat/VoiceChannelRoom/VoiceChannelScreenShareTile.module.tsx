@@ -18,17 +18,50 @@ export function VoiceChannelScreenShareTileCard({ tile }: Props) {
   useEffect(() => {
     const element = videoRef.current
     if (!element) return
+    let isDisposed = false
 
-    if (element.srcObject !== tile.stream) {
-      element.srcObject = tile.stream
+    // Render the remote screen with a video-only stream so autoplay rules
+    // and duplicated audio tracks do not blank the element for viewers.
+    const syncPlaybackStream = () => {
+      if (isDisposed) return
+
+      const videoTracks = tile.stream.getVideoTracks()
+      if (videoTracks.length === 0) return
+
+      const playbackStream = new MediaStream(videoTracks)
+      if (element.srcObject !== playbackStream) {
+        element.srcObject = playbackStream
+      }
+
+      element.muted = true
+      void element.play().catch(() => undefined)
     }
 
-    void element.play().catch(() => undefined)
+    const handleLoadedMetadata = () => {
+      void element.play().catch(() => undefined)
+    }
+
+    const videoTracks = tile.stream.getVideoTracks()
+    videoTracks.forEach((track) => {
+      track.onunmute = () => {
+        syncPlaybackStream()
+      }
+    })
+
+    tile.stream.addEventListener('addtrack', syncPlaybackStream)
+    element.addEventListener('loadedmetadata', handleLoadedMetadata)
+
+    syncPlaybackStream()
 
     return () => {
-      if (element.srcObject === tile.stream) {
-        element.srcObject = null
-      }
+      isDisposed = true
+      tile.stream.removeEventListener('addtrack', syncPlaybackStream)
+      element.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      videoTracks.forEach((track) => {
+        track.onunmute = null
+      })
+      element.pause()
+      element.srcObject = null
     }
   }, [tile.stream])
 
@@ -108,7 +141,7 @@ export function VoiceChannelScreenShareTileCard({ tile }: Props) {
           ref={videoRef}
           autoPlay
           playsInline
-          muted={tile.isLocal}
+          muted
           className="h-full w-full object-contain"
         />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,15,0.02),rgba(5,8,15,0.76))]" />
