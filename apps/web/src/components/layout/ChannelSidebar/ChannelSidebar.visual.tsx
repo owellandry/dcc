@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   ChevronDown,
@@ -27,7 +27,6 @@ import {
 } from '@/lib/motion'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import { InviteLinkModal } from '@/components/layout/InviteLinkModal'
-import { ServerStructureDragHandle } from '@/components/layout/ServerStructureDragHandle'
 import { ServerSettingsModal } from '@/components/layout/ServerSettingsModal'
 import { AppModalShell } from '@/components/ui/AppModalShell.main'
 import { type ChannelSidebarItem, type ChannelSidebarVisualProps } from './ChannelSidebar.shared'
@@ -82,6 +81,8 @@ export function ChannelSidebarVisual({
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [dragItem, setDragItem] = useState<SidebarDragItem | null>(null)
   const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null)
+  const [justDraggedKey, setJustDraggedKey] = useState<string | null>(null)
+  const justDraggedTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!hasVoiceActivity) return
@@ -94,6 +95,15 @@ export function ChannelSidebarVisual({
       window.clearInterval(intervalId)
     }
   }, [hasVoiceActivity])
+
+  useEffect(
+    () => () => {
+      if (justDraggedTimeoutRef.current !== null) {
+        window.clearTimeout(justDraggedTimeoutRef.current)
+      }
+    },
+    []
+  )
 
   if (!resolvedServerId) {
     return (
@@ -110,7 +120,19 @@ export function ChannelSidebarVisual({
     setDropTarget(null)
   }
 
-  const handleChannelDragStart = (event: DragEvent<HTMLButtonElement>, channelId: string) => {
+  const markJustDragged = (item: SidebarDragItem) => {
+    const nextKey = `${item.kind}:${item.id}`
+    setJustDraggedKey(nextKey)
+    if (justDraggedTimeoutRef.current !== null) {
+      window.clearTimeout(justDraggedTimeoutRef.current)
+    }
+    justDraggedTimeoutRef.current = window.setTimeout(() => {
+      setJustDraggedKey(null)
+      justDraggedTimeoutRef.current = null
+    }, 160)
+  }
+
+  const handleChannelDragStart = (event: DragEvent<HTMLElement>, channelId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', channelId)
@@ -118,7 +140,7 @@ export function ChannelSidebarVisual({
     setDropTarget(null)
   }
 
-  const handleCategoryDragStart = (event: DragEvent<HTMLButtonElement>, categoryId: string) => {
+  const handleCategoryDragStart = (event: DragEvent<HTMLElement>, categoryId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', categoryId)
@@ -226,8 +248,14 @@ export function ChannelSidebarVisual({
                 dropTarget.channelId === channel.id &&
                 dropTarget.placement === 'after'
               }
+              justDraggedKey={justDraggedKey}
               onChannelDragStart={handleChannelDragStart}
-              onChannelDragEnd={clearDragState}
+              onChannelDragEnd={(itemId) => {
+                if (dragItem?.kind === 'channel' && dragItem.id === itemId) {
+                  markJustDragged(dragItem)
+                }
+                clearDragState()
+              }}
               onChannelDragOver={(event) => {
                 if (dragItem?.kind !== 'channel') return
                 event.preventDefault()
@@ -255,24 +283,25 @@ export function ChannelSidebarVisual({
         {categorizedChannels.map((group) => (
           <motion.div key={group.id} className="mt-4" variants={itemVariants}>
             <div className="group mb-0.5 flex items-center gap-1 px-2 py-0.5">
-              {canManageChannels ? (
-                <ServerStructureDragHandle
-                  label={`Arrastrar categoria ${group.name}`}
-                  disabled={isReorderingStructure}
-                  className={cn(
-                    'h-6 w-6',
-                    dragItem?.kind === 'category' && dragItem.id === group.id
-                      ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
-                      : 'opacity-0 group-hover:opacity-100'
-                  )}
-                  onDragStart={(event) => handleCategoryDragStart(event, group.id)}
-                  onDragEnd={clearDragState}
-                />
-              ) : null}
               <button
                 type="button"
-                onClick={() => onToggleCategory(group.id)}
-                className="flex min-w-0 flex-1 items-center gap-1"
+                onClick={() => {
+                  if (justDraggedKey === `category:${group.id}`) return
+                  onToggleCategory(group.id)
+                }}
+                className={cn(
+                  'flex min-w-0 flex-1 items-center gap-1 rounded-lg px-1 py-0.5 text-left transition-colors',
+                  canManageChannels && !isReorderingStructure && 'cursor-grab active:cursor-grabbing',
+                  dragItem?.kind === 'category' && dragItem.id === group.id && 'opacity-40'
+                )}
+                draggable={canManageChannels && !isReorderingStructure}
+                onDragStart={(event) => handleCategoryDragStart(event, group.id)}
+                onDragEnd={() => {
+                  if (dragItem?.kind === 'category' && dragItem.id === group.id) {
+                    markJustDragged(dragItem)
+                  }
+                  clearDragState()
+                }}
                 onDragOver={(event) => {
                   if (!dragItem) return
                   event.preventDefault()
@@ -387,8 +416,14 @@ export function ChannelSidebarVisual({
                         dropTarget.channelId === channel.id &&
                         dropTarget.placement === 'after'
                       }
+                      justDraggedKey={justDraggedKey}
                       onChannelDragStart={handleChannelDragStart}
-                      onChannelDragEnd={clearDragState}
+                      onChannelDragEnd={(itemId) => {
+                        if (dragItem?.kind === 'channel' && dragItem.id === itemId) {
+                          markJustDragged(dragItem)
+                        }
+                        clearDragState()
+                      }}
                       onChannelDragOver={(event) => {
                         if (dragItem?.kind !== 'channel') return
                         event.preventDefault()
@@ -526,6 +561,7 @@ function ChannelItem({
   isDragging,
   isDropTargetBefore,
   isDropTargetAfter,
+  justDraggedKey,
   onChannelDragStart,
   onChannelDragEnd,
   onChannelDragOver,
@@ -539,8 +575,9 @@ function ChannelItem({
   isDragging: boolean
   isDropTargetBefore: boolean
   isDropTargetAfter: boolean
-  onChannelDragStart: (event: DragEvent<HTMLButtonElement>, channelId: string) => void
-  onChannelDragEnd: () => void
+  justDraggedKey: string | null
+  onChannelDragStart: (event: DragEvent<HTMLElement>, channelId: string) => void
+  onChannelDragEnd: (channelId: string) => void
   onChannelDragOver: (event: DragEvent<HTMLDivElement>) => void
   onChannelDrop: (event: DragEvent<HTMLDivElement>) => void
   onOpenChannelSettings: (channelId: string) => void
@@ -580,14 +617,25 @@ function ChannelItem({
           'group relative rounded-xl transition-opacity',
           isDragging && 'opacity-40',
           isDropTargetBefore && 'before:absolute before:-top-1 before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-[var(--ember)]',
-          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]'
+          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]',
+          canManageChannels && !isReorderingStructure && 'cursor-grab active:cursor-grabbing'
         )}
+        draggable={canManageChannels && !isReorderingStructure}
+        onDragStart={(event) => onChannelDragStart(event, item.id)}
+        onDragEnd={() => onChannelDragEnd(item.id)}
         onDragOver={canManageChannels ? onChannelDragOver : undefined}
         onDrop={canManageChannels ? onChannelDrop : undefined}
       >
         <Link
           href={`/channels/${item.serverId}/${item.id}`}
-          onClick={() => mobileSidebar?.close()}
+          draggable={false}
+          onClick={(event) => {
+            if (justDraggedKey === `channel:${item.id}`) {
+              event.preventDefault()
+              return
+            }
+            mobileSidebar?.close()
+          }}
           className={cn(
             'channel-item',
             hasVoiceParticipants && 'rounded-b-none border-b-0',
@@ -605,19 +653,6 @@ function ChannelItem({
           <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>
             {item.name}
           </span>
-
-          {canManageChannels ? (
-            <ServerStructureDragHandle
-              label={`Arrastrar canal ${item.name}`}
-              disabled={isReorderingStructure}
-              className={cn(
-                'mr-1 h-7 w-7',
-                isDragging ? 'bg-[var(--ember)]/12 text-[var(--ember)]' : 'opacity-0 group-hover:opacity-100'
-              )}
-              onDragStart={(event) => onChannelDragStart(event, item.id)}
-              onDragEnd={onChannelDragEnd}
-            />
-          ) : null}
 
           {hasVoiceParticipants ? (
             <div className="mr-1 hidden items-center sm:flex">
@@ -647,6 +682,10 @@ function ChannelItem({
           {canManageChannels ? (
             <button
               type="button"
+              draggable={false}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+              }}
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()

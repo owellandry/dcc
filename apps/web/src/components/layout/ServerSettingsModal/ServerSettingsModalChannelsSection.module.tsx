@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Folder, Hash, Plus, Save, Shield, Trash2, Volume2 } from 'lucide-react'
 import {
   CHANNEL_FONT_OPTIONS,
@@ -10,7 +10,6 @@ import {
 import { cn } from '@/lib/cn'
 import type { Category, Channel, PermissionOverwrite, Role, ServerMember } from '@/lib/types'
 import { CHANNEL_ICON_OPTIONS } from '@/lib/channel-icons/channelIcons.shared'
-import { ServerStructureDragHandle } from '@/components/layout/ServerStructureDragHandle'
 import { Field, SettingBlock } from '@/components/user/UserSettingsParts'
 import { EmptyState, OverwriteEditor, ServerSettingsContentShell } from './ServerSettingsModal.shared'
 
@@ -126,14 +125,37 @@ export function ServerSettingsModalChannelsSection({
 }: ServerSettingsModalChannelsSectionProps) {
   const [dragItem, setDragItem] = useState<StructureModalDragItem | null>(null)
   const [dropTarget, setDropTarget] = useState<StructureModalDropTarget | null>(null)
+  const [justDraggedKey, setJustDraggedKey] = useState<string | null>(null)
+  const justDraggedTimeoutRef = useRef<number | null>(null)
   const uncategorizedChannels = sortedChannels.filter((channel) => channel.categoryId === null)
+
+  useEffect(
+    () => () => {
+      if (justDraggedTimeoutRef.current !== null) {
+        window.clearTimeout(justDraggedTimeoutRef.current)
+      }
+    },
+    []
+  )
 
   const clearDragState = () => {
     setDragItem(null)
     setDropTarget(null)
   }
 
-  const handleChannelDragStart = (event: DragEvent<HTMLButtonElement>, channelId: string) => {
+  const markJustDragged = (item: StructureModalDragItem) => {
+    const nextKey = `${item.kind}:${item.id}`
+    setJustDraggedKey(nextKey)
+    if (justDraggedTimeoutRef.current !== null) {
+      window.clearTimeout(justDraggedTimeoutRef.current)
+    }
+    justDraggedTimeoutRef.current = window.setTimeout(() => {
+      setJustDraggedKey(null)
+      justDraggedTimeoutRef.current = null
+    }, 160)
+  }
+
+  const handleChannelDragStart = (event: DragEvent<HTMLElement>, channelId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', channelId)
@@ -141,7 +163,7 @@ export function ServerSettingsModalChannelsSection({
     setDropTarget(null)
   }
 
-  const handleCategoryDragStart = (event: DragEvent<HTMLButtonElement>, categoryId: string) => {
+  const handleCategoryDragStart = (event: DragEvent<HTMLElement>, categoryId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', categoryId)
@@ -278,28 +300,38 @@ export function ServerSettingsModalChannelsSection({
                       }}
                     >
                       <div className="flex items-center gap-1">
-                        {canManageChannels ? (
-                          <ServerStructureDragHandle
-                            label={`Arrastrar canal ${channel.name ?? 'canal'}`}
-                            disabled={isReorderingStructure || sectionBusy}
-                            className={cn(
-                              'h-7 w-7',
-                              dragItem?.kind === 'channel' && dragItem.id === channel.id
-                                ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
-                                : ''
-                            )}
-                            onDragStart={(event) => handleChannelDragStart(event, channel.id)}
-                            onDragEnd={clearDragState}
-                          />
-                        ) : null}
+                        <div
+                          draggable={canManageChannels && !isReorderingStructure && !sectionBusy}
+                          onDragStart={(event) => handleChannelDragStart(event, channel.id)}
+                          onDragEnd={() => {
+                            if (dragItem?.kind === 'channel' && dragItem.id === channel.id) {
+                              markJustDragged(dragItem)
+                            }
+                            clearDragState()
+                          }}
+                          className={cn(
+                            'w-full rounded-lg',
+                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing'
+                          )}
+                        >
                         <button
                           type="button"
-                          onClick={() => onSelectionChange({ kind: 'channel', id: channel.id })}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]"
+                          draggable={false}
+                          onClick={() => {
+                            if (justDraggedKey === `channel:${channel.id}`) return
+                            onSelectionChange({ kind: 'channel', id: channel.id })
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
+                            selectedChannel?.id === channel.id
+                              ? 'bg-[var(--s2)] text-[var(--t0)]'
+                              : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
+                          )}
                         >
                           <StructureChannelIcon channel={channel} />
                           <span className="truncate">{channel.name ?? 'canal'}</span>
                         </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -335,23 +367,20 @@ export function ServerSettingsModalChannelsSection({
                       : ''
                   )}
                 >
-                  {canManageChannels ? (
-                    <ServerStructureDragHandle
-                      label={`Arrastrar categoria ${category.name}`}
-                      disabled={isReorderingStructure || sectionBusy}
-                      className={cn(
-                        'h-8 w-8',
-                        dragItem?.kind === 'category' && dragItem.id === category.id
-                          ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
-                          : ''
-                      )}
-                      onDragStart={(event) => handleCategoryDragStart(event, category.id)}
-                      onDragEnd={clearDragState}
-                    />
-                  ) : null}
                   <button
                     type="button"
-                    onClick={() => onSelectionChange({ kind: 'category', id: category.id })}
+                    draggable={canManageChannels && !isReorderingStructure && !sectionBusy}
+                    onDragStart={(event) => handleCategoryDragStart(event, category.id)}
+                    onDragEnd={() => {
+                      if (dragItem?.kind === 'category' && dragItem.id === category.id) {
+                        markJustDragged(dragItem)
+                      }
+                      clearDragState()
+                    }}
+                    onClick={() => {
+                      if (justDraggedKey === `category:${category.id}`) return
+                      onSelectionChange({ kind: 'category', id: category.id })
+                    }}
                     onDragOver={(event) => {
                       if (!dragItem) return
                       event.preventDefault()
@@ -378,7 +407,13 @@ export function ServerSettingsModalChannelsSection({
                       }
                       clearDragState()
                     }}
-                    className="w-full text-left text-sm font-700 text-[var(--t0)]"
+                    className={cn(
+                      'w-full rounded-lg px-2 py-1 text-left text-sm font-700 transition-colors',
+                      canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing',
+                      selectedCategory?.id === category.id
+                        ? 'bg-[var(--s2)] text-[var(--t0)]'
+                        : 'text-[var(--t0)] hover:bg-[var(--surface-soft)]'
+                    )}
                   >
                     {category.name}
                   </button>
@@ -422,28 +457,38 @@ export function ServerSettingsModalChannelsSection({
                       }}
                     >
                       <div className="flex items-center gap-1">
-                        {canManageChannels ? (
-                          <ServerStructureDragHandle
-                            label={`Arrastrar canal ${channel.name ?? 'canal'}`}
-                            disabled={isReorderingStructure || sectionBusy}
-                            className={cn(
-                              'h-7 w-7',
-                              dragItem?.kind === 'channel' && dragItem.id === channel.id
-                                ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
-                                : ''
-                            )}
-                            onDragStart={(event) => handleChannelDragStart(event, channel.id)}
-                            onDragEnd={clearDragState}
-                          />
-                        ) : null}
+                        <div
+                          draggable={canManageChannels && !isReorderingStructure && !sectionBusy}
+                          onDragStart={(event) => handleChannelDragStart(event, channel.id)}
+                          onDragEnd={() => {
+                            if (dragItem?.kind === 'channel' && dragItem.id === channel.id) {
+                              markJustDragged(dragItem)
+                            }
+                            clearDragState()
+                          }}
+                          className={cn(
+                            'w-full rounded-lg',
+                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing'
+                          )}
+                        >
                         <button
                           type="button"
-                          onClick={() => onSelectionChange({ kind: 'channel', id: channel.id })}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]"
+                          draggable={false}
+                          onClick={() => {
+                            if (justDraggedKey === `channel:${channel.id}`) return
+                            onSelectionChange({ kind: 'channel', id: channel.id })
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
+                            selectedChannel?.id === channel.id
+                              ? 'bg-[var(--s2)] text-[var(--t0)]'
+                              : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
+                          )}
                         >
                           <StructureChannelIcon channel={channel} />
                           <span className="truncate">{channel.name ?? 'canal'}</span>
                         </button>
+                        </div>
                       </div>
                     </div>
                   ))}
