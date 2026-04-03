@@ -4,9 +4,10 @@
  */
 import {
   MOCK_ME, MOCK_SERVERS, MOCK_CHANNELS, MOCK_CATEGORIES,
-  MOCK_MEMBERS, MOCK_MESSAGES, MOCK_PRESENCE,
+  MOCK_MEMBERS, MOCK_MESSAGES, MOCK_PRESENCE, MOCK_FRIENDS,
 } from '../mock-data'
 import { useAuthStore } from '@/stores/authStore'
+import { useFriendsStore } from '@/stores/friendsStore'
 import { useServersStore } from '@/stores/serversStore'
 import { useMessagesStore } from '@/stores/messagesStore'
 import { usePresenceStore } from '@/stores/presenceStore'
@@ -48,6 +49,8 @@ export function initMockSession() {
   for (const [userId, p] of Object.entries(MOCK_PRESENCE)) {
     presenceStore.setPresence(userId, p.status, p.customStatus)
   }
+
+  useFriendsStore.getState().setFriendships(MOCK_FRIENDS)
 }
 
 export function isMockSession(): boolean {

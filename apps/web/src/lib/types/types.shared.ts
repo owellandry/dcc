@@ -209,6 +209,12 @@ export interface Friendship {
   user: User // the other user
 }
 
+export interface FriendRemoveEvent {
+  friendshipId: string
+  userId: string
+  reason: 'declined' | 'removed' | 'blocked'
+}
+
 // ── WebSocket events ─────────────────────────────────────────────────────────
 
 export type GatewayEvent =
@@ -241,6 +247,7 @@ export type GatewayEvent =
   | { op: 'CHANNEL_DELETE'; d: { channelId: string; guildId?: string } }
   | { op: 'FRIEND_REQUEST'; d: Friendship }
   | { op: 'FRIEND_UPDATE'; d: Friendship }
+  | { op: 'FRIEND_REMOVE'; d: FriendRemoveEvent }
   | {
       op: 'VOICE_STATE_SNAPSHOT'
       d: { serverId: string; channelId: string; participants: VoiceParticipant[] }

@@ -7,9 +7,10 @@ import { dmsApi, friendsApi } from '@/lib/api'
 import { getUserDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { MOCK_FRIENDS } from '@/lib/mock-data'
+import { useFriendsStore } from '@/stores/friendsStore'
 import { useServersStore } from '@/stores/serversStore'
 import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
-import type { Channel, Friendship, User } from '@/lib/types'
+import type { Channel, User } from '@/lib/types'
 import { type DMSidebarItem, type DMSidebarVisualProps } from './DMSidebar.shared'
 
 const MOCK_DM_USERS: User[] = MOCK_FRIENDS
@@ -22,6 +23,11 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
   const pathname = usePathname()
   const router = useRouter()
   const upsertChannel = useServersStore((state) => state.upsertChannel)
+  const friendships = useFriendsStore((state) => state.friendships)
+  const friendshipsLoaded = useFriendsStore((state) => state.hasLoaded)
+  const friendshipsLoading = useFriendsStore((state) => state.isLoading)
+  const setFriendships = useFriendsStore((state) => state.setFriendships)
+  const setFriendshipsLoading = useFriendsStore((state) => state.setLoading)
   const dmChannels = useServersStore(
     useShallow((state) =>
       Object.values(state.channels).filter(
@@ -29,43 +35,48 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
       )
     )
   )
-  const [friends, setFriends] = useState<User[]>([])
-  const [pendingCount, setPendingCount] = useState(0)
   const [openingUserId, setOpeningUserId] = useState<string | null>(null)
   const unreadByChannel = useUnreadStore((state) => state.channels)
   const isMock = isMockSession()
 
   useEffect(() => {
-    if (isMock) return
+    if (isMock) {
+      if (!friendshipsLoaded) setFriendships(MOCK_FRIENDS)
+      return
+    }
+
+    if (friendshipsLoaded || friendshipsLoading) return
 
     let cancelled = false
+    setFriendshipsLoading(true)
 
     ;(async () => {
       try {
         const [friendsResponse, dmsResponse] = await Promise.all([friendsApi.list(), dmsApi.list()])
         if (cancelled) return
 
-        const acceptedFriends = friendsResponse.data
-          .filter((friendship: Friendship) => friendship.status === 'accepted')
-          .map((friendship: Friendship) => friendship.user)
-
-        setFriends(acceptedFriends)
-        setPendingCount(
-          friendsResponse.data.filter((friendship: Friendship) => friendship.status === 'pending').length
-        )
+        setFriendships(friendsResponse.data)
 
         dmsResponse.data.forEach((channel) => {
           upsertChannel(withDerivedDmName(channel))
         })
       } catch (error) {
         console.error('Failed to load direct messages', error)
+        if (!cancelled) setFriendshipsLoading(false)
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [isMock, upsertChannel])
+  }, [
+    friendshipsLoaded,
+    friendshipsLoading,
+    isMock,
+    setFriendships,
+    setFriendshipsLoading,
+    upsertChannel,
+  ])
 
   const currentChannelId = useMemo(() => {
     const parts = pathname.split('/').filter(Boolean)
@@ -77,15 +88,19 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
     if (isMock) return MOCK_DM_USERS
 
     const usersById = new Map<string, User>()
-    for (const friend of friends) usersById.set(friend.id, friend)
+    for (const friendship of friendships.filter((friendship) => friendship.status === 'accepted')) {
+      usersById.set(friendship.user.id, friendship.user)
+    }
     for (const channel of dmChannels) {
       for (const participant of channel.participants ?? []) {
         usersById.set(participant.id, participant)
       }
     }
     return Array.from(usersById.values())
-  }, [dmChannels, friends, isMock])
-  const badgeCount = isMock ? MOCK_PENDING_COUNT : pendingCount
+  }, [dmChannels, friendships, isMock])
+  const badgeCount = isMock
+    ? MOCK_PENDING_COUNT
+    : friendships.filter((friendship) => friendship.status === 'pending').length
   const unreadBadgeCount = useMemo(
     () =>
       dmChannels.reduce((sum, channel) => {

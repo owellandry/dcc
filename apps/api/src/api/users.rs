@@ -308,6 +308,29 @@ pub async fn update_me(
         )
         .await;
     }
+
+    let friend_ids = sqlx::query_scalar::<_, Uuid>(
+        r#"SELECT CASE
+                WHEN requester_id = $1 THEN addressee_id
+                ELSE requester_id
+            END AS friend_user_id
+           FROM friendships
+           WHERE (requester_id = $1 OR addressee_id = $1)
+             AND status = 'accepted'"#,
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    for friend_id in friend_ids {
+        let _ = publish(
+            &state.redis.clone(),
+            &user_channel(friend_id),
+            &presence_event.to_string(),
+        )
+        .await;
+    }
     let two_factor_enabled = get_two_factor_enabled(&state, user_id).await?;
 
     Ok(Json(json!({

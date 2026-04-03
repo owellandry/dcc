@@ -143,7 +143,10 @@ pub fn router() -> Router<AppState> {
         .route("/dms/:user_id", post(dms::open_dm))
         .route("/dms/c/:channel_id", delete(dms::close_dm))
         // ── Friends ──────────────────────────────────────────────────────────
-        .route("/friends", get(friends::list_friends))
+        .route(
+            "/friends",
+            get(friends::list_friends).post(friends::send_request_by_username),
+        )
         .route(
             "/friends/:user_id",
             post(friends::send_request)

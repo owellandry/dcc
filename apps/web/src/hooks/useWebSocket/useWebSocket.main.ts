@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { useFriendsStore } from '@/stores/friendsStore'
 import { useServersStore } from '@/stores/serversStore'
 import { useMessagesStore } from '@/stores/messagesStore'
 import { usePresenceStore } from '@/stores/presenceStore'
@@ -51,6 +52,7 @@ export function useWebSocket(enabled = true) {
   const readyState = useRef<WSReadyState>('closed')
 
   const { setUser, isAuthenticated, isLoading } = useAuthStore()
+  const { upsertFriendship, removeFriendshipById, removeFriendshipByUserId } = useFriendsStore()
   const { setServers, upsertServer, removeServer, upsertChannel, patchChannel, removeChannel, upsertMember, removeMember } = useServersStore()
   const { appendMessage, updateMessage, deleteMessage, addReaction, removeReaction, setTyping } = useMessagesStore()
   const { setPresence } = usePresenceStore()
@@ -190,6 +192,16 @@ export function useWebSocket(enabled = true) {
           removeChannel(event.d.channelId)
           break
 
+        case 'FRIEND_REQUEST':
+        case 'FRIEND_UPDATE':
+          upsertFriendship(event.d)
+          break
+
+        case 'FRIEND_REMOVE':
+          removeFriendshipById(event.d.friendshipId)
+          removeFriendshipByUserId(event.d.userId)
+          break
+
         case 'VOICE_STATE_SNAPSHOT':
           syncParticipants(event.d.channelId, event.d.participants)
           setConnectionState('connected')
@@ -225,6 +237,9 @@ export function useWebSocket(enabled = true) {
       removeServer,
       upsertChannel,
       removeChannel,
+      upsertFriendship,
+      removeFriendshipById,
+      removeFriendshipByUserId,
       upsertMember,
       removeMember,
       syncParticipants,

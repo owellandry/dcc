@@ -527,10 +527,14 @@ export const readStatesApi = {
 
 export const friendsApi = {
   list: () => api.get<import('../types').Friendship[]>('/friends'),
+  sendByUsername: (username: string) =>
+    api.post<import('../types').Friendship>('/friends', { username }),
   send: (userId: string) => api.post(`/friends/${userId}`),
-  accept: (userId: string) => api.patch(`/friends/${userId}`, { action: 'accept' }),
+  accept: (userId: string) =>
+    api.patch<import('../types').Friendship>(`/friends/${userId}`, { action: 'accept' }),
   decline: (userId: string) => api.patch(`/friends/${userId}`, { action: 'decline' }),
-  block: (userId: string) => api.patch(`/friends/${userId}`, { action: 'block' }),
+  block: (userId: string) =>
+    api.patch<import('../types').Friendship>(`/friends/${userId}`, { action: 'block' }),
   remove: (userId: string) => api.delete(`/friends/${userId}`),
 }
 
