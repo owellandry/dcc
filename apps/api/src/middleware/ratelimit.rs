@@ -27,6 +27,12 @@ pub async fn rate_limit_middleware(
     let path = req.uri().path().to_string();
     let method = req.method().clone();
 
+    // Never rate limit CORS preflight requests. Browsers require OPTIONS to succeed
+    // before sending the real request, and counting them can exhaust auth buckets fast.
+    if method == Method::OPTIONS {
+        return next.run(req).await;
+    }
+
     // Determine limits based on path
     let config = match get_rate_limit_config(&method, &path) {
         Some(cfg) => cfg,
@@ -41,10 +47,10 @@ pub async fn rate_limit_middleware(
     // Get identifier: user_id if authenticated, else IP
     let identifier = if let Some(user_id) = req.extensions().get::<uuid::Uuid>() {
         format!("user:{user_id}")
+    } else if let Some(client_ip) = extract_client_ip(req.headers()) {
+        format!("ip:{client_ip}")
     } else {
-        // Use remote address (behind proxy, configure X-Forwarded-For in production)
-        // For now, we accept any connection (no IP extractor in extensions yet)
-        // We'll use a placeholder; in production, add IP extraction middleware
+        // Fall back only when we truly cannot determine the client address.
         "anonymous".to_string()
     };
 
@@ -130,12 +136,27 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
         });
     }
 
-    // Authentication endpoints: stricter
-    if path.starts_with("/v1/auth/") {
+    if path == "/v1/auth/register" {
         return Some(RateLimitConfig {
             max_requests: 5,
             window_secs: 60,
-            scope: "auth",
+            scope: "auth_register",
+        });
+    }
+
+    if path == "/v1/auth/login" {
+        return Some(RateLimitConfig {
+            max_requests: 10,
+            window_secs: 60,
+            scope: "auth_login",
+        });
+    }
+
+    if path.starts_with("/v1/auth/") {
+        return Some(RateLimitConfig {
+            max_requests: 10,
+            window_secs: 60,
+            scope: "auth_other",
         });
     }
 
@@ -186,6 +207,42 @@ fn get_rate_limit_config(method: &Method, path: &str) -> Option<RateLimitConfig>
     }
 
     // Unknown paths: no rate limit
+    None
+}
+
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    for header_name in ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"] {
+        let Some(raw_value) = headers.get(header_name) else {
+            continue;
+        };
+        let value = raw_value.to_str().ok()?.trim();
+        if value.is_empty() {
+            continue;
+        }
+
+        // x-forwarded-for can contain multiple comma-separated addresses.
+        let candidate = value
+            .split(',')
+            .next()
+            .map(str::trim)
+            .filter(|part| !part.is_empty())?;
+
+        return Some(candidate.to_string());
+    }
+
+    let forwarded = headers.get("forwarded")?.to_str().ok()?;
+    for part in forwarded.split(';') {
+        let trimmed = part.trim();
+        if let Some(value) = trimmed.strip_prefix("for=") {
+            return Some(
+                value.trim_matches('"')
+                    .trim_matches('[')
+                    .trim_matches(']')
+                    .to_string(),
+            );
+        }
+    }
+
     None
 }
 
