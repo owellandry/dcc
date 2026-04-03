@@ -360,6 +360,7 @@ function ChannelItem({
           onClick={() => mobileSidebar?.close()}
           className={cn(
             'channel-item',
+            hasVoiceParticipants && 'rounded-b-none border-b-0',
             item.active && 'active',
             item.hasUnread && !item.active && 'has-unread'
           )}
@@ -374,6 +375,12 @@ function ChannelItem({
           <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>
             {item.name}
           </span>
+
+          {hasVoiceParticipants ? (
+            <div className="mr-1 hidden items-center sm:flex">
+              <ParticipantAvatarStack participants={voiceParticipants} />
+            </div>
+          ) : null}
 
           {item.mentionCount ? (
             <span className="badge">{item.mentionCount > 99 ? '99+' : item.mentionCount}</span>
@@ -416,7 +423,22 @@ function ChannelItem({
       </div>
 
       {hasVoiceParticipants ? (
-        <div className="ml-6 mt-1.5 space-y-1 pb-1">
+        <div className="ml-6 mt-1.5 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s2)] pb-1 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--b1)] px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <ParticipantAvatarStack participants={voiceParticipants} />
+              <span className="truncate text-[11px] font-700 uppercase tracking-[0.12em] text-[var(--t2)]">
+                {voiceParticipants.length} en voz
+              </span>
+            </div>
+            {voiceElapsedLabel ? (
+              <span className="rounded-full bg-[var(--online)]/16 px-2 py-1 text-[10px] font-700 tabular-nums text-[var(--online)]">
+                {voiceElapsedLabel}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="space-y-1 px-1.5 py-1.5">
           {voiceParticipants.map((participant) => (
             <div
               key={participant.userId}
@@ -447,9 +469,50 @@ function ChannelItem({
               </span>
             </div>
           ))}
+          </div>
         </div>
       ) : null}
     </motion.div>
+  )
+}
+
+function ParticipantAvatarStack({
+  participants,
+}: {
+  participants: NonNullable<ChannelSidebarItem['voiceParticipants']>
+}) {
+  const visibleParticipants = participants.slice(0, 3)
+  const remainingCount = participants.length - visibleParticipants.length
+
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-2">
+        {visibleParticipants.map((participant) => (
+          <div
+            key={participant.userId}
+            className="h-5 w-5 overflow-hidden rounded-full border border-[var(--s1)] bg-[var(--s3)] ring-1 ring-black/10"
+          >
+            {participant.avatarUrl ? (
+              <img
+                src={resolveMediaUrl(participant.avatarUrl) ?? participant.avatarUrl}
+                alt={participant.displayName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="font-700 flex h-full w-full items-center justify-center text-[9px] text-[var(--t2)]">
+                {participant.displayName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {remainingCount > 0 ? (
+        <span className="ml-2 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--t4)]">
+          +{remainingCount}
+        </span>
+      ) : null}
+    </div>
   )
 }
 

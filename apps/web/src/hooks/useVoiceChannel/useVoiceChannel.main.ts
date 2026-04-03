@@ -107,6 +107,8 @@ export function useVoiceChannel({
   const screenTrackSendersRef = useRef(new Map<string, RTCRtpSender>())
   const pendingCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>())
   const pendingOffersRef = useRef(new Set<string>())
+  const makingOfferRef = useRef(new Set<string>())
+  const ignoredOffersRef = useRef(new Set<string>())
   const requestOfferRef = useRef<(userId: string) => void>(() => undefined)
   const isConnectedRef = useRef(false)
   const isHeadphonesMutedRef = useRef(isHeadphonesMuted)
@@ -178,6 +180,8 @@ export function useVoiceChannel({
       screenTrackSendersRef.current.delete(userId)
       pendingCandidatesRef.current.delete(userId)
       pendingOffersRef.current.delete(userId)
+      makingOfferRef.current.delete(userId)
+      ignoredOffersRef.current.delete(userId)
       detachRemoteScreen(userId)
     },
     [detachRemoteScreen]
@@ -315,24 +319,36 @@ export function useVoiceChannel({
   const requestOffer = useCallback(
     async (targetUserId: string) => {
       const peerConnection = await createPeerConnection(targetUserId)
-      if (peerConnection.signalingState !== 'stable') {
+      if (peerConnection.signalingState !== 'stable' || makingOfferRef.current.has(targetUserId)) {
         pendingOffersRef.current.add(targetUserId)
         return
       }
 
-      const offer = await peerConnection.createOffer()
-      await peerConnection.setLocalDescription(offer)
+      makingOfferRef.current.add(targetUserId)
 
-      sendGatewayMessage({
-        op: VOICE_SIGNAL_OP,
-        d: {
-          targetUserId,
-          serverId,
-          channelId,
-          signalType: 'offer',
-          payload: offer,
-        },
-      })
+      try {
+        const offer = await peerConnection.createOffer()
+
+        if (peerConnection.signalingState !== 'stable') {
+          pendingOffersRef.current.add(targetUserId)
+          return
+        }
+
+        await peerConnection.setLocalDescription(offer)
+
+        sendGatewayMessage({
+          op: VOICE_SIGNAL_OP,
+          d: {
+            targetUserId,
+            serverId,
+            channelId,
+            signalType: 'offer',
+            payload: offer,
+          },
+        })
+      } finally {
+        makingOfferRef.current.delete(targetUserId)
+      }
     },
     [channelId, createPeerConnection, serverId]
   )
@@ -340,6 +356,14 @@ export function useVoiceChannel({
   requestOfferRef.current = (userId) => {
     void requestOffer(userId)
   }
+
+  const isPolitePeer = useCallback(
+    (userId: string) => {
+      if (!meId) return false
+      return meId.localeCompare(userId) > 0
+    },
+    [meId]
+  )
 
   const removeLocalScreenTracksFromPeers = useCallback(() => {
     screenTrackSendersRef.current.forEach((sender, userId) => {
@@ -468,8 +492,27 @@ export function useVoiceChannel({
 
       if (signalType === 'offer') {
         const peerConnection = await createPeerConnection(fromUserId)
+        const shouldIgnoreOffer =
+          !isPolitePeer(fromUserId) &&
+          (makingOfferRef.current.has(fromUserId) || peerConnection.signalingState !== 'stable')
+
+        if (shouldIgnoreOffer) {
+          ignoredOffersRef.current.add(fromUserId)
+          return
+        }
+
+        ignoredOffersRef.current.delete(fromUserId)
+
+        if (peerConnection.signalingState === 'have-local-offer') {
+          await peerConnection.setLocalDescription({ type: 'rollback' })
+        }
+
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload as RTCSessionDescriptionInit))
         await flushPendingCandidates(fromUserId, peerConnection)
+
+        if (peerConnection.signalingState !== 'have-remote-offer') {
+          return
+        }
 
         const answer = await peerConnection.createAnswer()
         await peerConnection.setLocalDescription(answer)
@@ -498,12 +541,22 @@ export function useVoiceChannel({
       }
 
       if (signalType === 'answer') {
+        ignoredOffersRef.current.delete(fromUserId)
+
+        if (peerConnection.signalingState !== 'have-local-offer') {
+          return
+        }
+
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload as RTCSessionDescriptionInit))
         await flushPendingCandidates(fromUserId, peerConnection)
         return
       }
 
       if (signalType === 'ice-candidate') {
+        if (ignoredOffersRef.current.has(fromUserId)) {
+          return
+        }
+
         if (!peerConnection.remoteDescription) {
           const queued = pendingCandidatesRef.current.get(fromUserId) ?? []
           queued.push(payload as RTCIceCandidateInit)
@@ -514,7 +567,7 @@ export function useVoiceChannel({
         await peerConnection.addIceCandidate(payload as RTCIceCandidateInit)
       }
     },
-    [channelId, createPeerConnection, flushPendingCandidates, meId, serverId]
+    [channelId, createPeerConnection, flushPendingCandidates, isPolitePeer, meId, serverId]
   )
 
   const leave = useCallback(() => {
@@ -644,7 +697,7 @@ export function useVoiceChannel({
       }
 
       if (event.op === 'VOICE_SIGNAL') {
-        void handleVoiceSignal(event)
+        void handleVoiceSignal(event).catch(() => undefined)
       }
     })
 
