@@ -65,7 +65,7 @@ export function UserPanelAudioOptionsPanel({
     <div
       ref={panelRef}
       role="menu"
-      className="absolute bottom-[calc(100%+8px)] left-0 z-[120] w-[290px] rounded-2xl border border-[var(--b1)] bg-[var(--s2)] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.36)]"
+      className="absolute bottom-[calc(100%+8px)] left-0 z-[240] w-[290px] rounded-2xl border border-[var(--b1)] bg-[var(--s2)] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.36)]"
     >
       <div role="group" className="space-y-1">
         <button

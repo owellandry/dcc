@@ -45,7 +45,7 @@ export function UserPanelVisual({
     <>
       <motion.div
         className={cn(
-          'fixed bottom-0 left-0 z-[70] h-[70px] w-[380px] max-w-[100vw] overflow-hidden rounded-tr-2xl border border-[var(--b1)] bg-[var(--s0)]',
+          'fixed bottom-0 left-0 z-[160] h-[70px] w-[380px] max-w-[100vw] overflow-visible rounded-tr-2xl border border-[var(--b1)] bg-[var(--s0)]',
           hasDecoration &&
             decorationPresentation?.tone === 'dark' &&
             'border-white/20 bg-[rgba(214,226,255,0.18)] shadow-[0_14px_32px_rgba(46,66,112,0.16)]',
@@ -191,7 +191,7 @@ function AudioSplitButton({
       <div
         className={`flex h-9 overflow-hidden rounded-xl border transition-colors ${
           active
-            ? 'border-[var(--b2)] bg-[var(--surface-soft)]'
+            ? 'border-[var(--b1)] bg-[var(--s1)]'
             : 'border-transparent bg-[var(--s2)] hover:border-[var(--b1)]'
         }`}
       >
@@ -201,7 +201,7 @@ function AudioSplitButton({
           onClick={onToggle}
           className={`flex h-9 w-9 items-center justify-center transition-colors ${
             active
-              ? 'text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
+              ? 'bg-[var(--s0)] text-[var(--t1)] hover:bg-[var(--s0)]'
               : 'text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
           }`}
           {...interactiveMotion}
@@ -215,7 +215,7 @@ function AudioSplitButton({
           onClick={onOpenOptions}
           className={`flex h-9 w-5 items-center justify-center border-l transition-colors ${
             active
-              ? 'border-[var(--b2)] text-[var(--dnd)] hover:bg-[var(--surface-soft-hover)]'
+              ? 'border-[var(--b1)] bg-[var(--s0)] text-[var(--t1)] hover:bg-[var(--s0)]'
               : 'border-[var(--b1)] text-[var(--t3)] hover:bg-[var(--surface-soft-hover)] hover:text-[var(--t1)]'
           }`}
           {...interactiveMotion}
