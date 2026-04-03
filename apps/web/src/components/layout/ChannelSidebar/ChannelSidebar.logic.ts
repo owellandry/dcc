@@ -7,7 +7,7 @@ import { channelsApi, resolveMediaUrl, serversApi } from '@/lib/api'
 import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { hasPermission } from '@/lib/permissions'
-import type { Channel, ServerMember, VoiceParticipant } from '@/lib/types'
+import type { Channel, ServerMember, VoiceParticipant, VoiceScreenShare } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useServerCategories, useServerChannels, useServersStore } from '@/stores/serversStore'
 import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
@@ -34,8 +34,10 @@ function toChannelSidebarItem(
   activeVoiceChannelId: string | null,
   membersById: Record<string, ServerMember>,
   participantsByChannel: Record<string, Record<string, VoiceParticipant>>,
+  screenSharesByChannel: Record<string, Record<string, VoiceScreenShare>>,
   unreadByChannel: Record<string, import('@/lib/types').ChannelReadState>
 ): ChannelSidebarItem {
+  const screenShares = channel.type === 'voice' ? screenSharesByChannel[channel.id] ?? {} : {}
   const voiceParticipants = channel.type === 'voice'
     ? Object.values(participantsByChannel[channel.id] ?? {})
       .sort((left, right) => new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime())
@@ -46,6 +48,7 @@ function toChannelSidebarItem(
           : 'Usuario',
         avatarUrl: membersById[participant.userId]?.user.avatarUrl ?? null,
         joinedAt: participant.joinedAt,
+        isScreenSharing: Boolean(screenShares[participant.userId]),
       }))
     : undefined
 
@@ -59,6 +62,7 @@ function toChannelSidebarItem(
     fontKey: channel.fontKey ?? null,
     fontWeight: channel.fontWeight ?? null,
     ...(voiceParticipants ? { voiceParticipants } : {}),
+    ...(channel.type === 'voice' ? { screenShareCount: Object.keys(screenShares).length } : {}),
     isConnected: channel.type === 'voice' && activeVoiceChannelId === channel.id,
     hasUnread: (unreadByChannel[channel.id]?.unreadCount ?? 0) > 0,
     mentionCount: unreadByChannel[channel.id]?.mentionCount ?? 0,
@@ -72,10 +76,11 @@ export function useChannelSidebarModel({
   const pathname = usePathname()
   const myUserId = useAuthStore((state) => state.user?.id ?? null)
   const resolvedServerId = serverId ?? null
-  const { activeVoiceChannelId, participantsByChannel } = useVoiceStore(
+  const { activeVoiceChannelId, participantsByChannel, screenSharesByChannel } = useVoiceStore(
     useShallow((state) => ({
       activeVoiceChannelId: state.activeChannelId,
       participantsByChannel: state.participantsByChannel,
+      screenSharesByChannel: state.screenSharesByChannel,
     }))
   )
   const upsertChannel = useServersStore((state) => state.upsertChannel)
@@ -155,10 +160,11 @@ export function useChannelSidebarModel({
           activeVoiceChannelId,
           membersById,
           participantsByChannel,
+          screenSharesByChannel,
           unreadByChannel
         )
       )
-  }, [activeVoiceChannelId, channels, membersById, participantsByChannel, pathname, resolvedServerId, unreadByChannel])
+  }, [activeVoiceChannelId, channels, membersById, participantsByChannel, pathname, resolvedServerId, screenSharesByChannel, unreadByChannel])
 
   const categorizedChannels = useMemo<ChannelSidebarCategoryGroup[]>(() => {
     if (!resolvedServerId) return []
@@ -182,11 +188,12 @@ export function useChannelSidebarModel({
             activeVoiceChannelId,
             membersById,
             participantsByChannel,
+            screenSharesByChannel,
             unreadByChannel
           )
         ),
       }))
-  }, [activeVoiceChannelId, categories, channels, collapsedCategories, membersById, participantsByChannel, pathname, resolvedServerId, unreadByChannel])
+  }, [activeVoiceChannelId, categories, channels, collapsedCategories, membersById, participantsByChannel, pathname, resolvedServerId, screenSharesByChannel, unreadByChannel])
 
   const bannerBackground = server?.bannerUrl
     ? `url(${resolveMediaUrl(server.bannerUrl)})`

@@ -16,7 +16,9 @@ export interface ChannelSidebarItem {
     displayName: string
     avatarUrl: string | null
     joinedAt: string
+    isScreenSharing?: boolean
   }>
+  screenShareCount?: number
   isConnected?: boolean
   hasUnread?: boolean
   mentionCount?: number

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Hash,
   Home,
+  MonitorUp,
   Plus,
   Settings2,
   Shield,
@@ -341,6 +342,7 @@ function ChannelItem({
           : getChannelIconComponent(item.iconKey ?? null, item.type)
   const voiceParticipants = item.type === 'voice' ? (item.voiceParticipants ?? []) : []
   const hasVoiceParticipants = voiceParticipants.length > 0
+  const screenShareCount = item.type === 'voice' ? item.screenShareCount ?? 0 : 0
   const channelNameStyle = getChannelNameTextStyle({
     fontKey: item.fontKey,
     fontWeight: item.fontWeight,
@@ -375,6 +377,11 @@ function ChannelItem({
 
           {item.mentionCount ? (
             <span className="badge">{item.mentionCount > 99 ? '99+' : item.mentionCount}</span>
+          ) : screenShareCount > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ember)]/16 px-2 py-0.5 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--ember)]">
+              <MonitorUp size={11} />
+              {screenShareCount === 1 ? 'SCREEN' : `${screenShareCount} SCREEN`}
+            </span>
           ) : voiceElapsedLabel ? (
             <span className="bg-[var(--online)]/18 font-700 rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--online)]">
               {voiceElapsedLabel}
@@ -429,6 +436,12 @@ function ChannelItem({
                 )}
               </div>
               <span className="min-w-0 flex-1 truncate">{participant.displayName}</span>
+              {participant.isScreenSharing ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ember)]/12 px-2 py-0.5 text-[10px] font-700 uppercase tracking-[0.08em] text-[var(--ember)]">
+                  <MonitorUp size={10} />
+                  Share
+                </span>
+              ) : null}
               <span className="text-[10px] tabular-nums text-[var(--online)]">
                 {formatElapsedSince(participant.joinedAt, nowMs)}
               </span>
