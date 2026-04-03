@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/lib/types'
 import { setAccessToken } from '@/lib/api'
+import { useFriendsStore } from '@/stores/friendsStore'
 import { syncUserAcrossClientStores } from '@/lib/users/userSync.shared'
 
 interface AuthState {
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         setAccessToken(null)
+        useFriendsStore.getState().reset()
         set({ user: null, isAuthenticated: false, isLoading: false })
       },
 

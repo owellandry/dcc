@@ -1,1 +1,5 @@
-export { default } from '@/routes/friends-page'
+import { redirect } from 'next/navigation'
+
+export default function FriendsPageAlias() {
+  redirect('/channels/@me')
+}

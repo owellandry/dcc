@@ -30,7 +30,7 @@ export function DMSidebarVisual({ pathname, badgeCount, unreadBadgeCount, items,
 
       <div className="px-2 pb-3">
         <Link
-          href="/friends"
+          href="/channels/@me"
           onClick={() => mobileSidebar?.close()}
           className={cn(
             'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-500 transition-colors',

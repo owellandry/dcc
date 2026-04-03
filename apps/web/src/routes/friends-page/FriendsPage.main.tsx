@@ -39,31 +39,8 @@ export default function FriendsPage() {
   useEffect(() => {
     if (isMock) {
       if (!hasLoaded) setFriendships(MOCK_FRIENDS)
-      return
     }
-
-    if (hasLoaded || isLoading) return
-
-    let cancelled = false
-    setLoading(true)
-
-    friendsApi
-      .list()
-      .then((response) => {
-        if (!cancelled) setFriendships(response.data)
-      })
-      .catch((error) => {
-        console.error('Failed to load friendships', error)
-        if (!cancelled) {
-          setLoading(false)
-          setNotice({ tone: 'error', message: 'No pudimos cargar tu lista de amigos.' })
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hasLoaded, isLoading, isMock, setFriendships, setLoading])
+  }, [hasLoaded, isMock, setFriendships])
 
   const acceptedFriends = useMemo(
     () => friendships.filter((friendship) => friendship.status === 'accepted'),

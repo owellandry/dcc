@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { dmsApi, friendsApi } from '@/lib/api'
@@ -36,6 +36,8 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
     )
   )
   const [openingUserId, setOpeningUserId] = useState<string | null>(null)
+  const hasRequestedFriendshipsRef = useRef(false)
+  const hasRequestedDmsRef = useRef(false)
   const unreadByChannel = useUnreadStore((state) => state.channels)
   const isMock = isMockSession()
 
@@ -47,8 +49,11 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
 
     let cancelled = false
 
-    if (!friendshipsLoaded && !friendshipsLoading) {
-      setFriendshipsLoading(true)
+    if (!hasRequestedFriendshipsRef.current && !friendshipsLoading) {
+      hasRequestedFriendshipsRef.current = true
+      if (!friendshipsLoaded) {
+        setFriendshipsLoading(true)
+      }
       friendsApi
         .list()
         .then((friendsResponse) => {
@@ -60,18 +65,21 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
         })
     }
 
-    dmsApi
-      .list()
-      .then((dmsResponse) => {
-        if (cancelled) return
+    if (!hasRequestedDmsRef.current) {
+      hasRequestedDmsRef.current = true
+      dmsApi
+        .list()
+        .then((dmsResponse) => {
+          if (cancelled) return
 
-        dmsResponse.data.forEach((channel) => {
-          upsertChannel(withDerivedDmName(channel))
+          dmsResponse.data.forEach((channel) => {
+            upsertChannel(withDerivedDmName(channel))
+          })
         })
-      })
-      .catch((error) => {
-        console.error('Failed to load direct messages', error)
-      })
+        .catch((error) => {
+          console.error('Failed to load direct messages', error)
+        })
+    }
 
     return () => {
       cancelled = true
