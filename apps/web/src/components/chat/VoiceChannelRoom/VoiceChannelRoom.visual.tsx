@@ -60,7 +60,7 @@ export function VoiceChannelRoomVisual({
                         <UserAvatar user={member.user} size={52} showStatus />
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
-                            <p className="truncate font-display text-lg font-700 text-white">
+                            <p className="truncate font-display text-lg font-700 text-[var(--t0)]">
                               {getUserDisplayName(member.user, member.nickname)}
                             </p>
                             {hasOfficialMemberBadge({ user: member.user, roles: member.roles }) && (
@@ -83,10 +83,10 @@ export function VoiceChannelRoomVisual({
                   className="flex h-10 w-10 items-center justify-center rounded-xl shadow-glow-ember"
                   style={{ background: 'linear-gradient(135deg, var(--ember), var(--ember-hover))' }}
                 >
-                  <Volume2 size={18} className="text-white" />
+                  <Volume2 size={18} className="text-[var(--t0)]" />
                 </div>
               </div>
-              <h1 className="font-display text-[34px] font-700 tracking-[-0.04em] text-white md:text-[44px]">
+              <h1 className="font-display text-[34px] font-700 tracking-[-0.04em] text-[var(--t0)] md:text-[44px]">
                 {channelName}
               </h1>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 text-sm text-[var(--t2)]">

@@ -38,6 +38,7 @@ export interface ChannelSidebarVisualProps {
   canOpenServerSettings: boolean
   canCreateChannels: boolean
   canManageChannels: boolean
+  isReorderingStructure: boolean
   uncategorizedChannels: ChannelSidebarItem[]
   categorizedChannels: ChannelSidebarCategoryGroup[]
   isInviteModalOpen: boolean
@@ -54,6 +55,16 @@ export interface ChannelSidebarVisualProps {
   onCloseInviteModal: () => void
   onOpenServerSettings: () => void
   onOpenChannelSettings: (channelId: string) => void
+  onMoveChannel: (
+    draggedChannelId: string,
+    target:
+      | { kind: 'channel'; channelId: string; placement: 'before' | 'after' }
+      | { kind: 'category'; categoryId: string | null }
+  ) => void
+  onMoveCategory: (
+    draggedCategoryId: string,
+    target: { categoryId: string; placement: 'before' | 'after' }
+  ) => void
   onCloseServerSettings: () => void
   onOpenCreateChannelModal: (categoryId?: string | null) => void
   onCloseCreateChannelModal: () => void

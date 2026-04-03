@@ -8,6 +8,7 @@ import { getMemberDisplayName } from '@/lib/users/displayName.shared'
 import { isMockSession } from '@/lib/mock-init'
 import { hasPermission } from '@/lib/permissions'
 import type { Channel, ServerMember, VoiceParticipant, VoiceScreenShare } from '@/lib/types'
+import { useServerStructureReorder } from '@/hooks/useServerStructureReorder'
 import { useAuthStore } from '@/stores/authStore'
 import { useServerCategories, useServerChannels, useServersStore } from '@/stores/serversStore'
 import { useUnreadStore } from '@/stores/unreadStore/unreadStore.store'
@@ -195,6 +196,13 @@ export function useChannelSidebarModel({
       }))
   }, [activeVoiceChannelId, categories, channels, collapsedCategories, membersById, participantsByChannel, pathname, resolvedServerId, screenSharesByChannel, unreadByChannel])
 
+  const { isReorderingStructure, moveChannel, moveCategory } = useServerStructureReorder({
+    serverId: resolvedServerId,
+    categories,
+    channels,
+    enabled: canManageChannels,
+  })
+
   const bannerBackground = server?.bannerUrl
     ? `url(${resolveMediaUrl(server.bannerUrl)})`
     : 'linear-gradient(135deg,rgba(122,149,255,0.5),rgba(129,83,255,0.35),rgba(23,25,31,0.95))'
@@ -267,6 +275,7 @@ export function useChannelSidebarModel({
     canOpenServerSettings,
     canCreateChannels,
     canManageChannels,
+    isReorderingStructure,
     uncategorizedChannels,
     categorizedChannels,
     isInviteModalOpen,
@@ -302,6 +311,12 @@ export function useChannelSidebarModel({
       setServerSettingsInitialSection('channels')
       setServerSettingsInitialSelection({ kind: 'channel', id: channelId })
       setIsServerSettingsOpen(true)
+    },
+    onMoveChannel: (draggedChannelId, target) => {
+      void moveChannel(draggedChannelId, target)
+    },
+    onMoveCategory: (draggedCategoryId, target) => {
+      void moveCategory(draggedCategoryId, target)
     },
     onCloseServerSettings: () => setIsServerSettingsOpen(false),
     onOpenCreateChannelModal: (categoryId) => {

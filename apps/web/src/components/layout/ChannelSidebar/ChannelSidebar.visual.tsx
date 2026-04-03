@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   ChevronDown,
@@ -27,9 +27,19 @@ import {
 } from '@/lib/motion'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarShell'
 import { InviteLinkModal } from '@/components/layout/InviteLinkModal'
+import { ServerStructureDragHandle } from '@/components/layout/ServerStructureDragHandle'
 import { ServerSettingsModal } from '@/components/layout/ServerSettingsModal'
 import { AppModalShell } from '@/components/ui/AppModalShell.main'
 import { type ChannelSidebarItem, type ChannelSidebarVisualProps } from './ChannelSidebar.shared'
+
+type SidebarDropTarget =
+  | { kind: 'channel'; channelId: string; placement: 'before' | 'after' }
+  | { kind: 'channel-list'; categoryId: string | null }
+  | { kind: 'category'; categoryId: string; placement: 'before' | 'after' }
+
+type SidebarDragItem =
+  | { kind: 'channel'; id: string }
+  | { kind: 'category'; id: string }
 
 export function ChannelSidebarVisual({
   resolvedServerId,
@@ -38,6 +48,7 @@ export function ChannelSidebarVisual({
   canOpenServerSettings,
   canCreateChannels,
   canManageChannels,
+  isReorderingStructure,
   uncategorizedChannels,
   categorizedChannels,
   isInviteModalOpen,
@@ -54,6 +65,8 @@ export function ChannelSidebarVisual({
   onCloseInviteModal,
   onOpenServerSettings,
   onOpenChannelSettings,
+  onMoveChannel,
+  onMoveCategory,
   onCloseServerSettings,
   onOpenCreateChannelModal,
   onCloseCreateChannelModal,
@@ -67,6 +80,8 @@ export function ChannelSidebarVisual({
       group.channels.some((channel) => (channel.voiceParticipants?.length ?? 0) > 0)
     )
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [dragItem, setDragItem] = useState<SidebarDragItem | null>(null)
+  const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null)
 
   useEffect(() => {
     if (!hasVoiceActivity) return
@@ -88,6 +103,27 @@ export function ChannelSidebarVisual({
         </div>
       </aside>
     )
+  }
+
+  const clearDragState = () => {
+    setDragItem(null)
+    setDropTarget(null)
+  }
+
+  const handleChannelDragStart = (event: DragEvent<HTMLButtonElement>, channelId: string) => {
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', channelId)
+    setDragItem({ kind: 'channel', id: channelId })
+    setDropTarget(null)
+  }
+
+  const handleCategoryDragStart = (event: DragEvent<HTMLButtonElement>, categoryId: string) => {
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', categoryId)
+    setDragItem({ kind: 'category', id: categoryId })
+    setDropTarget(null)
   }
 
   return (
@@ -149,12 +185,68 @@ export function ChannelSidebarVisual({
         animate="visible"
         variants={listVariants(0.05, 0.04)}
       >
+        {canManageChannels && dragItem?.kind === 'channel' ? (
+          <div
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDropTarget({ kind: 'channel-list', categoryId: null })
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              if (dragItem.kind !== 'channel') return
+              void onMoveChannel(dragItem.id, { kind: 'category', categoryId: null })
+              clearDragState()
+            }}
+            className={cn(
+              'mb-3 flex min-h-10 items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] font-700 uppercase tracking-[0.12em] transition-colors',
+              dropTarget?.kind === 'channel-list' && dropTarget.categoryId === null
+                ? 'border-[var(--ember)] bg-[var(--ember)]/10 text-[var(--ember)]'
+                : 'border-[var(--b1)] bg-[var(--s2)] text-[var(--t4)]'
+            )}
+          >
+            Mover a sin categoria
+          </div>
+        ) : null}
+
         {uncategorizedChannels.map((channel) => (
           <motion.div key={channel.id} variants={itemVariants}>
             <ChannelItem
               item={channel}
               nowMs={nowMs}
               canManageChannels={canManageChannels}
+              isReorderingStructure={isReorderingStructure}
+              isDragging={dragItem?.kind === 'channel' && dragItem.id === channel.id}
+              isDropTargetBefore={
+                dropTarget?.kind === 'channel' &&
+                dropTarget.channelId === channel.id &&
+                dropTarget.placement === 'before'
+              }
+              isDropTargetAfter={
+                dropTarget?.kind === 'channel' &&
+                dropTarget.channelId === channel.id &&
+                dropTarget.placement === 'after'
+              }
+              onChannelDragStart={handleChannelDragStart}
+              onChannelDragEnd={clearDragState}
+              onChannelDragOver={(event) => {
+                if (dragItem?.kind !== 'channel') return
+                event.preventDefault()
+                setDropTarget({
+                  kind: 'channel',
+                  channelId: channel.id,
+                  placement: getDropPlacement(event),
+                })
+              }}
+              onChannelDrop={(event) => {
+                if (dragItem?.kind !== 'channel') return
+                event.preventDefault()
+                void onMoveChannel(dragItem.id, {
+                  kind: 'channel',
+                  channelId: channel.id,
+                  placement: getDropPlacement(event),
+                })
+                clearDragState()
+              }}
               onOpenChannelSettings={onOpenChannelSettings}
             />
           </motion.div>
@@ -163,10 +255,50 @@ export function ChannelSidebarVisual({
         {categorizedChannels.map((group) => (
           <motion.div key={group.id} className="mt-4" variants={itemVariants}>
             <div className="group mb-0.5 flex items-center gap-1 px-2 py-0.5">
+              {canManageChannels ? (
+                <ServerStructureDragHandle
+                  label={`Arrastrar categoria ${group.name}`}
+                  disabled={isReorderingStructure}
+                  className={cn(
+                    'h-6 w-6',
+                    dragItem?.kind === 'category' && dragItem.id === group.id
+                      ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
+                      : 'opacity-0 group-hover:opacity-100'
+                  )}
+                  onDragStart={(event) => handleCategoryDragStart(event, group.id)}
+                  onDragEnd={clearDragState}
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={() => onToggleCategory(group.id)}
                 className="flex min-w-0 flex-1 items-center gap-1"
+                onDragOver={(event) => {
+                  if (!dragItem) return
+                  event.preventDefault()
+                  if (dragItem.kind === 'channel') {
+                    setDropTarget({ kind: 'channel-list', categoryId: group.id })
+                    return
+                  }
+                  setDropTarget({
+                    kind: 'category',
+                    categoryId: group.id,
+                    placement: getDropPlacement(event),
+                  })
+                }}
+                onDrop={(event) => {
+                  if (!dragItem) return
+                  event.preventDefault()
+                  if (dragItem.kind === 'channel') {
+                    void onMoveChannel(dragItem.id, { kind: 'category', categoryId: group.id })
+                  } else {
+                    void onMoveCategory(dragItem.id, {
+                      categoryId: group.id,
+                      placement: getDropPlacement(event),
+                    })
+                  }
+                  clearDragState()
+                }}
               >
                 <ChevronDown
                   size={12}
@@ -175,7 +307,18 @@ export function ChannelSidebarVisual({
                     group.collapsed && '-rotate-90'
                   )}
                 />
-                <span className="sidebar-section-label truncate text-left">{group.name}</span>
+                <span
+                  className={cn(
+                    'sidebar-section-label truncate rounded-md px-1.5 py-0.5 text-left transition-colors',
+                    dropTarget?.kind === 'channel-list' && dropTarget.categoryId === group.id
+                      ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
+                      : dropTarget?.kind === 'category' && dropTarget.categoryId === group.id
+                        ? 'bg-[var(--surface-soft)] text-[var(--t1)]'
+                        : ''
+                  )}
+                >
+                  {group.name}
+                </span>
               </button>
               {canCreateChannels ? (
                 <button
@@ -190,6 +333,35 @@ export function ChannelSidebarVisual({
             </div>
 
             <AnimatePresence initial={false}>
+              {!group.collapsed && dragItem?.kind === 'channel' && group.channels.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDropTarget({ kind: 'channel-list', categoryId: group.id })
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      if (dragItem.kind !== 'channel') return
+                      void onMoveChannel(dragItem.id, { kind: 'category', categoryId: group.id })
+                      clearDragState()
+                    }}
+                    className={cn(
+                      'ml-6 mt-1 rounded-xl border border-dashed px-3 py-3 text-center text-[11px] font-700 uppercase tracking-[0.12em] transition-colors',
+                      dropTarget?.kind === 'channel-list' && dropTarget.categoryId === group.id
+                        ? 'border-[var(--ember)] bg-[var(--ember)]/10 text-[var(--ember)]'
+                        : 'border-[var(--b1)] bg-[var(--s2)] text-[var(--t4)]'
+                    )}
+                  >
+                    Soltar canal aqui
+                  </div>
+                </motion.div>
+              ) : null}
               {!group.collapsed &&
                 group.channels.map((channel) => (
                   <motion.div
@@ -203,6 +375,39 @@ export function ChannelSidebarVisual({
                       item={channel}
                       nowMs={nowMs}
                       canManageChannels={canManageChannels}
+                      isReorderingStructure={isReorderingStructure}
+                      isDragging={dragItem?.kind === 'channel' && dragItem.id === channel.id}
+                      isDropTargetBefore={
+                        dropTarget?.kind === 'channel' &&
+                        dropTarget.channelId === channel.id &&
+                        dropTarget.placement === 'before'
+                      }
+                      isDropTargetAfter={
+                        dropTarget?.kind === 'channel' &&
+                        dropTarget.channelId === channel.id &&
+                        dropTarget.placement === 'after'
+                      }
+                      onChannelDragStart={handleChannelDragStart}
+                      onChannelDragEnd={clearDragState}
+                      onChannelDragOver={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        setDropTarget({
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                      }}
+                      onChannelDrop={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        void onMoveChannel(dragItem.id, {
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                        clearDragState()
+                      }}
                       onOpenChannelSettings={onOpenChannelSettings}
                     />
                   </motion.div>
@@ -317,11 +522,27 @@ function ChannelItem({
   item,
   nowMs,
   canManageChannels,
+  isReorderingStructure,
+  isDragging,
+  isDropTargetBefore,
+  isDropTargetAfter,
+  onChannelDragStart,
+  onChannelDragEnd,
+  onChannelDragOver,
+  onChannelDrop,
   onOpenChannelSettings,
 }: {
   item: ChannelSidebarItem
   nowMs: number
   canManageChannels: boolean
+  isReorderingStructure: boolean
+  isDragging: boolean
+  isDropTargetBefore: boolean
+  isDropTargetAfter: boolean
+  onChannelDragStart: (event: DragEvent<HTMLButtonElement>, channelId: string) => void
+  onChannelDragEnd: () => void
+  onChannelDragOver: (event: DragEvent<HTMLDivElement>) => void
+  onChannelDrop: (event: DragEvent<HTMLDivElement>) => void
   onOpenChannelSettings: (channelId: string) => void
 }) {
   const mobileSidebar = useMobileSidebar()
@@ -354,7 +575,16 @@ function ChannelItem({
 
   return (
     <motion.div {...interactiveMotion}>
-      <div className="group relative">
+      <div
+        className={cn(
+          'group relative rounded-xl transition-opacity',
+          isDragging && 'opacity-40',
+          isDropTargetBefore && 'before:absolute before:-top-1 before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-[var(--ember)]',
+          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]'
+        )}
+        onDragOver={canManageChannels ? onChannelDragOver : undefined}
+        onDrop={canManageChannels ? onChannelDrop : undefined}
+      >
         <Link
           href={`/channels/${item.serverId}/${item.id}`}
           onClick={() => mobileSidebar?.close()}
@@ -375,6 +605,19 @@ function ChannelItem({
           <span className="min-w-0 flex-1 truncate text-sm" style={channelNameStyle}>
             {item.name}
           </span>
+
+          {canManageChannels ? (
+            <ServerStructureDragHandle
+              label={`Arrastrar canal ${item.name}`}
+              disabled={isReorderingStructure}
+              className={cn(
+                'mr-1 h-7 w-7',
+                isDragging ? 'bg-[var(--ember)]/12 text-[var(--ember)]' : 'opacity-0 group-hover:opacity-100'
+              )}
+              onDragStart={(event) => onChannelDragStart(event, item.id)}
+              onDragEnd={onChannelDragEnd}
+            />
+          ) : null}
 
           {hasVoiceParticipants ? (
             <div className="mr-1 hidden items-center sm:flex">
@@ -474,6 +717,11 @@ function ChannelItem({
       ) : null}
     </motion.div>
   )
+}
+
+function getDropPlacement(event: DragEvent<HTMLElement>) {
+  const bounds = event.currentTarget.getBoundingClientRect()
+  return event.clientY <= bounds.top + bounds.height / 2 ? 'before' : 'after'
 }
 
 function ParticipantAvatarStack({

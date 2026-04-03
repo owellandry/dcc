@@ -218,12 +218,12 @@ export function UserSettingsModalAccountSection({
               <div className="relative">
                 <Mail
                   size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)]"
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--t4)]"
                 />
                 <input
                   value={email}
                   onChange={(event) => onEmailChange(event.target.value)}
-                  className="input-base h-11 rounded-xl bg-[var(--s2)] pl-10 pr-3 text-sm"
+                  className="input-base h-11 rounded-xl bg-[var(--s2)] pl-12 pr-3 text-sm"
                   type="email"
                 />
               </div>

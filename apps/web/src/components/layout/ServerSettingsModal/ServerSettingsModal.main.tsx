@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { channelsApi, serversApi } from '@/lib/api'
+import { useServerStructureReorder } from '@/hooks/useServerStructureReorder'
 import { hasPermission } from '@/lib/permissions'
 import type { PermissionOverwrite } from '@/lib/types'
 import { getMemberDisplayName } from '@/lib/users/displayName.shared'
@@ -143,6 +144,12 @@ export function ServerSettingsModal({
   const canManageMembers = canManageRoles || canKickMembers || canBanMembers
   const canOpen =
     canManageServer || canManageChannels || canManageRoles || canKickMembers || canBanMembers
+  const { isReorderingStructure, moveChannel, moveCategory } = useServerStructureReorder({
+    serverId,
+    categories,
+    channels,
+    enabled: canManageChannels,
+  })
   const selectedChannel =
     selection?.kind === 'channel'
       ? (channels.find((channel) => channel.id === selection.id) ?? null)
@@ -335,6 +342,7 @@ export function ServerSettingsModal({
         canManageChannels={canManageChannels}
         canManageRoles={canManageRoles}
         sectionBusy={sectionBusy}
+        isReorderingStructure={isReorderingStructure}
         createCategoryName={createCategoryName}
         createChannelName={createChannelName}
         createChannelType={createChannelType}
@@ -360,6 +368,12 @@ export function ServerSettingsModal({
         onChannelFontKeyDraftChange={setChannelFontKeyDraft}
         onChannelFontWeightDraftChange={setChannelFontWeightDraft}
         onOverwriteDraftsChange={setOverwriteDrafts}
+        onMoveChannel={(draggedChannelId, target) => {
+          void moveChannel(draggedChannelId, target)
+        }}
+        onMoveCategory={(draggedCategoryId, target) => {
+          void moveCategory(draggedCategoryId, target)
+        }}
         onCreateCategory={() =>
           void updateSection(async () => {
             await serversApi.createCategory(serverId, { name: createCategoryName.trim() })
@@ -571,7 +585,7 @@ export function ServerSettingsModal({
         open={open}
         onClose={onClose}
         panelClassName="flex h-[min(92vh,790px)] w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--b1)] bg-[var(--s3)] shadow-[var(--panel-shadow)]"
-        overlayClassName="z-[140]"
+        overlayClassName="z-[500]"
       >
         <ServerSettingsModalSidebar
           server={server}

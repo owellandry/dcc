@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, type DragEvent } from 'react'
 import { Folder, Hash, Plus, Save, Shield, Trash2, Volume2 } from 'lucide-react'
 import {
   CHANNEL_FONT_OPTIONS,
@@ -9,8 +10,18 @@ import {
 import { cn } from '@/lib/cn'
 import type { Category, Channel, PermissionOverwrite, Role, ServerMember } from '@/lib/types'
 import { CHANNEL_ICON_OPTIONS } from '@/lib/channel-icons/channelIcons.shared'
+import { ServerStructureDragHandle } from '@/components/layout/ServerStructureDragHandle'
 import { Field, SettingBlock } from '@/components/user/UserSettingsParts'
 import { EmptyState, OverwriteEditor, ServerSettingsContentShell } from './ServerSettingsModal.shared'
+
+type StructureModalDropTarget =
+  | { kind: 'channel'; channelId: string; placement: 'before' | 'after' }
+  | { kind: 'channel-list'; categoryId: string | null }
+  | { kind: 'category'; categoryId: string; placement: 'before' | 'after' }
+
+type StructureModalDragItem =
+  | { kind: 'channel'; id: string }
+  | { kind: 'category'; id: string }
 
 interface ServerSettingsModalChannelsSectionProps {
   sortedCategories: Category[]
@@ -22,6 +33,7 @@ interface ServerSettingsModalChannelsSectionProps {
   canManageChannels: boolean
   canManageRoles: boolean
   sectionBusy: boolean
+  isReorderingStructure: boolean
   createCategoryName: string
   createChannelName: string
   createChannelType: 'text' | 'voice' | 'announcement'
@@ -47,6 +59,16 @@ interface ServerSettingsModalChannelsSectionProps {
   onChannelFontKeyDraftChange: (value: string) => void
   onChannelFontWeightDraftChange: (value: number) => void
   onOverwriteDraftsChange: (value: PermissionOverwrite[]) => void
+  onMoveChannel: (
+    draggedChannelId: string,
+    target:
+      | { kind: 'channel'; channelId: string; placement: 'before' | 'after' }
+      | { kind: 'category'; categoryId: string | null }
+  ) => void
+  onMoveCategory: (
+    draggedCategoryId: string,
+    target: { categoryId: string; placement: 'before' | 'after' }
+  ) => void
   onCreateCategory: () => void
   onCreateChannel: () => void
   onSaveCategory: () => void
@@ -66,6 +88,7 @@ export function ServerSettingsModalChannelsSection({
   canManageChannels,
   canManageRoles,
   sectionBusy,
+  isReorderingStructure,
   createCategoryName,
   createChannelName,
   createChannelType,
@@ -91,6 +114,8 @@ export function ServerSettingsModalChannelsSection({
   onChannelFontKeyDraftChange,
   onChannelFontWeightDraftChange,
   onOverwriteDraftsChange,
+  onMoveChannel,
+  onMoveCategory,
   onCreateCategory,
   onCreateChannel,
   onSaveCategory,
@@ -99,6 +124,31 @@ export function ServerSettingsModalChannelsSection({
   onDeleteChannel,
   onSaveOverwrites,
 }: ServerSettingsModalChannelsSectionProps) {
+  const [dragItem, setDragItem] = useState<StructureModalDragItem | null>(null)
+  const [dropTarget, setDropTarget] = useState<StructureModalDropTarget | null>(null)
+  const uncategorizedChannels = sortedChannels.filter((channel) => channel.categoryId === null)
+
+  const clearDragState = () => {
+    setDragItem(null)
+    setDropTarget(null)
+  }
+
+  const handleChannelDragStart = (event: DragEvent<HTMLButtonElement>, channelId: string) => {
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', channelId)
+    setDragItem({ kind: 'channel', id: channelId })
+    setDropTarget(null)
+  }
+
+  const handleCategoryDragStart = (event: DragEvent<HTMLButtonElement>, categoryId: string) => {
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', categoryId)
+    setDragItem({ kind: 'category', id: categoryId })
+    setDropTarget(null)
+  }
+
   return (
     <ServerSettingsContentShell>
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -161,27 +211,265 @@ export function ServerSettingsModalChannelsSection({
           </div>
 
           <div className="mt-4 space-y-3">
+            {canManageChannels && dragItem?.kind === 'channel' ? (
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDropTarget({ kind: 'channel-list', categoryId: null })
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (dragItem.kind !== 'channel') return
+                  onMoveChannel(dragItem.id, { kind: 'category', categoryId: null })
+                  clearDragState()
+                }}
+                className={cn(
+                  'rounded-xl border border-dashed px-3 py-3 text-center text-[11px] font-700 uppercase tracking-[0.12em] transition-colors',
+                  dropTarget?.kind === 'channel-list' && dropTarget.categoryId === null
+                    ? 'border-[var(--ember)] bg-[var(--ember)]/10 text-[var(--ember)]'
+                    : 'border-[var(--b1)] bg-[var(--s2)] text-[var(--t4)]'
+                )}
+              >
+                Soltar aqui para dejarlo sin categoria
+              </div>
+            ) : null}
+
+            {uncategorizedChannels.length > 0 ? (
+              <div className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3">
+                <p className="text-[11px] font-700 uppercase tracking-[0.12em] text-[var(--t4)]">
+                  Sin categoria
+                </p>
+                <div className="mt-2 space-y-1">
+                  {uncategorizedChannels.map((channel) => (
+                    <div
+                      key={channel.id}
+                      className={cn(
+                        'rounded-lg transition-opacity',
+                        dragItem?.kind === 'channel' && dragItem.id === channel.id ? 'opacity-40' : '',
+                        dropTarget?.kind === 'channel' &&
+                          dropTarget.channelId === channel.id &&
+                          dropTarget.placement === 'before'
+                          ? 'border-t-2 border-[var(--ember)] pt-1'
+                          : '',
+                        dropTarget?.kind === 'channel' &&
+                          dropTarget.channelId === channel.id &&
+                          dropTarget.placement === 'after'
+                          ? 'border-b-2 border-[var(--ember)] pb-1'
+                          : ''
+                      )}
+                      onDragOver={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        setDropTarget({
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                      }}
+                      onDrop={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        onMoveChannel(dragItem.id, {
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                        clearDragState()
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        {canManageChannels ? (
+                          <ServerStructureDragHandle
+                            label={`Arrastrar canal ${channel.name ?? 'canal'}`}
+                            disabled={isReorderingStructure || sectionBusy}
+                            className={cn(
+                              'h-7 w-7',
+                              dragItem?.kind === 'channel' && dragItem.id === channel.id
+                                ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
+                                : ''
+                            )}
+                            onDragStart={(event) => handleChannelDragStart(event, channel.id)}
+                            onDragEnd={clearDragState}
+                          />
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => onSelectionChange({ kind: 'channel', id: channel.id })}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]"
+                        >
+                          <StructureChannelIcon channel={channel} />
+                          <span className="truncate">{channel.name ?? 'canal'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {sortedCategories.map((category) => (
-              <div key={category.id} className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3">
-                <button
-                  type="button"
-                  onClick={() => onSelectionChange({ kind: 'category', id: category.id })}
-                  className="w-full text-left text-sm font-700 text-[var(--t0)]"
+              <div
+                key={category.id}
+                className={cn(
+                  'rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3 transition-colors',
+                  dropTarget?.kind === 'channel-list' && dropTarget.categoryId === category.id
+                    ? 'border-[var(--ember)] bg-[var(--ember)]/6'
+                    : '',
+                  dropTarget?.kind === 'category' && dropTarget.categoryId === category.id
+                    ? 'ring-1 ring-[var(--ember)]/50'
+                    : ''
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg',
+                    dropTarget?.kind === 'category' &&
+                      dropTarget.categoryId === category.id &&
+                      dropTarget.placement === 'before'
+                      ? 'before:absolute before:-mt-3 before:h-0.5 before:w-[calc(100%-24px)] before:rounded-full before:bg-[var(--ember)]'
+                      : '',
+                    dropTarget?.kind === 'category' &&
+                      dropTarget.categoryId === category.id &&
+                      dropTarget.placement === 'after'
+                      ? 'after:absolute after:mt-10 after:h-0.5 after:w-[calc(100%-24px)] after:rounded-full after:bg-[var(--ember)]'
+                      : ''
+                  )}
                 >
-                  {category.name}
-                </button>
+                  {canManageChannels ? (
+                    <ServerStructureDragHandle
+                      label={`Arrastrar categoria ${category.name}`}
+                      disabled={isReorderingStructure || sectionBusy}
+                      className={cn(
+                        'h-8 w-8',
+                        dragItem?.kind === 'category' && dragItem.id === category.id
+                          ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
+                          : ''
+                      )}
+                      onDragStart={(event) => handleCategoryDragStart(event, category.id)}
+                      onDragEnd={clearDragState}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onSelectionChange({ kind: 'category', id: category.id })}
+                    onDragOver={(event) => {
+                      if (!dragItem) return
+                      event.preventDefault()
+                      if (dragItem.kind === 'channel') {
+                        setDropTarget({ kind: 'channel-list', categoryId: category.id })
+                        return
+                      }
+                      setDropTarget({
+                        kind: 'category',
+                        categoryId: category.id,
+                        placement: getDropPlacement(event),
+                      })
+                    }}
+                    onDrop={(event) => {
+                      if (!dragItem) return
+                      event.preventDefault()
+                      if (dragItem.kind === 'channel') {
+                        onMoveChannel(dragItem.id, { kind: 'category', categoryId: category.id })
+                      } else {
+                        onMoveCategory(dragItem.id, {
+                          categoryId: category.id,
+                          placement: getDropPlacement(event),
+                        })
+                      }
+                      clearDragState()
+                    }}
+                    className="w-full text-left text-sm font-700 text-[var(--t0)]"
+                  >
+                    {category.name}
+                  </button>
+                </div>
                 <div className="mt-2 space-y-1">
                   {sortedChannels.filter((channel) => channel.categoryId === category.id).map((channel) => (
-                    <button
+                    <div
                       key={channel.id}
-                      type="button"
-                      onClick={() => onSelectionChange({ kind: 'channel', id: channel.id })}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]"
+                      className={cn(
+                        'rounded-lg transition-opacity',
+                        dragItem?.kind === 'channel' && dragItem.id === channel.id ? 'opacity-40' : '',
+                        dropTarget?.kind === 'channel' &&
+                          dropTarget.channelId === channel.id &&
+                          dropTarget.placement === 'before'
+                          ? 'border-t-2 border-[var(--ember)] pt-1'
+                          : '',
+                        dropTarget?.kind === 'channel' &&
+                          dropTarget.channelId === channel.id &&
+                          dropTarget.placement === 'after'
+                          ? 'border-b-2 border-[var(--ember)] pb-1'
+                          : ''
+                      )}
+                      onDragOver={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        setDropTarget({
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                      }}
+                      onDrop={(event) => {
+                        if (dragItem?.kind !== 'channel') return
+                        event.preventDefault()
+                        onMoveChannel(dragItem.id, {
+                          kind: 'channel',
+                          channelId: channel.id,
+                          placement: getDropPlacement(event),
+                        })
+                        clearDragState()
+                      }}
                     >
-                      <StructureChannelIcon channel={channel} />
-                      <span className="truncate">{channel.name ?? 'canal'}</span>
-                    </button>
+                      <div className="flex items-center gap-1">
+                        {canManageChannels ? (
+                          <ServerStructureDragHandle
+                            label={`Arrastrar canal ${channel.name ?? 'canal'}`}
+                            disabled={isReorderingStructure || sectionBusy}
+                            className={cn(
+                              'h-7 w-7',
+                              dragItem?.kind === 'channel' && dragItem.id === channel.id
+                                ? 'bg-[var(--ember)]/12 text-[var(--ember)]'
+                                : ''
+                            )}
+                            onDragStart={(event) => handleChannelDragStart(event, channel.id)}
+                            onDragEnd={clearDragState}
+                          />
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => onSelectionChange({ kind: 'channel', id: channel.id })}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--t2)] hover:bg-[var(--surface-soft)]"
+                        >
+                          <StructureChannelIcon channel={channel} />
+                          <span className="truncate">{channel.name ?? 'canal'}</span>
+                        </button>
+                      </div>
+                    </div>
                   ))}
+                  {dragItem?.kind === 'channel' &&
+                  sortedChannels.every((channel) => channel.categoryId !== category.id) ? (
+                    <div
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        setDropTarget({ kind: 'channel-list', categoryId: category.id })
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        if (dragItem.kind !== 'channel') return
+                        onMoveChannel(dragItem.id, { kind: 'category', categoryId: category.id })
+                        clearDragState()
+                      }}
+                      className={cn(
+                        'rounded-lg border border-dashed px-3 py-2 text-center text-[11px] font-700 uppercase tracking-[0.12em] transition-colors',
+                        dropTarget?.kind === 'channel-list' && dropTarget.categoryId === category.id
+                          ? 'border-[var(--ember)] bg-[var(--ember)]/10 text-[var(--ember)]'
+                          : 'border-[var(--b1)] bg-[var(--s2)] text-[var(--t4)]'
+                      )}
+                    >
+                      Soltar canal aqui
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -374,6 +662,11 @@ export function ServerSettingsModalChannelsSection({
       </div>
     </ServerSettingsContentShell>
   )
+}
+
+function getDropPlacement(event: DragEvent<HTMLElement>) {
+  const bounds = event.currentTarget.getBoundingClientRect()
+  return event.clientY <= bounds.top + bounds.height / 2 ? 'before' : 'after'
 }
 
 function StructureChannelIcon({ channel }: { channel: Channel }) {

@@ -100,10 +100,10 @@ function VoiceControlButton({
       className={cn(
         'inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-700 transition-all disabled:cursor-wait disabled:opacity-70',
         accent === 'danger'
-          ? 'border-[rgba(240,71,71,0.28)] bg-[rgba(240,71,71,0.16)] text-[#ffd5d5] hover:-translate-y-0.5 hover:bg-[rgba(240,71,71,0.2)]'
+          ? 'border-[var(--dnd)]/35 bg-[var(--surface-soft)] text-[var(--dnd)] hover:-translate-y-0.5 hover:bg-[var(--surface-soft-hover)]'
           : active
             ? 'border-[var(--ember)]/35 bg-[var(--ember-dim)] text-[var(--ember)] hover:-translate-y-0.5'
-            : 'border-[var(--b1)] bg-[var(--surface-soft)] text-[var(--t2)] hover:-translate-y-0.5 hover:border-[var(--b2)] hover:text-white'
+            : 'border-[var(--b1)] bg-[var(--surface-soft)] text-[var(--t2)] hover:-translate-y-0.5 hover:border-[var(--b2)] hover:text-[var(--t0)]'
       )}
       aria-label={title}
     >
