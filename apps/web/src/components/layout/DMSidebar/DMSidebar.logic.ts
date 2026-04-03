@@ -25,7 +25,6 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
   const upsertChannel = useServersStore((state) => state.upsertChannel)
   const friendships = useFriendsStore((state) => state.friendships)
   const friendshipsLoaded = useFriendsStore((state) => state.hasLoaded)
-  const friendshipsLoading = useFriendsStore((state) => state.isLoading)
   const setFriendships = useFriendsStore((state) => state.setFriendships)
   const setFriendshipsLoading = useFriendsStore((state) => state.setLoading)
   const dmChannels = useServersStore(
@@ -49,7 +48,7 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
 
     let cancelled = false
 
-    if (!hasRequestedFriendshipsRef.current && !friendshipsLoading) {
+    if (!hasRequestedFriendshipsRef.current) {
       hasRequestedFriendshipsRef.current = true
       if (!friendshipsLoaded) {
         setFriendshipsLoading(true)
@@ -86,7 +85,6 @@ export function useDMSidebarModel(): DMSidebarVisualProps {
     }
   }, [
     friendshipsLoaded,
-    friendshipsLoading,
     isMock,
     setFriendships,
     setFriendshipsLoading,

@@ -117,7 +117,7 @@ export function MessageItemVisual({
         ) : (
           <button
             onClick={onOpenPreview}
-            className={cn('block rounded-full', message.replyTo ? 'mt-[40px]' : 'mt-[9px]')}
+            className={cn('block rounded-full', message.replyTo ? 'mt-[40px]' : 'mt-[8px]')}
             type="button"
           >
             <UserAvatar user={message.author} size={40} />
@@ -274,11 +274,11 @@ function ReplyContext({
   const isOfficialAuthor = hasOfficialMemberBadge({ user: replyTo.author })
 
   return (
-    <div className="mb-2 mt-[10px] flex items-center gap-2 text-[13px]">
+    <div className="mb-1 flex items-center gap-2 text-[13px]">
       {/* Spine del reply */}
       <div
         aria-hidden="true"
-        className="-ml-8 mt-2 h-4 w-7 shrink-0 rounded-tl-xl border-l-2 border-t-2 border-[var(--b2)]/70"
+        className="-ml-8 mt-3 h-4 w-6 shrink-0 rounded-tl-xl border-l-2 border-t-2 border-[var(--b2)]/70"
       />
 
       <UserAvatar user={replyTo.author} size={16} className="rounded-full" />
