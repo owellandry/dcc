@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ServerMember, VoiceScreenShare } from '@/lib/types'
 import { useVoiceChannel } from '@/hooks/useVoiceChannel'
+import { useVoicePreferences } from '@/hooks/useVoicePreferences'
 import { useAuthStore } from '@/stores/authStore'
 import { useServersStore } from '@/stores/serversStore'
 import { useVoiceStore } from '@/stores/voiceStore'
@@ -21,27 +22,20 @@ export function useVoiceChannelRoomModel({
   const channel = useServersStore((state) => state.channels[channelId] ?? null)
   const server = useServersStore((state) => state.servers[serverId] ?? null)
   const membersById = useServersStore((state) => state.members[serverId] ?? EMPTY_MEMBERS)
+  const { isMicMuted, isHeadphonesMuted, onToggleMic, onToggleHeadphones } = useVoicePreferences()
   const {
     activeChannelId,
     connectionState,
     errorMessage,
-    isMicMuted,
-    isHeadphonesMuted,
     participantsByChannel,
     screenSharesByChannel,
-    toggleMic,
-    toggleHeadphones,
   } = useVoiceStore(
     useShallow((state) => ({
       activeChannelId: state.activeChannelId,
       connectionState: state.connectionState,
       errorMessage: state.errorMessage,
-      isMicMuted: state.isMicMuted,
-      isHeadphonesMuted: state.isHeadphonesMuted,
       participantsByChannel: state.participantsByChannel,
       screenSharesByChannel: state.screenSharesByChannel,
-      toggleMic: state.toggleMic,
-      toggleHeadphones: state.toggleHeadphones,
     }))
   )
   const {
@@ -125,8 +119,8 @@ export function useVoiceChannelRoomModel({
       void join()
     },
     onLeave: leave,
-    onToggleMic: toggleMic,
-    onToggleHeadphones: toggleHeadphones,
+    onToggleMic,
+    onToggleHeadphones,
     onStartScreenShare: () => {
       void startScreenShare()
     },
