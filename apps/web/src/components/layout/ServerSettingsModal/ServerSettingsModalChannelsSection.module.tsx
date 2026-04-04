@@ -308,7 +308,8 @@ export function ServerSettingsModalChannelsSection({
                       }}
                     >
                       <div className="flex items-center gap-1">
-                        <div
+                        <button
+                          type="button"
                           draggable={canManageChannels && !isReorderingStructure && !sectionBusy}
                           onDragStart={(event) => handleChannelDragStart(event, channel.id)}
                           onDragEnd={() => {
@@ -317,20 +318,13 @@ export function ServerSettingsModalChannelsSection({
                             }
                             clearDragState()
                           }}
-                          className={cn(
-                            'w-full rounded-lg',
-                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing'
-                          )}
-                        >
-                        <button
-                          type="button"
-                          draggable={false}
                           onClick={() => {
                             if (justDraggedKey === `channel:${channel.id}`) return
                             onSelectionChange({ kind: 'channel', id: channel.id })
                           }}
                           className={cn(
                             'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
+                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing',
                             selectedChannel?.id === channel.id
                               ? 'bg-[var(--s2)] text-[var(--t0)]'
                               : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
@@ -339,7 +333,6 @@ export function ServerSettingsModalChannelsSection({
                           <StructureChannelIcon channel={channel} />
                           <span className="truncate">{channel.name ?? 'canal'}</span>
                         </button>
-                        </div>
                       </div>
                     </div>
                   ))}
@@ -469,7 +462,8 @@ export function ServerSettingsModalChannelsSection({
                       }}
                     >
                       <div className="flex items-center gap-1">
-                        <div
+                        <button
+                          type="button"
                           draggable={canManageChannels && !isReorderingStructure && !sectionBusy}
                           onDragStart={(event) => handleChannelDragStart(event, channel.id)}
                           onDragEnd={() => {
@@ -478,20 +472,13 @@ export function ServerSettingsModalChannelsSection({
                             }
                             clearDragState()
                           }}
-                          className={cn(
-                            'w-full rounded-lg',
-                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing'
-                          )}
-                        >
-                        <button
-                          type="button"
-                          draggable={false}
                           onClick={() => {
                             if (justDraggedKey === `channel:${channel.id}`) return
                             onSelectionChange({ kind: 'channel', id: channel.id })
                           }}
                           className={cn(
                             'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
+                            canManageChannels && !isReorderingStructure && !sectionBusy && 'cursor-grab active:cursor-grabbing',
                             selectedChannel?.id === channel.id
                               ? 'bg-[var(--s2)] text-[var(--t0)]'
                               : 'text-[var(--t2)] hover:bg-[var(--surface-soft)]'
@@ -500,7 +487,6 @@ export function ServerSettingsModalChannelsSection({
                           <StructureChannelIcon channel={channel} />
                           <span className="truncate">{channel.name ?? 'canal'}</span>
                         </button>
-                        </div>
                       </div>
                     </div>
                   ))}
