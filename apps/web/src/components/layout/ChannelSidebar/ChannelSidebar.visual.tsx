@@ -740,14 +740,9 @@ function ChannelItem({
 
   return (
     <div>
-      <div
-        className={cn(
-          'group relative rounded-xl transition-opacity',
-          canManageChannels && 'cursor-grab active:cursor-grabbing',
-          isDragging && 'opacity-40',
-          isDropTargetBefore && 'before:absolute before:-top-1 before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-[var(--ember)]',
-          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]'
-        )}
+      <ChannelItemButton
+        item={item}
+        justDraggedKey={justDraggedKey}
         draggable={canManageChannels}
         onDragStart={(event) => {
           logSidebarDnD('row-drag-start-channel-wrapper', {
@@ -766,11 +761,16 @@ function ChannelItem({
         onDragOver={onChannelDragOver}
         onDrop={onChannelDrop}
         data-dnd-name={item.name}
+        className={cn(
+          'relative rounded-xl transition-opacity',
+          canManageChannels && 'cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-40',
+          isDropTargetBefore &&
+            'before:absolute before:-top-1 before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-[var(--ember)]',
+          isDropTargetAfter &&
+            'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]'
+        )}
       >
-        <ChannelItemButton
-          item={item}
-          justDraggedKey={justDraggedKey}
-        >
           <ChannelIcon
             size={18}
             className={cn(
@@ -828,8 +828,7 @@ function ChannelItem({
               <Settings2 size={14} />
             </button>
           ) : null}
-        </ChannelItemButton>
-      </div>
+      </ChannelItemButton>
 
       {hasVoiceParticipants ? (
         <div className="ml-6 mt-1.5 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s2)] pb-1 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
@@ -889,11 +888,14 @@ function ChannelItemButton({
   item,
   justDraggedKey,
   children,
+  className,
+  ...props
 }: {
   item: ChannelSidebarItem
   justDraggedKey: string | null
   children: ReactNode
-}) {
+  className?: string
+} & React.HTMLAttributes<HTMLDivElement>) {
   const router = useRouter() // ← USAMOS ROUTER EN VEZ DE <Link>
   const mobileSidebar = useMobileSidebar()
 
@@ -921,8 +923,10 @@ function ChannelItemButton({
         'channel-item flex w-full items-center gap-2',
         item.voiceParticipants?.length ? 'rounded-b-none border-b-0' : '',
         item.active && 'active',
-        item.hasUnread && !item.active && 'has-unread'
+        item.hasUnread && !item.active && 'has-unread',
+        className
       )}
+      {...props}
     >
       {children}
     </div>
