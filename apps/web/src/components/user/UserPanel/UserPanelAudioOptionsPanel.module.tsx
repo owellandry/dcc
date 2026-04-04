@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import { ChevronRight, Settings2 } from 'lucide-react'
+import type { VoiceInputProfile } from '@/lib/types'
+import { UserPanelVoiceFilterSection } from './UserPanelVoiceFilterSection.module'
 
 export type AudioPanelMode = 'input' | 'output'
 
@@ -11,9 +13,15 @@ interface AudioOptionsPanelProps {
   currentDevice: string
   currentProfile: string
   volume: number
+  voiceInputProfile?: VoiceInputProfile
+  voiceInputTone?: number
+  voiceInputEffectMix?: number
   onVolumeChange: (value: number) => void
   onSelectDevice: () => void
   onSelectProfile: () => void
+  onVoiceInputProfileChange?: (value: VoiceInputProfile) => void
+  onVoiceInputToneChange?: (value: number) => void
+  onVoiceInputEffectMixChange?: (value: number) => void
   onOpenVoiceSettings: () => void
   onClose: () => void
 }
@@ -24,9 +32,15 @@ export function UserPanelAudioOptionsPanel({
   currentDevice,
   currentProfile,
   volume,
+  voiceInputProfile,
+  voiceInputTone,
+  voiceInputEffectMix,
   onVolumeChange,
   onSelectDevice,
   onSelectProfile,
+  onVoiceInputProfileChange,
+  onVoiceInputToneChange,
+  onVoiceInputEffectMixChange,
   onOpenVoiceSettings,
   onClose,
 }: AudioOptionsPanelProps) {
@@ -112,6 +126,23 @@ export function UserPanelAudioOptionsPanel({
           aria-label={volumeLabel}
         />
       </div>
+
+      {mode === 'input' &&
+      voiceInputProfile &&
+      typeof voiceInputTone === 'number' &&
+      typeof voiceInputEffectMix === 'number' &&
+      onVoiceInputProfileChange &&
+      onVoiceInputToneChange &&
+      onVoiceInputEffectMixChange ? (
+        <UserPanelVoiceFilterSection
+          profile={voiceInputProfile}
+          tone={voiceInputTone}
+          effectMix={voiceInputEffectMix}
+          onProfileChange={onVoiceInputProfileChange}
+          onToneChange={onVoiceInputToneChange}
+          onEffectMixChange={onVoiceInputEffectMixChange}
+        />
+      ) : null}
 
       <div className="my-2 h-px bg-[var(--b1)]" />
 

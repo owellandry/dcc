@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { subscribeGatewayEvents, sendGatewayMessage } from '@/lib/realtime/gatewayBus'
+import { LiveVoiceProcessor } from '@/lib/voice/liveVoiceProcessor.shared'
 import { useAuthStore } from '@/stores/authStore'
 import { useVoiceStore } from '@/stores/voiceStore'
 import type { GatewayEvent } from '@/lib/types'
@@ -74,6 +75,11 @@ export function useVoiceChannel({
     errorMessage,
     isMicMuted,
     isHeadphonesMuted,
+    inputVolume,
+    outputVolume,
+    voiceInputProfile,
+    voiceInputTone,
+    voiceInputEffectMix,
     participantsByChannel,
     joinVoiceChannel,
     leaveVoiceChannel,
@@ -87,6 +93,11 @@ export function useVoiceChannel({
       errorMessage: state.errorMessage,
       isMicMuted: state.isMicMuted,
       isHeadphonesMuted: state.isHeadphonesMuted,
+      inputVolume: state.inputVolume,
+      outputVolume: state.outputVolume,
+      voiceInputProfile: state.voiceInputProfile,
+      voiceInputTone: state.voiceInputTone,
+      voiceInputEffectMix: state.voiceInputEffectMix,
       participantsByChannel: state.participantsByChannel,
       joinVoiceChannel: state.joinVoiceChannel,
       leaveVoiceChannel: state.leaveVoiceChannel,
@@ -99,8 +110,10 @@ export function useVoiceChannel({
   const [screenShareError, setScreenShareError] = useState<string | null>(null)
   const [screenStreams, setScreenStreams] = useState<VoiceScreenStream[]>([])
 
+  const rawLocalStreamRef = useRef<MediaStream | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const localScreenStreamRef = useRef<MediaStream | null>(null)
+  const voiceProcessorRef = useRef<LiveVoiceProcessor | null>(null)
   const peerConnectionsRef = useRef(new Map<string, RTCPeerConnection>())
   const remoteAudioRef = useRef(new Map<string, HTMLAudioElement>())
   const remoteScreenStreamsRef = useRef(new Map<string, MediaStream>())
@@ -112,10 +125,12 @@ export function useVoiceChannel({
   const requestOfferRef = useRef<(userId: string) => void>(() => undefined)
   const isConnectedRef = useRef(false)
   const isHeadphonesMutedRef = useRef(isHeadphonesMuted)
+  const outputVolumeRef = useRef(outputVolume)
 
   const isConnected = activeServerId === serverId && activeChannelId === channelId
   isConnectedRef.current = isConnected
   isHeadphonesMutedRef.current = isHeadphonesMuted
+  outputVolumeRef.current = outputVolume
 
   const syncScreenStreams = useCallback(() => {
     const nextStreams: VoiceScreenStream[] = []
@@ -132,7 +147,13 @@ export function useVoiceChannel({
   }, [meId])
 
   const stopLocalStream = useCallback(() => {
-    localStreamRef.current?.getTracks().forEach((track) => track.stop())
+    rawLocalStreamRef.current?.getTracks().forEach((track) => track.stop())
+    if (localStreamRef.current && localStreamRef.current !== rawLocalStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop())
+    }
+    voiceProcessorRef.current?.dispose()
+    voiceProcessorRef.current = null
+    rawLocalStreamRef.current = null
     localStreamRef.current = null
   }, [])
 
@@ -201,6 +222,7 @@ export function useVoiceChannel({
       audio.autoplay = true
       audio.setAttribute('playsinline', 'true')
       audio.muted = isHeadphonesMutedRef.current
+      audio.volume = outputVolumeRef.current / 100
       remoteAudioRef.current.set(userId, audio)
     }
 
@@ -230,12 +252,23 @@ export function useVoiceChannel({
       throw new Error('Este navegador no expone acceso al microfono en el contexto actual.')
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS)
-    stream.getAudioTracks().forEach((track) => {
+    const rawStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS)
+    rawLocalStreamRef.current = rawStream
+    rawStream.getAudioTracks().forEach((track) => {
       track.enabled = !useVoiceStore.getState().isMicMuted
     })
-    localStreamRef.current = stream
-    return stream
+
+    voiceProcessorRef.current ??= new LiveVoiceProcessor()
+    voiceProcessorRef.current.updateSettings({
+      profile: useVoiceStore.getState().voiceInputProfile,
+      tone: useVoiceStore.getState().voiceInputTone,
+      effectMix: useVoiceStore.getState().voiceInputEffectMix,
+      inputVolume: useVoiceStore.getState().inputVolume,
+    })
+
+    const processedStream = await voiceProcessorRef.current.attachSource(rawStream)
+    localStreamRef.current = processedStream
+    return processedStream
   }, [])
 
   const flushPendingCandidates = useCallback(async (userId: string, peerConnection: RTCPeerConnection) => {
@@ -716,7 +749,7 @@ export function useVoiceChannel({
   ])
 
   useEffect(() => {
-    localStreamRef.current?.getAudioTracks().forEach((track) => {
+    ;(rawLocalStreamRef.current ?? localStreamRef.current)?.getAudioTracks().forEach((track) => {
       track.enabled = !isMicMuted
     })
   }, [isMicMuted])
@@ -729,6 +762,21 @@ export function useVoiceChannel({
       }
     })
   }, [isHeadphonesMuted])
+
+  useEffect(() => {
+    voiceProcessorRef.current?.updateSettings({
+      profile: voiceInputProfile,
+      tone: voiceInputTone,
+      effectMix: voiceInputEffectMix,
+      inputVolume,
+    })
+  }, [inputVolume, voiceInputEffectMix, voiceInputProfile, voiceInputTone])
+
+  useEffect(() => {
+    remoteAudioRef.current.forEach((audio) => {
+      audio.volume = outputVolume / 100
+    })
+  }, [outputVolume])
 
   useEffect(() => {
     return () => {
