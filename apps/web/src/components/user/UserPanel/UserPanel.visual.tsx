@@ -1,9 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronDown, Headphones, Mic, MicOff, Settings, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { interactiveMotion, motion } from '@/lib/motion'
+import {
+  VOICE_INPUT_PROFILE_OPTIONS,
+  getVoiceInputProfileLabel,
+} from '@/lib/voice/voiceFilters.shared'
 import { UserAvatar } from '../UserAvatar'
 import {
   UserDecorationBackdrop,
@@ -22,8 +26,18 @@ export function UserPanelVisual({
   isThemeWorkspaceOpen,
   isMicMuted,
   isHeadphonesMuted,
+  inputVolume,
+  outputVolume,
+  voiceInputProfile,
+  voiceInputTone,
+  voiceInputEffectMix,
   onToggleMic,
   onToggleHeadphones,
+  onSetInputVolume,
+  onSetOutputVolume,
+  onSetVoiceInputProfile,
+  onSetVoiceInputTone,
+  onSetVoiceInputEffectMix,
   onOpenSettings,
   onCloseSettings,
   onOpenThemeWorkspace,
@@ -31,12 +45,10 @@ export function UserPanelVisual({
   onBackToAppearanceSettings,
 }: UserPanelVisualProps) {
   if (!user) return null
+
   const [openAudioPanel, setOpenAudioPanel] = useState<'input' | 'output' | null>(null)
-  const [inputVolume, setInputVolume] = useState(100)
-  const [outputVolume, setOutputVolume] = useState(100)
   const [selectedInputDevice, setSelectedInputDevice] = useState('Default')
   const [selectedOutputDevice, setSelectedOutputDevice] = useState('Predeterminado')
-  const [selectedInputProfile, setSelectedInputProfile] = useState('Personalizar')
   const [selectedOutputProfile, setSelectedOutputProfile] = useState('Balanceado')
   const decorationPresentation = useUserDecorationPresentation(user.avatarDecorationUrl)
   const hasDecoration = Boolean(decorationPresentation)
@@ -84,19 +96,23 @@ export function UserPanelVisual({
                   open={openAudioPanel === 'input'}
                   mode="input"
                   currentDevice={selectedInputDevice}
-                  currentProfile={selectedInputProfile}
+                  currentProfile={getVoiceInputProfileLabel(voiceInputProfile)}
                   volume={inputVolume}
-                  onVolumeChange={setInputVolume}
+                  voiceInputProfile={voiceInputProfile}
+                  voiceInputTone={voiceInputTone}
+                  voiceInputEffectMix={voiceInputEffectMix}
+                  onVolumeChange={onSetInputVolume}
                   onSelectDevice={() => {
                     setSelectedInputDevice((current) =>
-                      current === 'Default' ? 'MicrÃ³fono USB' : 'Default'
+                      current === 'Default' ? 'Microfono USB' : 'Default'
                     )
                   }}
-                  onSelectProfile={() => {
-                    setSelectedInputProfile((current) =>
-                      current === 'Personalizar' ? 'NÃ­tido' : 'Personalizar'
-                    )
-                  }}
+                  onSelectProfile={() =>
+                    onSetVoiceInputProfile(getNextVoiceInputProfile(voiceInputProfile))
+                  }
+                  onVoiceInputProfileChange={onSetVoiceInputProfile}
+                  onVoiceInputToneChange={onSetVoiceInputTone}
+                  onVoiceInputEffectMixChange={onSetVoiceInputEffectMix}
                   onOpenVoiceSettings={() => {
                     setOpenAudioPanel(null)
                     onOpenSettings('devices')
@@ -105,6 +121,7 @@ export function UserPanelVisual({
                 />
               }
             />
+
             <AudioSplitButton
               title={isHeadphonesMuted ? 'Undeafen' : 'Deafen'}
               active={isHeadphonesMuted}
@@ -125,10 +142,10 @@ export function UserPanelVisual({
                   currentDevice={selectedOutputDevice}
                   currentProfile={selectedOutputProfile}
                   volume={outputVolume}
-                  onVolumeChange={setOutputVolume}
+                  onVolumeChange={onSetOutputVolume}
                   onSelectDevice={() => {
                     setSelectedOutputDevice((current) =>
-                      current === 'Predeterminado' ? 'AudÃ­fonos Bluetooth' : 'Predeterminado'
+                      current === 'Predeterminado' ? 'Audifonos Bluetooth' : 'Predeterminado'
                     )
                   }}
                   onSelectProfile={() => {
@@ -144,6 +161,7 @@ export function UserPanelVisual({
                 />
               }
             />
+
             <PanelButton
               title="User settings"
               icon={<Settings size={20} />}
@@ -171,6 +189,12 @@ export function UserPanelVisual({
   )
 }
 
+function getNextVoiceInputProfile(current: UserPanelVisualProps['voiceInputProfile']) {
+  const currentIndex = VOICE_INPUT_PROFILE_OPTIONS.findIndex((option) => option.id === current)
+  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % VOICE_INPUT_PROFILE_OPTIONS.length
+  return VOICE_INPUT_PROFILE_OPTIONS[nextIndex]?.id ?? 'natural'
+}
+
 function AudioSplitButton({
   title,
   active,
@@ -184,11 +208,11 @@ function AudioSplitButton({
   title: string
   active: boolean
   isPanelOpen: boolean
-  defaultIcon: React.ReactNode
-  activeIcon: React.ReactNode
+  defaultIcon: ReactNode
+  activeIcon: ReactNode
   onToggle: () => void
   onOpenOptions: () => void
-  panel?: React.ReactNode
+  panel?: ReactNode
 }) {
   return (
     <div className="relative">

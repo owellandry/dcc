@@ -29,6 +29,7 @@ export class LiveVoiceProcessor {
   }
 
   async attachSource(stream: MediaStream) {
+    const isSameSource = this.sourceStream === stream
     this.sourceStream = stream
 
     if (!isVoiceProcessingSupported()) {
@@ -36,7 +37,7 @@ export class LiveVoiceProcessor {
       return stream
     }
 
-    if (this.graph && this.sourceStream === stream && this.outputStream) {
+    if (this.graph && isSameSource && this.outputStream) {
       this.updateSettings(this.lastSettings)
       return this.outputStream
     }

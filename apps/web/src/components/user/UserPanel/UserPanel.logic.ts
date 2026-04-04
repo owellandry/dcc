@@ -11,7 +11,22 @@ export function useUserPanelModel(): UserPanelVisualProps {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('account')
   const [isThemeWorkspaceOpen, setIsThemeWorkspaceOpen] = useState(false)
-  const { isMicMuted, isHeadphonesMuted, onToggleMic, onToggleHeadphones } = useVoicePreferences()
+  const {
+    isMicMuted,
+    isHeadphonesMuted,
+    inputVolume,
+    outputVolume,
+    voiceInputProfile,
+    voiceInputTone,
+    voiceInputEffectMix,
+    onToggleMic,
+    onToggleHeadphones,
+    onSetInputVolume,
+    onSetOutputVolume,
+    onSetVoiceInputProfile,
+    onSetVoiceInputTone,
+    onSetVoiceInputEffectMix,
+  } = useVoicePreferences()
 
   return {
     user,
@@ -20,8 +35,18 @@ export function useUserPanelModel(): UserPanelVisualProps {
     isThemeWorkspaceOpen,
     isMicMuted,
     isHeadphonesMuted,
+    inputVolume,
+    outputVolume,
+    voiceInputProfile,
+    voiceInputTone,
+    voiceInputEffectMix,
     onToggleMic,
     onToggleHeadphones,
+    onSetInputVolume,
+    onSetOutputVolume,
+    onSetVoiceInputProfile,
+    onSetVoiceInputTone,
+    onSetVoiceInputEffectMix,
     onOpenSettings: (view = 'account') => {
       setSettingsInitialView(view)
       setIsSettingsOpen(true)

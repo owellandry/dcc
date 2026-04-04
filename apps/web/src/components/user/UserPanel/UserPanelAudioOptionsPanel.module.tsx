@@ -73,7 +73,7 @@ export function UserPanelAudioOptionsPanel({
 
   const volumeLabel = mode === 'input' ? 'Volumen de entrada' : 'Volumen de salida'
   const deviceLabel = mode === 'input' ? 'Dispositivo de entrada' : 'Dispositivo de salida'
-  const profileLabel = mode === 'input' ? 'Perfil de entrada' : 'Perfil de salida'
+  const profileLabel = mode === 'input' ? 'Filtro de voz' : 'Perfil de salida'
 
   return (
     <div
