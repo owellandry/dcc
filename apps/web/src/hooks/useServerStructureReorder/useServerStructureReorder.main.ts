@@ -43,16 +43,34 @@ export function useServerStructureReorder({
   ) => {
     if (!serverId) return
 
+    console.debug('[ServerStructureReorder]', 'persist-start', {
+      serverId,
+      nextCategories: nextStructure.categories.map((category) => ({
+        id: category.id,
+        position: category.position,
+      })),
+      nextChannels: nextStructure.channels.map((channel) => ({
+        id: channel.id,
+        categoryId: channel.categoryId,
+        position: channel.position,
+      })),
+    })
+
     setChannels(serverId, nextStructure.channels, nextStructure.categories)
     latestStructureRef.current = nextStructure
 
-    if (isMockSession()) return
+    if (isMockSession()) {
+      console.debug('[ServerStructureReorder]', 'persist-skip-mock-session', { serverId })
+      return
+    }
 
     isReorderingStructureRef.current = true
 
     try {
       await serversApi.reorderStructure(serverId, buildStructureReorderPayload(nextStructure))
+      console.debug('[ServerStructureReorder]', 'persist-success', { serverId })
     } catch {
+      console.debug('[ServerStructureReorder]', 'persist-failed-rollback', { serverId })
       setChannels(serverId, previousStructure.channels, previousStructure.categories)
       latestStructureRef.current = previousStructure
       toast.error(errorMessage)
@@ -65,7 +83,22 @@ export function useServerStructureReorder({
     draggedChannelId: string,
     target: StructureChannelDropTarget
   ) => {
-    if (!serverId || !enabled || isReorderingStructureRef.current) return
+    console.debug('[ServerStructureReorder]', 'move-channel-request', {
+      serverId,
+      enabled,
+      isReordering: isReorderingStructureRef.current,
+      draggedChannelId,
+      target,
+    })
+
+    if (!serverId || !enabled || isReorderingStructureRef.current) {
+      console.debug('[ServerStructureReorder]', 'move-channel-blocked', {
+        serverId,
+        enabled,
+        isReordering: isReorderingStructureRef.current,
+      })
+      return
+    }
 
     const previousStructure = latestStructureRef.current
     const nextStructure = moveChannelInStructure(
@@ -75,7 +108,13 @@ export function useServerStructureReorder({
       target
     )
 
-    if (!nextStructure) return
+    if (!nextStructure) {
+      console.debug('[ServerStructureReorder]', 'move-channel-noop', {
+        draggedChannelId,
+        target,
+      })
+      return
+    }
 
     await persistStructure(
       nextStructure,
@@ -88,7 +127,22 @@ export function useServerStructureReorder({
     draggedCategoryId: string,
     target: StructureCategoryDropTarget
   ) => {
-    if (!serverId || !enabled || isReorderingStructureRef.current) return
+    console.debug('[ServerStructureReorder]', 'move-category-request', {
+      serverId,
+      enabled,
+      isReordering: isReorderingStructureRef.current,
+      draggedCategoryId,
+      target,
+    })
+
+    if (!serverId || !enabled || isReorderingStructureRef.current) {
+      console.debug('[ServerStructureReorder]', 'move-category-blocked', {
+        serverId,
+        enabled,
+        isReordering: isReorderingStructureRef.current,
+      })
+      return
+    }
 
     const previousStructure = latestStructureRef.current
     const nextStructure = moveCategoryInStructure(
@@ -98,7 +152,13 @@ export function useServerStructureReorder({
       target
     )
 
-    if (!nextStructure) return
+    if (!nextStructure) {
+      console.debug('[ServerStructureReorder]', 'move-category-noop', {
+        draggedCategoryId,
+        target,
+      })
+      return
+    }
 
     await persistStructure(
       nextStructure,

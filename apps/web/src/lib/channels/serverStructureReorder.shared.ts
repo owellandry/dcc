@@ -152,16 +152,33 @@ export function moveChannelInStructure(
   draggedChannelId: string,
   target: StructureChannelDropTarget
 ): ServerStructureSnapshot | null {
+  console.debug('[ServerStructureReorderShared]', 'move-channel-enter', {
+    draggedChannelId,
+    target,
+    categoryCount: categories.length,
+    channelCount: channels.length,
+  })
   const snapshot = normalizeServerStructure(categories, channels)
   const orderedChannels = [...snapshot.channels]
   const draggedChannel = orderedChannels.find((channel) => channel.id === draggedChannelId)
-  if (!draggedChannel) return null
+  if (!draggedChannel) {
+    console.debug('[ServerStructureReorderShared]', 'move-channel-missing-dragged-channel', {
+      draggedChannelId,
+    })
+    return null
+  }
 
   const groupedChannels = groupChannelsByCategory(orderedChannels)
   const sourceGroupKey = toChannelGroupKey(draggedChannel.categoryId)
   const sourceGroup = [...(groupedChannels.get(sourceGroupKey) ?? [])]
   const sourceIndex = sourceGroup.findIndex((channel) => channel.id === draggedChannelId)
-  if (sourceIndex === -1) return null
+  if (sourceIndex === -1) {
+    console.debug('[ServerStructureReorderShared]', 'move-channel-missing-source-index', {
+      draggedChannelId,
+      sourceGroupKey,
+    })
+    return null
+  }
 
   sourceGroup.splice(sourceIndex, 1)
   groupedChannels.set(sourceGroupKey, sourceGroup)
@@ -180,7 +197,14 @@ export function moveChannelInStructure(
     groupedChannels.set(destinationGroupKey, destinationGroup)
   } else {
     const targetChannel = orderedChannels.find((channel) => channel.id === target.channelId)
-    if (!targetChannel || targetChannel.id === draggedChannelId) return null
+    if (!targetChannel || targetChannel.id === draggedChannelId) {
+      console.debug('[ServerStructureReorderShared]', 'move-channel-invalid-target-channel', {
+        draggedChannelId,
+        target,
+        foundTargetChannel: Boolean(targetChannel),
+      })
+      return null
+    }
 
     const destinationGroupKey = toChannelGroupKey(targetChannel.categoryId)
     const destinationGroup =
@@ -189,7 +213,15 @@ export function moveChannelInStructure(
         : [...(groupedChannels.get(destinationGroupKey) ?? [])]
 
     const targetIndex = destinationGroup.findIndex((channel) => channel.id === target.channelId)
-    if (targetIndex === -1) return null
+    if (targetIndex === -1) {
+      console.debug('[ServerStructureReorderShared]', 'move-channel-missing-target-index', {
+        draggedChannelId,
+        target,
+        destinationGroupKey,
+        destinationGroupIds: destinationGroup.map((channel) => channel.id),
+      })
+      return null
+    }
 
     const insertIndex = targetIndex + (target.placement === 'after' ? 1 : 0)
     destinationGroup.splice(insertIndex, 0, {
@@ -223,7 +255,20 @@ export function moveChannelInStructure(
     channels: orderedChannels.map((channel) => nextChannelsMap.get(channel.id) ?? channel),
   }
 
-  return structureChanged(snapshot, nextSnapshot) ? nextSnapshot : null
+  const changed = structureChanged(snapshot, nextSnapshot)
+
+  console.debug('[ServerStructureReorderShared]', 'move-channel-result', {
+    draggedChannelId,
+    target,
+    changed,
+    nextChannels: nextSnapshot.channels.map((channel) => ({
+      id: channel.id,
+      categoryId: channel.categoryId,
+      position: channel.position,
+    })),
+  })
+
+  return changed ? nextSnapshot : null
 }
 
 export function buildStructureReorderPayload(snapshot: ServerStructureSnapshot) {
