@@ -10,7 +10,9 @@ export interface VoiceFilterSettings {
 interface VoiceFilterProfileConfig {
   highPassHz: number
   lowPassHz: number
+  lowShelfFrequencyHz: number
   lowShelfGain: number
+  highShelfFrequencyHz: number
   highShelfGain: number
   presenceGain: number
   presenceFrequencyHz: number
@@ -32,34 +34,44 @@ const VOICE_FILTER_PROFILE_CONFIGS: Record<VoiceInputProfile, VoiceFilterProfile
   natural: {
     highPassHz: 70,
     lowPassHz: 18_000,
+    lowShelfFrequencyHz: 210,
     lowShelfGain: 0,
+    highShelfFrequencyHz: 3_400,
     highShelfGain: 0,
     presenceGain: 0,
     presenceFrequencyHz: 2_400,
     distortionAmount: 0,
   },
   deep: {
-    highPassHz: 58,
-    lowPassHz: 14_500,
-    lowShelfGain: 6,
-    highShelfGain: -1,
-    presenceGain: 1.5,
-    presenceFrequencyHz: 2_100,
-    distortionAmount: 0,
+    // Thanos-like: massive bass boost, hard treble cut, gravelly distortion
+    highPassHz: 40,
+    lowPassHz: 6_000,
+    lowShelfFrequencyHz: 180,
+    lowShelfGain: 13,
+    highShelfFrequencyHz: 2_800,
+    highShelfGain: -10,
+    presenceGain: -2,
+    presenceFrequencyHz: 1_800,
+    distortionAmount: 25,
   },
   bright: {
-    highPassHz: 92,
-    lowPassHz: 17_000,
-    lowShelfGain: -1.5,
-    highShelfGain: 7,
-    presenceGain: 4,
-    presenceFrequencyHz: 2_900,
+    // Noticeably bright: strong bass cut, aggressive high shelf, high presence
+    highPassHz: 200,
+    lowPassHz: 18_000,
+    lowShelfFrequencyHz: 280,
+    lowShelfGain: -9,
+    highShelfFrequencyHz: 3_500,
+    highShelfGain: 13,
+    presenceGain: 7,
+    presenceFrequencyHz: 4_000,
     distortionAmount: 0,
   },
   radio: {
     highPassHz: 280,
     lowPassHz: 3_450,
+    lowShelfFrequencyHz: 210,
     lowShelfGain: -5,
+    highShelfFrequencyHz: 3_400,
     highShelfGain: 2.5,
     presenceGain: 5.5,
     presenceFrequencyHz: 1_850,
@@ -88,7 +100,9 @@ export function getResolvedVoiceFilterConfig(settings: VoiceFilterSettings) {
   return {
     highPassHz: profileConfig.highPassHz,
     lowPassHz: profileConfig.lowPassHz,
+    lowShelfFrequencyHz: profileConfig.lowShelfFrequencyHz,
     lowShelfGain: profileConfig.lowShelfGain - tone * 8,
+    highShelfFrequencyHz: profileConfig.highShelfFrequencyHz,
     highShelfGain: profileConfig.highShelfGain + tone * 8,
     presenceGain: profileConfig.presenceGain + tone * 2.5,
     presenceFrequencyHz: profileConfig.presenceFrequencyHz,

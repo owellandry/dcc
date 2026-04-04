@@ -132,11 +132,11 @@ export class LiveVoiceProcessor {
     this.graph.outputGain.gain.value = resolved.outputGain
     this.graph.highPass.frequency.value = resolved.highPassHz
     this.graph.lowPass.frequency.value = resolved.lowPassHz
-    this.graph.lowShelf.frequency.value = 210
+    this.graph.lowShelf.frequency.value = resolved.lowShelfFrequencyHz
     this.graph.lowShelf.gain.value = resolved.lowShelfGain
     this.graph.presence.frequency.value = resolved.presenceFrequencyHz
     this.graph.presence.gain.value = resolved.presenceGain
-    this.graph.highShelf.frequency.value = 3_400
+    this.graph.highShelf.frequency.value = resolved.highShelfFrequencyHz
     this.graph.highShelf.gain.value = resolved.highShelfGain
     this.graph.distortion.curve = createDistortionCurve(resolved.distortionAmount)
   }

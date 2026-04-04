@@ -11,7 +11,13 @@ import type { GatewayEvent } from '@/lib/types'
 const VOICE_STATE_OP = 13
 const VOICE_SIGNAL_OP = 14
 const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.stunprotocol.org:3478' },
+  ],
 }
 
 const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
@@ -19,7 +25,14 @@ const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
+    channelCount: { ideal: 1 },
   },
+  video: false,
+}
+
+// Minimal fallback if the browser rejects the full constraint set
+const AUDIO_CONSTRAINTS_FALLBACK: MediaStreamConstraints = {
+  audio: true,
   video: false,
 }
 
@@ -195,6 +208,7 @@ export function useVoiceChannel({
       if (audio) {
         audio.pause()
         audio.srcObject = null
+        audio.remove()
         remoteAudioRef.current.delete(userId)
       }
 
@@ -221,8 +235,11 @@ export function useVoiceChannel({
       audio = document.createElement('audio')
       audio.autoplay = true
       audio.setAttribute('playsinline', 'true')
+      // Keep element in the DOM — iOS Safari requires this for autoplay after user interaction
+      audio.style.display = 'none'
       audio.muted = isHeadphonesMutedRef.current
       audio.volume = outputVolumeRef.current / 100
+      document.body.appendChild(audio)
       remoteAudioRef.current.set(userId, audio)
     }
 
@@ -252,7 +269,17 @@ export function useVoiceChannel({
       throw new Error('Este navegador no expone acceso al microfono en el contexto actual.')
     }
 
-    const rawStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS)
+    let rawStream: MediaStream
+    try {
+      rawStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS)
+    } catch (error) {
+      // Some browsers reject specific constraints (OverconstrainedError). Fall back to basic audio.
+      const isConstraintError =
+        error instanceof DOMException &&
+        (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError')
+      if (!isConstraintError) throw error
+      rawStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS_FALLBACK)
+    }
     rawLocalStreamRef.current = rawStream
     rawStream.getAudioTracks().forEach((track) => {
       track.enabled = !useVoiceStore.getState().isMicMuted
@@ -340,6 +367,16 @@ export function useVoiceChannel({
         if (peerConnection.signalingState !== 'stable' || !pendingOffersRef.current.has(userId)) return
         pendingOffersRef.current.delete(userId)
         requestOfferRef.current(userId)
+      }
+
+      peerConnection.oniceconnectionstatechange = () => {
+        if (peerConnection.iceConnectionState === 'failed') {
+          // Attempt ICE restart before giving up
+          if (typeof peerConnection.restartIce === 'function') {
+            peerConnection.restartIce()
+          }
+          requestOfferRef.current(userId)
+        }
       }
 
       peerConnectionsRef.current.set(userId, peerConnection)
@@ -537,10 +574,14 @@ export function useVoiceChannel({
         ignoredOffersRef.current.delete(fromUserId)
 
         if (peerConnection.signalingState === 'have-local-offer') {
-          await peerConnection.setLocalDescription({ type: 'rollback' })
+          try {
+            await peerConnection.setLocalDescription({ type: 'rollback' })
+          } catch {
+            // Safari < 15 doesn't support explicit rollback — impolite peer will handle the collision
+          }
         }
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload as RTCSessionDescriptionInit))
+        await peerConnection.setRemoteDescription(payload as RTCSessionDescriptionInit)
         await flushPendingCandidates(fromUserId, peerConnection)
 
         if (peerConnection.signalingState !== 'have-remote-offer') {
@@ -580,7 +621,7 @@ export function useVoiceChannel({
           return
         }
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload as RTCSessionDescriptionInit))
+        await peerConnection.setRemoteDescription(payload as RTCSessionDescriptionInit)
         await flushPendingCandidates(fromUserId, peerConnection)
         return
       }
@@ -831,9 +872,20 @@ function toVoiceErrorMessage(error: unknown) {
     if (error.name === 'NotAllowedError') {
       return 'El navegador bloqueo el microfono. Permite acceso al microfono e intenta de nuevo.'
     }
-
     if (error.name === 'NotFoundError') {
       return 'No se encontro ningun microfono disponible en este dispositivo.'
+    }
+    if (error.name === 'NotReadableError') {
+      return 'El microfono ya esta en uso por otra aplicacion. Cierrala e intenta de nuevo.'
+    }
+    if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+      return 'La configuracion de audio no es compatible con este dispositivo.'
+    }
+    if (error.name === 'AbortError') {
+      return 'El acceso al microfono fue interrumpido. Intenta de nuevo.'
+    }
+    if (error.name === 'SecurityError') {
+      return 'El acceso al microfono fue bloqueado por politica de seguridad del navegador.'
     }
   }
 
