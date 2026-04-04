@@ -342,6 +342,9 @@ export const usersApi = {
     > & {
       voiceMicMuted?: boolean
       voiceHeadphonesMuted?: boolean
+      voiceInputProfile?: import('../types').VoiceInputProfile
+      voiceInputTone?: number
+      voiceInputEffectMix?: number
       currentPassword?: string
       newPassword?: string
     }

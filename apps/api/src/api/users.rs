@@ -23,7 +23,9 @@ use crate::{
 pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> Result<Json<Value>> {
     let user = sqlx::query(
         r#"SELECT id, username, display_name, discriminator, email, avatar_url, avatar_decoration_url, banner_url,
-                  bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at
+                  bio, status, custom_status, voice_mic_muted, voice_headphones_muted,
+                  voice_input_profile, voice_input_tone, voice_input_effect_mix,
+                  is_verified, badges, created_at
            FROM users WHERE id = $1"#
     )
     .bind(user_id)
@@ -43,6 +45,9 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
     let custom_status = user.try_get::<Option<String>, _>("custom_status")?;
     let voice_mic_muted = user.try_get::<bool, _>("voice_mic_muted")?;
     let voice_headphones_muted = user.try_get::<bool, _>("voice_headphones_muted")?;
+    let voice_input_profile = user.try_get::<String, _>("voice_input_profile")?;
+    let voice_input_tone = user.try_get::<i16, _>("voice_input_tone")?;
+    let voice_input_effect_mix = user.try_get::<i16, _>("voice_input_effect_mix")?;
     let is_verified = user.try_get::<bool, _>("is_verified")?;
     let badges = user.try_get::<Vec<String>, _>("badges")?;
     let created_at = user.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")?;
@@ -63,6 +68,9 @@ pub async fn me(AuthUser(user_id): AuthUser, State(state): State<AppState>) -> R
             "customStatus": custom_status,
             "voiceMicMuted": voice_mic_muted,
             "voiceHeadphonesMuted": voice_headphones_muted,
+            "voiceInputProfile": voice_input_profile,
+            "voiceInputTone": voice_input_tone,
+            "voiceInputEffectMix": voice_input_effect_mix,
             "isVerified": is_verified,
             "badges": badges,
             "twoFactorEnabled": two_factor_enabled,
@@ -82,6 +90,9 @@ pub struct UpdateMeBody {
     pub custom_status: Option<String>,
     pub voice_mic_muted: Option<bool>,
     pub voice_headphones_muted: Option<bool>,
+    pub voice_input_profile: Option<String>,
+    pub voice_input_tone: Option<i16>,
+    pub voice_input_effect_mix: Option<i16>,
     pub current_password: Option<String>,
     pub new_password: Option<String>,
 }
@@ -136,6 +147,34 @@ pub async fn update_me(
             return Err(AppError::validation(
                 "status",
                 "Must be one of: online, idle, dnd, offline",
+            ));
+        }
+    }
+
+    let valid_voice_profiles = ["natural", "deep", "bright", "radio"];
+    if let Some(ref profile) = body.voice_input_profile {
+        if !valid_voice_profiles.contains(&profile.as_str()) {
+            return Err(AppError::validation(
+                "voiceInputProfile",
+                "Must be one of: natural, deep, bright, radio",
+            ));
+        }
+    }
+
+    if let Some(tone) = body.voice_input_tone {
+        if !(-100..=100).contains(&tone) {
+            return Err(AppError::validation(
+                "voiceInputTone",
+                "Must be between -100 and 100",
+            ));
+        }
+    }
+
+    if let Some(effect_mix) = body.voice_input_effect_mix {
+        if !(0..=100).contains(&effect_mix) {
+            return Err(AppError::validation(
+                "voiceInputEffectMix",
+                "Must be between 0 and 100",
             ));
         }
     }
@@ -238,10 +277,15 @@ pub async fn update_me(
                custom_status = COALESCE($8, custom_status),
                password_hash = COALESCE($9, password_hash),
                voice_mic_muted = COALESCE($10, voice_mic_muted),
-               voice_headphones_muted = COALESCE($11, voice_headphones_muted)
+               voice_headphones_muted = COALESCE($11, voice_headphones_muted),
+               voice_input_profile = COALESCE($12, voice_input_profile),
+               voice_input_tone = COALESCE($13, voice_input_tone),
+               voice_input_effect_mix = COALESCE($14, voice_input_effect_mix)
            WHERE id = $1
            RETURNING id, username, display_name, discriminator, email, avatar_url, avatar_decoration_url, banner_url,
-                     bio, status, custom_status, voice_mic_muted, voice_headphones_muted, is_verified, badges, created_at"#
+                     bio, status, custom_status, voice_mic_muted, voice_headphones_muted,
+                     voice_input_profile, voice_input_tone, voice_input_effect_mix,
+                     is_verified, badges, created_at"#
     )
     .bind(user_id)
     .bind(next_username)
@@ -254,6 +298,9 @@ pub async fn update_me(
     .bind(next_password_hash)
     .bind(body.voice_mic_muted)
     .bind(body.voice_headphones_muted)
+    .bind(body.voice_input_profile)
+    .bind(body.voice_input_tone)
+    .bind(body.voice_input_effect_mix)
     .fetch_one(&state.db)
     .await?;
     let user_id = user.try_get::<Uuid, _>("id")?;
@@ -273,6 +320,9 @@ pub async fn update_me(
     let custom_status = user.try_get::<Option<String>, _>("custom_status")?;
     let voice_mic_muted = user.try_get::<bool, _>("voice_mic_muted")?;
     let voice_headphones_muted = user.try_get::<bool, _>("voice_headphones_muted")?;
+    let voice_input_profile = user.try_get::<String, _>("voice_input_profile")?;
+    let voice_input_tone = user.try_get::<i16, _>("voice_input_tone")?;
+    let voice_input_effect_mix = user.try_get::<i16, _>("voice_input_effect_mix")?;
     let is_verified = user.try_get::<bool, _>("is_verified")?;
     let badges = user.try_get::<Vec<String>, _>("badges")?;
     let created_at = user.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")?;
@@ -348,6 +398,9 @@ pub async fn update_me(
             "customStatus": custom_status,
             "voiceMicMuted": voice_mic_muted,
             "voiceHeadphonesMuted": voice_headphones_muted,
+            "voiceInputProfile": voice_input_profile,
+            "voiceInputTone": voice_input_tone,
+            "voiceInputEffectMix": voice_input_effect_mix,
             "isVerified": is_verified,
             "badges": badges,
             "twoFactorEnabled": two_factor_enabled,

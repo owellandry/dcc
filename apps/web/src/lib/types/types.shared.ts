@@ -16,11 +16,16 @@ export interface User {
   customStatus: string | null
   voiceMicMuted?: boolean
   voiceHeadphonesMuted?: boolean
+  voiceInputProfile?: VoiceInputProfile
+  voiceInputTone?: number
+  voiceInputEffectMix?: number
   isVerified: boolean
   twoFactorEnabled?: boolean
   badges?: string[]
   createdAt: string
 }
+
+export type VoiceInputProfile = 'natural' | 'deep' | 'bright' | 'radio'
 
 export interface OAuthAccount {
   provider: 'google' | 'github'
