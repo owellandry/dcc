@@ -247,6 +247,25 @@ export function UserSettingsModal({
     setSuccess('Decoracion actualizada.')
   }
 
+  const applyRemoteGifUrl = async (target: MediaTarget, remoteUrl: string) => {
+    const payload =
+      target === 'avatar'
+        ? { avatarUrl: remoteUrl }
+        : target === 'avatarDecoration'
+          ? { avatarDecorationUrl: remoteUrl }
+          : { bannerUrl: remoteUrl }
+
+    const res = await usersApi.update(payload)
+    mergeUser(res.data)
+    setSuccess(
+      target === 'avatar'
+        ? 'Foto de perfil actualizada.'
+        : target === 'avatarDecoration'
+          ? 'Decoracion actualizada.'
+          : 'Banner actualizado.'
+    )
+  }
+
   const resolveGiphyUrl = (raw: string) => {
     const url = raw.trim()
     const embedMatch = url.match(/giphy\.com\/embed\/([a-zA-Z0-9]+)/)
@@ -267,37 +286,17 @@ export function UserSettingsModal({
       : isDecoration
         ? setIsUploadingAvatarDecoration
         : setIsUploadingBanner
-    const fieldName = isAvatar ? 'avatar' : isDecoration ? 'decoration' : 'banner'
 
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const response = await fetch(finalUrl)
-      if (!response.ok) {
-        throw new Error('REMOTE_FETCH_FAILED')
-      }
-      const blob = await response.blob()
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('INVALID_IMAGE')
-      }
-      const extension = blob.type.split('/')[1] ?? 'gif'
-      const fileName = `${fieldName}-giphy.${extension}`
-      const formData = new FormData()
-      formData.append(fieldName, new File([blob], fileName, { type: blob.type }))
-
-      if (isAvatar) {
-        await uploadAvatar(formData)
-      } else if (isDecoration) {
-        await uploadAvatarDecoration(formData)
-      } else {
-        await uploadBanner(formData)
-      }
+      await applyRemoteGifUrl(target, finalUrl)
       setMediaPickerTarget(null)
     } catch (err) {
       const message =
-        err instanceof ApiRequestError ? err.message : 'No se pudo descargar la imagen desde Giphy.'
+        err instanceof ApiRequestError ? err.message : 'No se pudo vincular el GIF remoto desde Giphy.'
       setError(message)
       throw err
     } finally {

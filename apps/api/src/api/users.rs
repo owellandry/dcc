@@ -2,6 +2,7 @@ use axum::{
     extract::{Multipart, Path, State},
     Json,
 };
+use reqwest::Url;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
@@ -88,6 +89,9 @@ pub struct UpdateMeBody {
     pub bio: Option<String>,
     pub status: Option<String>,
     pub custom_status: Option<String>,
+    pub avatar_url: Option<String>,
+    pub avatar_decoration_url: Option<String>,
+    pub banner_url: Option<String>,
     pub voice_mic_muted: Option<bool>,
     pub voice_headphones_muted: Option<bool>,
     pub voice_input_profile: Option<String>,
@@ -178,6 +182,13 @@ pub async fn update_me(
             ));
         }
     }
+
+    let next_avatar_url = normalize_remote_gif_url(body.avatar_url.as_deref(), "avatarUrl")?;
+    let next_avatar_decoration_url = normalize_remote_gif_url(
+        body.avatar_decoration_url.as_deref(),
+        "avatarDecorationUrl",
+    )?;
+    let next_banner_url = normalize_remote_gif_url(body.banner_url.as_deref(), "bannerUrl")?;
 
     let next_username = if let Some(username) = body.username.as_ref() {
         let trimmed = username.trim();
@@ -276,11 +287,14 @@ pub async fn update_me(
                status        = COALESCE($7, status),
                custom_status = COALESCE($8, custom_status),
                password_hash = COALESCE($9, password_hash),
-               voice_mic_muted = COALESCE($10, voice_mic_muted),
-               voice_headphones_muted = COALESCE($11, voice_headphones_muted),
-               voice_input_profile = COALESCE($12, voice_input_profile),
-               voice_input_tone = COALESCE($13, voice_input_tone),
-               voice_input_effect_mix = COALESCE($14, voice_input_effect_mix)
+               avatar_url = COALESCE($10, avatar_url),
+               avatar_decoration_url = COALESCE($11, avatar_decoration_url),
+               banner_url = COALESCE($12, banner_url),
+               voice_mic_muted = COALESCE($13, voice_mic_muted),
+               voice_headphones_muted = COALESCE($14, voice_headphones_muted),
+               voice_input_profile = COALESCE($15, voice_input_profile),
+               voice_input_tone = COALESCE($16, voice_input_tone),
+               voice_input_effect_mix = COALESCE($17, voice_input_effect_mix)
            WHERE id = $1
            RETURNING id, username, display_name, discriminator, email, avatar_url, avatar_decoration_url, banner_url,
                      bio, status, custom_status, voice_mic_muted, voice_headphones_muted,
@@ -296,6 +310,9 @@ pub async fn update_me(
     .bind(body.status)
     .bind(body.custom_status)
     .bind(next_password_hash)
+    .bind(next_avatar_url)
+    .bind(next_avatar_decoration_url)
+    .bind(next_banner_url)
     .bind(body.voice_mic_muted)
     .bind(body.voice_headphones_muted)
     .bind(body.voice_input_profile)
@@ -896,4 +913,46 @@ fn ensure_current_password_if_required(
     }
 
     Ok(())
+}
+
+fn normalize_remote_gif_url(value: Option<&str>, field: &str) -> Result<Option<String>> {
+    let Some(raw_value) = value else {
+        return Ok(None);
+    };
+
+    let trimmed = raw_value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let parsed = Url::parse(trimmed)
+        .map_err(|_| AppError::validation(field, "La URL del GIF no es valida"))?;
+
+    if parsed.scheme() != "https" {
+        return Err(AppError::validation(
+            field,
+            "Solo se permiten GIF remotos por HTTPS",
+        ));
+    }
+
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    let is_allowed_giphy_host =
+        host == "giphy.com" || host.ends_with(".giphy.com");
+
+    if !is_allowed_giphy_host {
+        return Err(AppError::validation(
+            field,
+            "Solo se permiten GIF remotos de Giphy en esta version",
+        ));
+    }
+
+    let path = parsed.path().to_ascii_lowercase();
+    if !path.ends_with(".gif") {
+        return Err(AppError::validation(
+            field,
+            "La URL remota debe apuntar a un GIF",
+        ));
+    }
+
+    Ok(Some(parsed.to_string()))
 }

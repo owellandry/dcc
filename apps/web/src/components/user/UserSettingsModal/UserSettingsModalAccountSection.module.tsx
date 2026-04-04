@@ -4,6 +4,7 @@ import { type ChangeEvent, type RefObject } from 'react'
 import { Camera, ImagePlus, LoaderCircle, Mail, Sparkles, UserRound } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { resolveMediaUrl } from '@/lib/api'
+import { useCachedRemoteGifUrl } from '@/lib/media/remoteGifCache.shared'
 import type { User } from '@/lib/types'
 import { getUserHandle } from '@/lib/users/displayName.shared'
 import {
@@ -55,6 +56,7 @@ export function UserSettingsModalAccountSection({
 }: UserSettingsModalAccountSectionProps) {
   const effectiveDisplayName = displayName.trim() || user.displayName || user.username
   const effectiveUsername = username.trim() || user.username
+  const bannerUrl = useCachedRemoteGifUrl(resolveMediaUrl(user.bannerUrl))
   const decorationPresentation = useUserDecorationPresentation(user.avatarDecorationUrl)
   const decorationColors = decorationPresentation
     ? getUserDecorationToneColors(decorationPresentation.tone)
@@ -66,7 +68,7 @@ export function UserSettingsModalAccountSection({
         <div className="relative h-44 border-b border-[var(--b1)] bg-[var(--s2)]">
           {user.bannerUrl ? (
             <img
-              src={resolveMediaUrl(user.bannerUrl)}
+              src={bannerUrl}
               alt="Banner"
               className="h-full w-full object-cover"
             />

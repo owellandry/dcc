@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { resolveMediaUrl } from '@/lib/api'
 import { cn } from '@/lib/cn'
+import { useCachedRemoteGifUrl } from '@/lib/media/remoteGifCache.shared'
 import { useAppearanceStore } from '@/stores/appearanceStore'
 
 export type UserDecorationTone = 'light' | 'dark'
@@ -103,7 +104,8 @@ export function useUserDecorationPresentation(
   src?: string | null
 ): UserDecorationPresentation | null {
   const customColorScheme = useAppearanceStore((state) => state.customColorScheme)
-  const resolvedSrc = resolveMediaUrl(src)
+  const baseResolvedSrc = resolveMediaUrl(src)
+  const resolvedSrc = useCachedRemoteGifUrl(baseResolvedSrc) ?? baseResolvedSrc
   const fallbackTone: UserDecorationTone = customColorScheme === 'oscuro' ? 'light' : 'dark'
   const [tone, setTone] = useState<UserDecorationTone>(() => {
     if (!resolvedSrc) return fallbackTone

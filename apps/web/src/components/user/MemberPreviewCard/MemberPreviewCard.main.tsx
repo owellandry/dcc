@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { MessageSquare, AtSign, UserRound } from 'lucide-react'
 import { dmsApi, resolveMediaUrl } from '@/lib/api'
 import { getFloatingCardPosition, type FloatingAnchorRect, type FloatingPlacement } from '@/lib/layout/floatingCard.shared'
+import { useCachedRemoteGifUrl } from '@/lib/media/remoteGifCache.shared'
 import { isMockSession } from '@/lib/mock-init'
 import type { Channel, ServerMember, UserStatus } from '@/lib/types'
 import { getMemberDisplayName, getUserHandle } from '@/lib/users/displayName.shared'
@@ -35,6 +36,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
   const [bannerAccentColor, setBannerAccentColor] = useState<string | null>(null)
   const isMock = isMockSession()
+  const resolvedBannerUrl = useCachedRemoteGifUrl(resolveMediaUrl(member.user.bannerUrl))
 
   const dmChannels = useMemo(
     () =>
@@ -56,7 +58,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
   const isCurrentUser = myUserId === member.user.id
 
   useEffect(() => {
-    const bannerUrl = resolveMediaUrl(member.user.bannerUrl)
+    const bannerUrl = resolvedBannerUrl
     if (!bannerUrl) {
       setBannerAccentColor(null)
       return
@@ -118,11 +120,11 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
     return () => {
       cancelled = true
     }
-  }, [member.user.bannerUrl])
+  }, [resolvedBannerUrl])
 
-  const bannerStyle = member.user.bannerUrl
+  const bannerStyle = resolvedBannerUrl
     ? {
-        backgroundImage: `url(${resolveMediaUrl(member.user.bannerUrl)})`,
+        backgroundImage: `url(${resolvedBannerUrl})`,
         backgroundPosition: 'center',
         backgroundSize: 'cover',
       }
@@ -209,7 +211,7 @@ export function MemberPreviewCard({ previewRef, member, status, isOwner, anchorR
         <span
           className="absolute inset-0"
           style={{
-            background: member.user.bannerUrl
+            background: resolvedBannerUrl
               ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.18))'
               : 'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))',
           }}

@@ -337,7 +337,15 @@ export const usersApi = {
     body: Partial<
       Pick<
         import('../types').User,
-        'displayName' | 'username' | 'email' | 'bio' | 'status' | 'customStatus'
+        | 'displayName'
+        | 'username'
+        | 'email'
+        | 'bio'
+        | 'status'
+        | 'customStatus'
+        | 'avatarUrl'
+        | 'avatarDecorationUrl'
+        | 'bannerUrl'
       >
     > & {
       voiceMicMuted?: boolean

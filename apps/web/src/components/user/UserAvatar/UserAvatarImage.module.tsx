@@ -3,6 +3,7 @@
 import { memo, useEffect, useState } from 'react'
 import type { UserStatus } from '@/lib/types'
 import { cn } from '@/lib/cn'
+import { useCachedRemoteGifUrl } from '@/lib/media/remoteGifCache.shared'
 
 interface UserAvatarImageProps {
   src: string
@@ -71,9 +72,10 @@ function resolveGifStillFrame(src: string): Promise<string> {
 }
 
 export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status }: UserAvatarImageProps) {
-  const isGif = isGifAvatar(src)
+  const cachedSrc = useCachedRemoteGifUrl(src) ?? src
+  const isGif = isGifAvatar(cachedSrc)
   const [isHovered, setIsHovered] = useState(false)
-  const [stillSrc, setStillSrc] = useState<string | null>(() => (isGif ? gifStillFrameCache.get(src) ?? null : null))
+  const [stillSrc, setStillSrc] = useState<string | null>(() => (isGif ? gifStillFrameCache.get(cachedSrc) ?? null : null))
 
   useEffect(() => {
     if (!isGif) {
@@ -81,7 +83,7 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
       return
     }
 
-    const cachedFrame = gifStillFrameCache.get(src)
+    const cachedFrame = gifStillFrameCache.get(cachedSrc)
     if (cachedFrame) {
       setStillSrc(cachedFrame)
       return
@@ -89,7 +91,7 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
 
     let cancelled = false
 
-    void resolveGifStillFrame(src).then((nextStillSrc) => {
+    void resolveGifStillFrame(cachedSrc).then((nextStillSrc) => {
       if (cancelled) return
       setStillSrc(nextStillSrc)
     })
@@ -97,10 +99,10 @@ export const UserAvatarImage = memo(function UserAvatarImage({ src, alt, status 
     return () => {
       cancelled = true
     }
-  }, [isGif, src])
+  }, [cachedSrc, isGif])
 
   const isActive = isHovered
-  const resolvedSrc = isGif && !isActive ? (stillSrc ?? src) : src
+  const resolvedSrc = isGif && !isActive ? (stillSrc ?? cachedSrc) : cachedSrc
 
   if (isGif && !isActive && stillSrc === null) {
     return (
