@@ -18,3 +18,6 @@ package-lock.json
 Cargo.lock
 target-wsl
 s3
+bundle*
+.bundle*
+*.bundle*

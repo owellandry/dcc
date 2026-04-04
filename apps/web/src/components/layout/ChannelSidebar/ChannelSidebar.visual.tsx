@@ -86,6 +86,7 @@ export function ChannelSidebarVisual({
   const [dragItem, setDragItem] = useState<SidebarDragItem | null>(null)
   const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null)
   const [justDraggedKey, setJustDraggedKey] = useState<string | null>(null)
+  const dragItemRef = useRef<SidebarDragItem | null>(null)
   const justDraggedTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -120,6 +121,7 @@ export function ChannelSidebarVisual({
   }
 
   const clearDragState = () => {
+    dragItemRef.current = null
     setDragItem(null)
     setDropTarget(null)
   }
@@ -160,6 +162,7 @@ export function ChannelSidebarVisual({
       customMime: event.dataTransfer.getData(SIDEBAR_DRAG_MIME),
     })
     setDragItem(nextItem)
+    dragItemRef.current = nextItem
     setDropTarget(null)
   }
 
@@ -180,6 +183,7 @@ export function ChannelSidebarVisual({
       customMime: event.dataTransfer.getData(SIDEBAR_DRAG_MIME),
     })
     setDragItem(nextItem)
+    dragItemRef.current = nextItem
     setDropTarget(null)
   }
 
@@ -250,8 +254,9 @@ export function ChannelSidebarVisual({
             }}
             onDrop={(event) => {
               event.preventDefault()
-              if (dragItem.kind !== 'channel') return
-              void onMoveChannel(dragItem.id, { kind: 'category', categoryId: null })
+              const currentDragItem = dragItemRef.current ?? dragItem
+              if (currentDragItem?.kind !== 'channel') return
+              void onMoveChannel(currentDragItem.id, { kind: 'category', categoryId: null })
               clearDragState()
             }}
             className={cn(
@@ -286,13 +291,14 @@ export function ChannelSidebarVisual({
                 justDraggedKey={justDraggedKey}
                 onChannelDragStart={handleChannelDragStart}
                 onChannelDragEnd={(itemId) => {
-                  if (dragItem?.kind === 'channel' && dragItem.id === itemId) {
-                    markJustDragged(dragItem)
+                  const currentDragItem = dragItemRef.current ?? dragItem
+                  if (currentDragItem?.kind === 'channel' && currentDragItem.id === itemId) {
+                    markJustDragged(currentDragItem)
                   }
                   clearDragState()
                 }}
                 onChannelDragOver={(event) => {
-                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drag-over-channel-uncategorized', {
                     overChannelId: channel.id,
                     currentDragItem,
@@ -308,7 +314,7 @@ export function ChannelSidebarVisual({
                   })
                 }}
                 onChannelDrop={(event) => {
-                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drop-channel-uncategorized', {
                     overChannelId: channel.id,
                     currentDragItem,
@@ -351,13 +357,14 @@ export function ChannelSidebarVisual({
                     categoryId: group.id,
                     dragItem,
                   })
-                  if (dragItem?.kind === 'category' && dragItem.id === group.id) {
-                    markJustDragged(dragItem)
+                  const currentDragItem = dragItemRef.current ?? dragItem
+                  if (currentDragItem?.kind === 'category' && currentDragItem.id === group.id) {
+                    markJustDragged(currentDragItem)
                   }
                   clearDragState()
                 }}
                 onDragOver={(event) => {
-                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drag-over-category-header', {
                     categoryId: group.id,
                     currentDragItem,
@@ -377,7 +384,7 @@ export function ChannelSidebarVisual({
                   })
                 }}
                 onDrop={(event) => {
-                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drop-category-header', {
                     categoryId: group.id,
                     currentDragItem,
@@ -447,8 +454,9 @@ export function ChannelSidebarVisual({
                       }}
                       onDrop={(event) => {
                         event.preventDefault()
-                        if (dragItem.kind !== 'channel') return
-                        void onMoveChannel(dragItem.id, { kind: 'category', categoryId: group.id })
+                        const currentDragItem = dragItemRef.current ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
+                        void onMoveChannel(currentDragItem.id, { kind: 'category', categoryId: group.id })
                         clearDragState()
                       }}
                       className={cn(
@@ -490,13 +498,14 @@ export function ChannelSidebarVisual({
                         justDraggedKey={justDraggedKey}
                         onChannelDragStart={handleChannelDragStart}
                         onChannelDragEnd={(itemId) => {
-                          if (dragItem?.kind === 'channel' && dragItem.id === itemId) {
-                            markJustDragged(dragItem)
+                          const currentDragItem = dragItemRef.current ?? dragItem
+                          if (currentDragItem?.kind === 'channel' && currentDragItem.id === itemId) {
+                            markJustDragged(currentDragItem)
                           }
                           clearDragState()
                         }}
                         onChannelDragOver={(event) => {
-                          const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                          const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                           logSidebarDnD('drag-over-channel-category', {
                             categoryId: group.id,
                             overChannelId: channel.id,
@@ -513,7 +522,7 @@ export function ChannelSidebarVisual({
                           })
                         }}
                         onChannelDrop={(event) => {
-                          const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                          const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                           logSidebarDnD('drop-channel-category', {
                             categoryId: group.id,
                             overChannelId: channel.id,
