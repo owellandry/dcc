@@ -248,8 +248,13 @@ export function ChannelSidebarVisual({
       >
         {canManageChannels && dragItem?.kind === 'channel' ? (
           <div
+            onDragEnter={(event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+            }}
             onDragOver={(event) => {
               event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
               setDropTarget({ kind: 'channel-list', categoryId: null })
             }}
             onDrop={(event) => {
@@ -297,6 +302,10 @@ export function ChannelSidebarVisual({
                   }
                   clearDragState()
                 }}
+                onChannelDragEnter={(event) => {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                }}
                 onChannelDragOver={(event) => {
                   const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drag-over-channel-uncategorized', {
@@ -307,6 +316,7 @@ export function ChannelSidebarVisual({
                   })
                   if (currentDragItem?.kind !== 'channel') return
                   event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
                   setDropTarget({
                     kind: 'channel',
                     channelId: channel.id,
@@ -363,6 +373,10 @@ export function ChannelSidebarVisual({
                   }
                   clearDragState()
                 }}
+                onDragEnter={(event) => {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                }}
                 onDragOver={(event) => {
                   const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                   logSidebarDnD('drag-over-category-header', {
@@ -373,6 +387,7 @@ export function ChannelSidebarVisual({
                   })
                   if (!currentDragItem) return
                   event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
                   if (currentDragItem.kind === 'channel') {
                     setDropTarget({ kind: 'channel-list', categoryId: group.id })
                     return
@@ -448,8 +463,13 @@ export function ChannelSidebarVisual({
                     transition={{ duration: 0.18 }}
                   >
                     <div
+                      onDragEnter={(event) => {
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
                       onDragOver={(event) => {
                         event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
                         setDropTarget({ kind: 'channel-list', categoryId: group.id })
                       }}
                       onDrop={(event) => {
@@ -504,6 +524,10 @@ export function ChannelSidebarVisual({
                           }
                           clearDragState()
                         }}
+                        onChannelDragEnter={(event) => {
+                          event.preventDefault()
+                          event.dataTransfer.dropEffect = 'move'
+                        }}
                         onChannelDragOver={(event) => {
                           const currentDragItem = dragItemRef.current ?? readSidebarDragItem(event) ?? dragItem
                           logSidebarDnD('drag-over-channel-category', {
@@ -515,6 +539,7 @@ export function ChannelSidebarVisual({
                           })
                           if (currentDragItem?.kind !== 'channel') return
                           event.preventDefault()
+                          event.dataTransfer.dropEffect = 'move'
                           setDropTarget({
                             kind: 'channel',
                             channelId: channel.id,
@@ -694,6 +719,7 @@ function ChannelItem({
   justDraggedKey,
   onChannelDragStart,
   onChannelDragEnd,
+  onChannelDragEnter,
   onChannelDragOver,
   onChannelDrop,
   onOpenChannelSettings,
@@ -707,6 +733,7 @@ function ChannelItem({
   justDraggedKey: string | null
   onChannelDragStart: (event: DragEvent<HTMLElement>, channelId: string) => void
   onChannelDragEnd: (channelId: string) => void
+  onChannelDragEnter: (event: DragEvent<HTMLDivElement>) => void
   onChannelDragOver: (event: DragEvent<HTMLDivElement>) => void
   onChannelDrop: (event: DragEvent<HTMLDivElement>) => void
   onOpenChannelSettings: (channelId: string) => void
@@ -758,6 +785,7 @@ function ChannelItem({
           })
           onChannelDragEnd(item.id)
         }}
+        onDragEnter={onChannelDragEnter}
         onDragOver={onChannelDragOver}
         onDrop={onChannelDrop}
         data-dnd-name={item.name}
