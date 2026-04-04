@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import type { VoiceParticipant, VoiceScreenShare } from '@/lib/types'
+import type { VoiceInputProfile, VoiceParticipant, VoiceScreenShare } from '@/lib/types'
 
 export type VoiceConnectionState = 'idle' | 'requesting-media' | 'joining' | 'connected' | 'error'
 
@@ -13,6 +13,11 @@ interface VoiceState {
   errorMessage: string | null
   isMicMuted: boolean
   isHeadphonesMuted: boolean
+  inputVolume: number
+  outputVolume: number
+  voiceInputProfile: VoiceInputProfile
+  voiceInputTone: number
+  voiceInputEffectMix: number
   participantsByChannel: Record<string, Record<string, VoiceParticipant>>
   screenSharesByChannel: Record<string, Record<string, VoiceScreenShare>>
   joinVoiceChannel: (serverId: string, channelId: string) => void
@@ -31,6 +36,11 @@ interface VoiceState {
   toggleHeadphones: () => void
   setMicMuted: (value: boolean) => void
   setHeadphonesMuted: (value: boolean) => void
+  setInputVolume: (value: number) => void
+  setOutputVolume: (value: number) => void
+  setVoiceInputProfile: (value: VoiceInputProfile) => void
+  setVoiceInputTone: (value: number) => void
+  setVoiceInputEffectMix: (value: number) => void
 }
 
 export const useVoiceStore = create<VoiceState>((set) => ({
@@ -41,6 +51,11 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   errorMessage: null,
   isMicMuted: false,
   isHeadphonesMuted: false,
+  inputVolume: 100,
+  outputVolume: 100,
+  voiceInputProfile: 'natural',
+  voiceInputTone: 0,
+  voiceInputEffectMix: 60,
   participantsByChannel: {},
   screenSharesByChannel: {},
 
@@ -153,4 +168,17 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   toggleHeadphones: () => set((state) => ({ isHeadphonesMuted: !state.isHeadphonesMuted })),
   setMicMuted: (value) => set({ isMicMuted: value }),
   setHeadphonesMuted: (value) => set({ isHeadphonesMuted: value }),
+  setInputVolume: (value) => set({ inputVolume: clampAudioSetting(value) }),
+  setOutputVolume: (value) => set({ outputVolume: clampAudioSetting(value) }),
+  setVoiceInputProfile: (value) => set({ voiceInputProfile: value }),
+  setVoiceInputTone: (value) => set({ voiceInputTone: clampVoiceTone(value) }),
+  setVoiceInputEffectMix: (value) => set({ voiceInputEffectMix: clampAudioSetting(value) }),
 }))
+
+function clampAudioSetting(value: number) {
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+function clampVoiceTone(value: number) {
+  return Math.min(100, Math.max(-100, Math.round(value)))
+}
