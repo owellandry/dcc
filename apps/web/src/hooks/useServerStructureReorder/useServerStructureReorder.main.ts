@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { serversApi } from '@/lib/api'
 import { isMockSession } from '@/lib/mock-init'
@@ -30,7 +30,7 @@ export function useServerStructureReorder({
 }: UseServerStructureReorderOptions) {
   const setChannels = useServersStore((state) => state.setChannels)
   const latestStructureRef = useRef<ServerStructureSnapshot>({ categories, channels })
-  const [isReorderingStructure, setIsReorderingStructure] = useState(false)
+  const isReorderingStructureRef = useRef(false)
 
   useEffect(() => {
     latestStructureRef.current = { categories, channels }
@@ -48,7 +48,7 @@ export function useServerStructureReorder({
 
     if (isMockSession()) return
 
-    setIsReorderingStructure(true)
+    isReorderingStructureRef.current = true
 
     try {
       await serversApi.reorderStructure(serverId, buildStructureReorderPayload(nextStructure))
@@ -57,7 +57,7 @@ export function useServerStructureReorder({
       latestStructureRef.current = previousStructure
       toast.error(errorMessage)
     } finally {
-      setIsReorderingStructure(false)
+      isReorderingStructureRef.current = false
     }
   }
 
@@ -65,7 +65,7 @@ export function useServerStructureReorder({
     draggedChannelId: string,
     target: StructureChannelDropTarget
   ) => {
-    if (!serverId || !enabled || isReorderingStructure) return
+    if (!serverId || !enabled || isReorderingStructureRef.current) return
 
     const previousStructure = latestStructureRef.current
     const nextStructure = moveChannelInStructure(
@@ -88,7 +88,7 @@ export function useServerStructureReorder({
     draggedCategoryId: string,
     target: StructureCategoryDropTarget
   ) => {
-    if (!serverId || !enabled || isReorderingStructure) return
+    if (!serverId || !enabled || isReorderingStructureRef.current) return
 
     const previousStructure = latestStructureRef.current
     const nextStructure = moveCategoryInStructure(
@@ -108,7 +108,7 @@ export function useServerStructureReorder({
   }
 
   return {
-    isReorderingStructure,
+    isReorderingStructure: false,
     moveChannel,
     moveCategory,
   }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ChevronDown,
   Hash,
@@ -20,7 +20,6 @@ import { getChannelIconComponent } from '@/lib/channel-icons/channelIcons.shared
 import { cn } from '@/lib/cn'
 import {
   AnimatePresence,
-  interactiveMotion,
   itemVariants,
   listVariants,
   motion,
@@ -40,6 +39,8 @@ type SidebarDragItem =
   | { kind: 'channel'; id: string }
   | { kind: 'category'; id: string }
 
+const SIDEBAR_DRAG_MIME = 'application/x-dcc-sidebar-structure'
+
 export function ChannelSidebarVisual({
   resolvedServerId,
   serverName,
@@ -47,7 +48,6 @@ export function ChannelSidebarVisual({
   canOpenServerSettings,
   canCreateChannels,
   canManageChannels,
-  isReorderingStructure,
   uncategorizedChannels,
   categorizedChannels,
   isInviteModalOpen,
@@ -135,16 +135,20 @@ export function ChannelSidebarVisual({
   const handleChannelDragStart = (event: DragEvent<HTMLElement>, channelId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
+    const nextItem = { kind: 'channel', id: channelId } satisfies SidebarDragItem
     event.dataTransfer.setData('text/plain', channelId)
-    setDragItem({ kind: 'channel', id: channelId })
+    event.dataTransfer.setData(SIDEBAR_DRAG_MIME, JSON.stringify(nextItem))
+    setDragItem(nextItem)
     setDropTarget(null)
   }
 
   const handleCategoryDragStart = (event: DragEvent<HTMLElement>, categoryId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
+    const nextItem = { kind: 'category', id: categoryId } satisfies SidebarDragItem
     event.dataTransfer.setData('text/plain', categoryId)
-    setDragItem({ kind: 'category', id: categoryId })
+    event.dataTransfer.setData(SIDEBAR_DRAG_MIME, JSON.stringify(nextItem))
+    setDragItem(nextItem)
     setDropTarget(null)
   }
 
@@ -236,7 +240,6 @@ export function ChannelSidebarVisual({
               item={channel}
               nowMs={nowMs}
               canManageChannels={canManageChannels}
-              isReorderingStructure={isReorderingStructure}
               isDragging={dragItem?.kind === 'channel' && dragItem.id === channel.id}
               isDropTargetBefore={
                 dropTarget?.kind === 'channel' &&
@@ -257,7 +260,8 @@ export function ChannelSidebarVisual({
                 clearDragState()
               }}
               onChannelDragOver={(event) => {
-                if (dragItem?.kind !== 'channel') return
+                const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                if (currentDragItem?.kind !== 'channel') return
                 event.preventDefault()
                 setDropTarget({
                   kind: 'channel',
@@ -266,9 +270,10 @@ export function ChannelSidebarVisual({
                 })
               }}
               onChannelDrop={(event) => {
-                if (dragItem?.kind !== 'channel') return
+                const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                if (currentDragItem?.kind !== 'channel') return
                 event.preventDefault()
-                void onMoveChannel(dragItem.id, {
+                void onMoveChannel(currentDragItem.id, {
                   kind: 'channel',
                   channelId: channel.id,
                   placement: getDropPlacement(event),
@@ -291,10 +296,10 @@ export function ChannelSidebarVisual({
                 }}
                 className={cn(
                   'flex min-w-0 flex-1 items-center gap-1 rounded-lg px-1 py-0.5 text-left transition-colors',
-                  canManageChannels && !isReorderingStructure && 'cursor-grab active:cursor-grabbing',
+                  canManageChannels && 'cursor-grab active:cursor-grabbing',
                   dragItem?.kind === 'category' && dragItem.id === group.id && 'opacity-40'
                 )}
-                draggable={canManageChannels && !isReorderingStructure}
+                draggable={canManageChannels}
                 onDragStart={(event) => handleCategoryDragStart(event, group.id)}
                 onDragEnd={() => {
                   if (dragItem?.kind === 'category' && dragItem.id === group.id) {
@@ -303,9 +308,10 @@ export function ChannelSidebarVisual({
                   clearDragState()
                 }}
                 onDragOver={(event) => {
-                  if (!dragItem) return
+                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  if (!currentDragItem) return
                   event.preventDefault()
-                  if (dragItem.kind === 'channel') {
+                  if (currentDragItem.kind === 'channel') {
                     setDropTarget({ kind: 'channel-list', categoryId: group.id })
                     return
                   }
@@ -316,12 +322,13 @@ export function ChannelSidebarVisual({
                   })
                 }}
                 onDrop={(event) => {
-                  if (!dragItem) return
+                  const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                  if (!currentDragItem) return
                   event.preventDefault()
-                  if (dragItem.kind === 'channel') {
-                    void onMoveChannel(dragItem.id, { kind: 'category', categoryId: group.id })
+                  if (currentDragItem.kind === 'channel') {
+                    void onMoveChannel(currentDragItem.id, { kind: 'category', categoryId: group.id })
                   } else {
-                    void onMoveCategory(dragItem.id, {
+                    void onMoveCategory(currentDragItem.id, {
                       categoryId: group.id,
                       placement: getDropPlacement(event),
                     })
@@ -404,7 +411,6 @@ export function ChannelSidebarVisual({
                       item={channel}
                       nowMs={nowMs}
                       canManageChannels={canManageChannels}
-                      isReorderingStructure={isReorderingStructure}
                       isDragging={dragItem?.kind === 'channel' && dragItem.id === channel.id}
                       isDropTargetBefore={
                         dropTarget?.kind === 'channel' &&
@@ -425,7 +431,8 @@ export function ChannelSidebarVisual({
                         clearDragState()
                       }}
                       onChannelDragOver={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
                         setDropTarget({
                           kind: 'channel',
@@ -434,9 +441,10 @@ export function ChannelSidebarVisual({
                         })
                       }}
                       onChannelDrop={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readSidebarDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
-                        void onMoveChannel(dragItem.id, {
+                        void onMoveChannel(currentDragItem.id, {
                           kind: 'channel',
                           channelId: channel.id,
                           placement: getDropPlacement(event),
@@ -553,11 +561,30 @@ export function ChannelSidebarVisual({
   )
 }
 
+function readSidebarDragItem(event: DragEvent<HTMLElement>): SidebarDragItem | null {
+  const serializedItem = event.dataTransfer.getData(SIDEBAR_DRAG_MIME)
+  if (!serializedItem) return null
+
+  try {
+    const parsedItem = JSON.parse(serializedItem) as SidebarDragItem
+    if (
+      parsedItem &&
+      (parsedItem.kind === 'channel' || parsedItem.kind === 'category') &&
+      typeof parsedItem.id === 'string'
+    ) {
+      return parsedItem
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
 function ChannelItem({
   item,
   nowMs,
   canManageChannels,
-  isReorderingStructure,
   isDragging,
   isDropTargetBefore,
   isDropTargetAfter,
@@ -571,7 +598,6 @@ function ChannelItem({
   item: ChannelSidebarItem
   nowMs: number
   canManageChannels: boolean
-  isReorderingStructure: boolean
   isDragging: boolean
   isDropTargetBefore: boolean
   isDropTargetAfter: boolean
@@ -582,7 +608,6 @@ function ChannelItem({
   onChannelDrop: (event: DragEvent<HTMLDivElement>) => void
   onOpenChannelSettings: (channelId: string) => void
 }) {
-  const mobileSidebar = useMobileSidebar()
   const normalizedName = item.name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -611,37 +636,25 @@ function ChannelItem({
     : null
 
   return (
-    <motion.div {...interactiveMotion}>
+    <div>
       <div
         className={cn(
           'group relative rounded-xl transition-opacity',
+          canManageChannels && 'cursor-grab active:cursor-grabbing',
           isDragging && 'opacity-40',
           isDropTargetBefore && 'before:absolute before:-top-1 before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-[var(--ember)]',
-          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]',
-          canManageChannels && !isReorderingStructure && 'cursor-grab active:cursor-grabbing'
+          isDropTargetAfter && 'after:absolute after:-bottom-1 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[var(--ember)]'
         )}
-        draggable={canManageChannels && !isReorderingStructure}
+        draggable={canManageChannels}
         onDragStart={(event) => onChannelDragStart(event, item.id)}
         onDragEnd={() => onChannelDragEnd(item.id)}
-        onDragOver={canManageChannels ? onChannelDragOver : undefined}
-        onDrop={canManageChannels ? onChannelDrop : undefined}
+        onDragOver={onChannelDragOver}
+        onDrop={onChannelDrop}
+        data-dnd-name={item.name}
       >
-        <Link
-          href={`/channels/${item.serverId}/${item.id}`}
-          draggable={false}
-          onClick={(event) => {
-            if (justDraggedKey === `channel:${item.id}`) {
-              event.preventDefault()
-              return
-            }
-            mobileSidebar?.close()
-          }}
-          className={cn(
-            'channel-item',
-            hasVoiceParticipants && 'rounded-b-none border-b-0',
-            item.active && 'active',
-            item.hasUnread && !item.active && 'has-unread'
-          )}
+        <ChannelItemButton
+          item={item}
+          justDraggedKey={justDraggedKey}
         >
           <ChannelIcon
             size={18}
@@ -701,7 +714,7 @@ function ChannelItem({
               <Settings2 size={14} />
             </button>
           ) : null}
-        </Link>
+        </ChannelItemButton>
       </div>
 
       {hasVoiceParticipants ? (
@@ -754,7 +767,47 @@ function ChannelItem({
           </div>
         </div>
       ) : null}
-    </motion.div>
+    </div>
+  )
+}
+
+function ChannelItemButton({
+  item,
+  justDraggedKey,
+  children,
+}: {
+  item: ChannelSidebarItem
+  justDraggedKey: string | null
+  children: ReactNode
+}) {
+  const router = useRouter()
+  const mobileSidebar = useMobileSidebar()
+
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => {
+        if (justDraggedKey === `channel:${item.id}`) return
+        mobileSidebar?.close()
+        router.push(`/channels/${item.serverId}/${item.id}`)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        if (justDraggedKey === `channel:${item.id}`) return
+        mobileSidebar?.close()
+        router.push(`/channels/${item.serverId}/${item.id}`)
+      }}
+      className={cn(
+        'channel-item w-full',
+        item.voiceParticipants?.length ? 'rounded-b-none border-b-0' : '',
+        item.active && 'active',
+        item.hasUnread && !item.active && 'has-unread'
+      )}
+    >
+      {children}
+    </div>
   )
 }
 

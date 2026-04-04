@@ -22,6 +22,8 @@ type StructureModalDragItem =
   | { kind: 'channel'; id: string }
   | { kind: 'category'; id: string }
 
+const STRUCTURE_MODAL_DRAG_MIME = 'application/x-dcc-structure-modal'
+
 interface ServerSettingsModalChannelsSectionProps {
   sortedCategories: Category[]
   sortedChannels: Channel[]
@@ -158,16 +160,20 @@ export function ServerSettingsModalChannelsSection({
   const handleChannelDragStart = (event: DragEvent<HTMLElement>, channelId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
+    const nextItem = { kind: 'channel', id: channelId } satisfies StructureModalDragItem
     event.dataTransfer.setData('text/plain', channelId)
-    setDragItem({ kind: 'channel', id: channelId })
+    event.dataTransfer.setData(STRUCTURE_MODAL_DRAG_MIME, JSON.stringify(nextItem))
+    setDragItem(nextItem)
     setDropTarget(null)
   }
 
   const handleCategoryDragStart = (event: DragEvent<HTMLElement>, categoryId: string) => {
     event.stopPropagation()
     event.dataTransfer.effectAllowed = 'move'
+    const nextItem = { kind: 'category', id: categoryId } satisfies StructureModalDragItem
     event.dataTransfer.setData('text/plain', categoryId)
-    setDragItem({ kind: 'category', id: categoryId })
+    event.dataTransfer.setData(STRUCTURE_MODAL_DRAG_MIME, JSON.stringify(nextItem))
+    setDragItem(nextItem)
     setDropTarget(null)
   }
 
@@ -280,7 +286,8 @@ export function ServerSettingsModalChannelsSection({
                           : ''
                       )}
                       onDragOver={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
                         setDropTarget({
                           kind: 'channel',
@@ -289,9 +296,10 @@ export function ServerSettingsModalChannelsSection({
                         })
                       }}
                       onDrop={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
-                        onMoveChannel(dragItem.id, {
+                        onMoveChannel(currentDragItem.id, {
                           kind: 'channel',
                           channelId: channel.id,
                           placement: getDropPlacement(event),
@@ -382,9 +390,10 @@ export function ServerSettingsModalChannelsSection({
                       onSelectionChange({ kind: 'category', id: category.id })
                     }}
                     onDragOver={(event) => {
-                      if (!dragItem) return
+                      const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                      if (!currentDragItem) return
                       event.preventDefault()
-                      if (dragItem.kind === 'channel') {
+                      if (currentDragItem.kind === 'channel') {
                         setDropTarget({ kind: 'channel-list', categoryId: category.id })
                         return
                       }
@@ -395,12 +404,13 @@ export function ServerSettingsModalChannelsSection({
                       })
                     }}
                     onDrop={(event) => {
-                      if (!dragItem) return
+                      const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                      if (!currentDragItem) return
                       event.preventDefault()
-                      if (dragItem.kind === 'channel') {
-                        onMoveChannel(dragItem.id, { kind: 'category', categoryId: category.id })
+                      if (currentDragItem.kind === 'channel') {
+                        onMoveChannel(currentDragItem.id, { kind: 'category', categoryId: category.id })
                       } else {
-                        onMoveCategory(dragItem.id, {
+                        onMoveCategory(currentDragItem.id, {
                           categoryId: category.id,
                           placement: getDropPlacement(event),
                         })
@@ -437,7 +447,8 @@ export function ServerSettingsModalChannelsSection({
                           : ''
                       )}
                       onDragOver={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
                         setDropTarget({
                           kind: 'channel',
@@ -446,9 +457,10 @@ export function ServerSettingsModalChannelsSection({
                         })
                       }}
                       onDrop={(event) => {
-                        if (dragItem?.kind !== 'channel') return
+                        const currentDragItem = readStructureModalDragItem(event) ?? dragItem
+                        if (currentDragItem?.kind !== 'channel') return
                         event.preventDefault()
-                        onMoveChannel(dragItem.id, {
+                        onMoveChannel(currentDragItem.id, {
                           kind: 'channel',
                           channelId: channel.id,
                           placement: getDropPlacement(event),
@@ -707,6 +719,26 @@ export function ServerSettingsModalChannelsSection({
       </div>
     </ServerSettingsContentShell>
   )
+}
+
+function readStructureModalDragItem(event: DragEvent<HTMLElement>): StructureModalDragItem | null {
+  const serializedItem = event.dataTransfer.getData(STRUCTURE_MODAL_DRAG_MIME)
+  if (!serializedItem) return null
+
+  try {
+    const parsedItem = JSON.parse(serializedItem) as StructureModalDragItem
+    if (
+      parsedItem &&
+      (parsedItem.kind === 'channel' || parsedItem.kind === 'category') &&
+      typeof parsedItem.id === 'string'
+    ) {
+      return parsedItem
+    }
+  } catch {
+    return null
+  }
+
+  return null
 }
 
 function getDropPlacement(event: DragEvent<HTMLElement>) {
